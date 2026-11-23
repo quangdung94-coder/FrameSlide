@@ -1,6 +1,6 @@
 # FrameSlide – hướng dẫn cho Claude
 
-FrameSlide là app Windows làm **B-roll slideshow ảnh** (không tiếng) để chèn vào phim cưới, sự kiện, year end party. Nhẹ như ProShow, đẹp gần template After Effects: Ken Burns / camera 2.5D, transition GPU, chữ tiếng Việt, và **film look xưa luôn bật**. Xuất **1920x1080, 30fps** ra MP4 / ProRes 422 HQ / DNxHR HQ.
+FrameSlide là app Windows làm **B-roll slideshow ảnh** (không tiếng) để chèn vào phim cưới, sự kiện, year end party. Nhẹ như ProShow, đẹp gần template After Effects: Ken Burns / camera 2.5D, transition GPU, chữ tiếng Việt, và film look xưa. **Mọi tính năng đều là tùy chọn** người dùng bật/tắt (film look bật sẵn mặc định). Xuất **1920x1080, 30fps** ra MP4 / ProRes 422 HQ / DNxHR HQ.
 
 Chủ dự án nói tiếng Việt. **Luôn trả lời, viết PR và commit message bằng tiếng Việt.** Tên biến, hàm, file trong code dùng tiếng Anh.
 
@@ -44,7 +44,7 @@ Trước khi báo xong một việc: `npm run typecheck && npm test && npm run b
 - `src/engine/` là code thuần (TypeScript + three), **không import Electron, Node hay React**. Phải test được trong Vitest.
 - Dựng hình là **hàm của thời gian**: `renderFrame(project, frameIndex)` cho cùng kết quả mỗi lần gọi. Mọi ngẫu nhiên (grain, bụi, rung khung) dùng PRNG có seed theo `project.look.seed` và `frameIndex`. Không dùng `Math.random()` hay `Date.now()` trong engine.
 - Xem trước và xuất video dùng **chung** code dựng hình. Không viết hai bản.
-- Film look **luôn bật**. Độ mạnh tối thiểu 0.1, không có đường nào tắt nó khi xuất.
+- **Mọi tính năng là tùy chọn**: film look, chuyển động, transition, chữ, chia khung đều tắt được. Tắt thì engine bỏ qua pass đó (không tốn GPU). Film look **bật sẵn** khi tạo dự án mới.
 - Không có audio ở bất cứ đâu. FFmpeg luôn chạy với `-an`.
 - Giải phóng texture/render target khi không dùng (`dispose()`). Không giữ ảnh gốc độ phân giải đầy trên GPU.
 - Chữ hiển thị trong UI viết bằng tiếng Việt có dấu.

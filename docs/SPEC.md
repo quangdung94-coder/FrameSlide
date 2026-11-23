@@ -21,7 +21,7 @@ Editor video sự kiện (chủ dự án là người dùng đầu tiên). Có m
   - MP4 H.264 chất lượng cao (yuv420p, CRF ~16 bằng libx264; dùng `h264_nvenc` nếu có NVIDIA).
   - MOV ProRes 422 HQ (`prores_ks` profile 3, yuv422p10le).
   - MOV DNxHR HQ (`dnxhd -profile:v dnxhr_hq`, yuv422p).
-- Film look luôn được áp vào đầu ra. Không có bản xuất "sạch".
+- Film look bật sẵn mặc định nhưng người dùng tắt được (xem mục 4a).
 
 ## 4. Tính năng bản 1 (MVP, hạn thứ Tư 25/11/2026)
 
@@ -29,7 +29,7 @@ Editor video sự kiện (chủ dự án là người dùng đầu tiên). Có m
 2. **Danh sách slide** kiểu ProShow: kéo thả đổi thứ tự, mỗi slide có thời lượng, chuyển động, transition sang slide kế, chữ.
 3. **Chuyển động:** Ken Burns (khung đầu, khung cuối, easing) và 4 preset camera 2.5D (dolly vào, dolly ra, lướt ngang, nghiêng nhẹ). Không bao giờ lộ viền đen.
 4. **Transition:** 10 transition chọn lọc từ GL Transitions (danh sách ở EFFECTS.md), chỉnh thời lượng.
-5. **Film look:** 5 look (EFFECTS.md), một thanh trượt độ mạnh 10–100%, đổi seed.
+5. **Film look:** 5 look (EFFECTS.md), bật/tắt, thanh trượt độ mạnh 0–100%, đổi seed. Trong look, từng thành phần (grain, bụi/xước, rung khung, nhấp nháy, light leak, vignette, viền) cũng bật/tắt riêng được.
 6. **Chữ tiếng Việt:** tiêu đề/chú thích, 3–4 font có đủ dấu, 4 kiểu hiệu ứng chữ.
 7. **Phong cách (Quick Create):** chọn ảnh + phong cách → app tự dựng slideshow. MVP có 2 phong cách: "Kỷ niệm" (memory) và "Phim xưa" (film).
 8. **Độ dài cố định:** 10, 15, 20, 30 giây hoặc tự nhập. App tự chia thời lượng cho các slide.
@@ -37,6 +37,20 @@ Editor video sự kiện (chủ dự án là người dùng đầu tiên). Có m
 10. **Xem trước** thời gian thực, chế độ Tự động / Nửa / Đầy đủ độ phân giải.
 11. **Chia khung trong một cảnh:** một slide có thể chứa 2 ảnh (chia đôi dọc hoặc ngang) hoặc 4 ảnh (lưới 2x2). Mỗi ô có Ken Burns riêng, khe hở giữa các ô chỉnh được (mặc định 8px, màu đen hoặc trắng kem). Film look áp lên cả khung hình sau khi ghép.
 12. **Lưu / mở dự án** (`.fslide`, JSON), tự lưu, hoàn tác/làm lại.
+
+## 4a. Nguyên tắc tùy chọn
+
+Mọi tính năng ở mục 4 là **tùy chọn**, người dùng quyết định có dùng hay không, cho cả dự án và cho từng slide:
+
+| Tính năng | Mặc định dự án mới | Tắt thì |
+|---|---|---|
+| Film look | Bật (Phim gia đình 8mm, 60%) | Hình sạch, không pass hậu kỳ nào |
+| Chuyển động | Ken Burns | `none`: ảnh đứng yên, fit-cover |
+| Transition | Fade 1s | `cut`: cắt thẳng, độ dài transition = 0 |
+| Chữ | Không có | – |
+| Chia khung | 1 ô | – |
+
+Phong cách (Quick Create) chỉ là bộ giá trị mặc định; dựng xong người dùng vẫn tắt/sửa được từng thứ.
 
 ## 5. Làm nếu kịp (stretch, sau MVP)
 

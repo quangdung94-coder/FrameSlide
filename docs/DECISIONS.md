@@ -8,7 +8,7 @@ Mỗi quyết định có lý do. **Không đề xuất lại cái đã bỏ** t
 | D02 | 23/11/2026 | Three.js (WebGL2), shader GLSL | Camera 3D, render target, post-process có sẵn. WebGPU chưa cần. |
 | D03 | 23/11/2026 | **Không có nhạc**, không audio | Video là B-roll không tiếng để chèn vào phim cưới, sự kiện, year end party. Bỏ nhạc làm app nhẹ và đơn giản hơn. |
 | D04 | 23/11/2026 | **Chỉ 1920x1080, 30fps** | Slideshow ảnh không cần 4K; 4K nặng gấp 4 lần cho mọi hiệu ứng điểm ảnh và VRAM. 25fps có thể thêm sau (PLAN S05). |
-| D05 | 23/11/2026 | **Film look luôn bật**, độ mạnh 10–100%, không có xuất "sạch" | Film look xưa là bản sắc của sản phẩm. Người dùng chỉ chỉnh độ mạnh cho hợp phim chính. |
+| D05 | 23/11/2026 | ~~Film look luôn bật~~ **Thay bằng D19** | Film look xưa là bản sắc của sản phẩm. Người dùng chỉ chỉnh độ mạnh cho hợp phim chính. |
 | D06 | 23/11/2026 | Xuất MP4 H.264 + ProRes 422 HQ + DNxHR HQ | Editor cần codec trung gian để đưa vào Resolve/Premiere không vỡ grain. |
 | D07 | 23/11/2026 | Xuất theo độ dài cố định và xuất hàng loạt | B-roll cần đúng độ dài để thả vào timeline; một thư mục cưới ra nhiều clip một lần. |
 | D08 | 23/11/2026 | Dựng hình tất định, xuất từng khung (offline), không quay màn hình | Bảo đảm không mất khung và khớp xem trước. Ngẫu nhiên dùng PRNG có seed. |
@@ -22,3 +22,4 @@ Mỗi quyết định có lý do. **Không đề xuất lại cái đã bỏ** t
 | D16 | 23/11/2026 | React cho UI, zod cho schema, sharp cho ảnh, ffmpeg-static cho FFmpeg | Thư viện phổ biến, ổn định trên Windows, Claude viết tốt. Danh sách đầy đủ ở ARCHITECTURE.md mục 6. |
 | D17 | 23/11/2026 | Lưu ý giấy phép FFmpeg: bản `ffmpeg-static` là build GPL (có libx264) | Dùng nội bộ thì không sao. Trước khi phát hành/bán phải xem lại (build LGPL + chỉ NVENC/encoder ngoài, hoặc tuân thủ GPL). Ghi trong ASSETS.md. |
 | D18 | 23/11/2026 | Đưa chia khung 2 ô và 4 ô vào MVP (PLAN T15b); mosaic 3x3 trở lên vẫn là stretch | Chủ dự án yêu cầu; B-roll cưới hay ghép đôi ảnh dọc. Làm bằng viewport, nhẹ. |
+| D19 | 23/11/2026 | **Mọi tính năng là tùy chọn** người dùng bật/tắt: film look (và từng thành phần), chuyển động, transition, chữ, chia khung. Film look bật sẵn mặc định | Chủ dự án yêu cầu: người dùng tự quyết thêm gì vào clip. Film look vẫn là tính năng nổi bật nên bật sẵn. |

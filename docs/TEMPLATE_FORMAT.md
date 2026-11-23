@@ -37,7 +37,8 @@ Không có trường `output.width/height/fps` vì đó là hằng số (1920x10
 - `transition` của slide i là chuyển cảnh **từ slide i sang slide i+1**. Slide cuối không có transition (hoặc bị bỏ qua).
 - Transition chồng lên cuối slide i và đầu slide i+1. Tổng độ dài = `Σ durationSec − Σ transition.durationSec`.
 - `transition.durationSec` ≤ 0.5 × min(độ dài hai slide hai bên).
-- `look.strength` trong [0.1, 1.0]. Schema từ chối < 0.1. Không có giá trị "none".
+- `look` có thể là `null` (tắt film look). Khi có: `strength` trong [0, 1], thêm `"enabled": true|false` và tùy chọn `"parts": {"grain": true, "damage": true, "weave": true, "flicker": true, "leak": true, "vignette": true, "border": true, "hold": true}` để tắt từng thành phần (thiếu = true).
+- `motion` có thể là `{ "type": "none" }`. `transition` có thể là `{ "id": "cut", "durationSec": 0 }`. `texts` có thể rỗng.
 - `look.seed` số nguyên, đổi seed thì grain/bụi/rung khác đi nhưng vẫn tất định.
 
 ## 2. Chuyển động (`motion`)

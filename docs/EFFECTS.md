@@ -55,7 +55,7 @@ Mọi preset tự tính scale tối thiểu để khung hình luôn phủ kín �
 | 10 | Vignette + viền | vignette, viền đen bo góc (gate), tùy chọn | Nhẹ |
 | 11 | Dither + output | thêm nhiễu ±0.5/255 chống sọc, về sRGB 8-bit | Không tốn |
 
-**Độ mạnh `strength` (0.1–1.0)** nội suy mọi tham số của preset giữa giá trị trung tính và giá trị đầy đủ. Riêng `holdFps` chỉ bật khi strength ≥ 0.5.
+Film look là tùy chọn: `look = null` hoặc `enabled: false` thì bỏ qua cả chuỗi; `parts` tắt riêng từng pass. **Độ mạnh `strength` (0–1)** nội suy mọi tham số của preset giữa giá trị trung tính và giá trị đầy đủ. Riêng `holdFps` chỉ bật khi strength ≥ 0.5.
 
 ### 3.2 Look MVP (5 cái)
 

@@ -28,7 +28,7 @@ Hạn: **thứ Tư 25/11/2026**. Bắt đầu code: tối thứ Ba 24/11/2026 sa
 ### [ ] T03 – Kiểu dữ liệu và schema dự án
 - Cần trước: T01
 - Làm: `src/shared/schema.ts` (zod) + kiểu TS cho Project, Slide, Motion, Transition, Text, LookRef, Style, BatchJob đúng `docs/TEMPLATE_FORMAT.md`. Hàm `parseProject(json)`, `serializeProject(p)`.
-- Xong khi: test: dự án mẫu trong TEMPLATE_FORMAT.md parse được; `strength` 0.05 bị từ chối; transition dài quá nửa slide bị từ chối; round-trip serialize/parse giữ nguyên.
+- Xong khi: test: dự án mẫu trong TEMPLATE_FORMAT.md parse được; `look: null`, `motion: none`, transition `cut` đều parse được; transition dài quá nửa slide bị từ chối; round-trip serialize/parse giữ nguyên.
 
 ### [ ] T04 – Timeline và PRNG
 - Cần trước: T03
@@ -59,8 +59,8 @@ Hạn: **thứ Tư 25/11/2026**. Bắt đầu code: tối thứ Ba 24/11/2026 sa
 
 ### [ ] T09 – Chuỗi film look + look `super8` [DUYỆT]
 - Cần trước: T08
-- Làm: `engine/looks/pipeline.ts` với đủ 11 pass ở EFFECTS mục 3.1 (halation/bloom có thể đơn giản trước), nội suy theo `strength`, tất định theo seed+frame. Preset `super8`. Thanh trượt độ mạnh trên UI (10–100%).
-- Xong khi: cùng seed + cùng khung → pixel giống hệt (test đọc pixel 2 lần); không có cách nào để strength < 0.1; ảnh chụp khung hình ở 30%, 70%, 100% trong PR.
+- Làm: `engine/looks/pipeline.ts` với đủ 11 pass ở EFFECTS mục 3.1 (halation/bloom có thể đơn giản trước), nội suy theo `strength`, tất định theo seed+frame. Preset `super8`. Trên UI: công tắc bật/tắt look, thanh trượt độ mạnh 0–100%, công tắc từng thành phần (`parts`).
+- Xong khi: cùng seed + cùng khung → pixel giống hệt (test đọc pixel 2 lần); tắt look thì pixel ra đúng bằng ảnh đầu vào (không pass nào chạy); tắt từng `parts` có tác dụng; ảnh chụp khung hình ở 30%, 70%, 100% trong PR.
 
 ### [ ] T10 – Xuất MP4 1080p30
 - Cần trước: T09
