@@ -72,7 +72,7 @@ Nếu phiên trước bị ngắt giữa chừng: nhánh `task/Txx-...` đã có
 
 1. Lấy các PR đang mở có tiêu đề `Txx:`, làm từ PR cũ nhất.
 2. Checkout nhánh PR, chạy `npm ci && npm run typecheck && npm test && npm run build`.
-3. Đối chiếu từng tiêu chí xong trong PLAN.md. Soát lỗi: đúng hằng số 1080p30, không `Math.random`, có `dispose`, không thêm thư viện lạ, film look không tắt được, không có audio.
+3. Đối chiếu từng tiêu chí xong trong PLAN.md. Soát lỗi: đúng hằng số 1080p30, không `Math.random`, có `dispose`, không thêm thư viện lạ, mọi tính năng tắt được (D19) và film look bật sẵn ở dự án mới, không có audio.
 4. Có lỗi nhỏ thì **sửa thẳng trên nhánh PR**, commit rõ "Reviewer: sửa ...". Lỗi lớn hoặc sai hướng thì ghi nhận xét và để PR mở.
 5. Qua hết thì squash merge vào `main`. Nếu xung đột ở PLAN.md, giữ mọi dấu `[x]` của cả hai phía.
 6. Không bao giờ merge PR mà test đỏ. Không xóa hay tắt test để cho qua.
