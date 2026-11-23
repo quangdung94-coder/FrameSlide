@@ -20,5 +20,5 @@ Mỗi quyết định có lý do. **Không đề xuất lại cái đã bỏ** t
 | D14 | 23/11/2026 | Installer .exe để sau MVP | Hạn 25/11 chỉ đủ cho app chạy được bằng `npm run dev` / build. |
 | D15 | 23/11/2026 | Làm việc bằng hai luồng Claude: coder (mỗi việc một PR) và reviewer (soát, sửa, merge) | Phiên có thể bị ngắt khi hết giới hạn; trạng thái nằm trong PLAN.md và PR nên phiên mới tiếp tục được. Xem CLAUDE.md. |
 | D16 | 23/11/2026 | React cho UI, zod cho schema, sharp cho ảnh, ffmpeg-static cho FFmpeg | Thư viện phổ biến, ổn định trên Windows, Claude viết tốt. Danh sách đầy đủ ở ARCHITECTURE.md mục 6. |
-| D18 | 23/11/2026 | Đưa chia khung 2 ô và 4 ô vào MVP (PLAN T15b); mosaic 3x3 trở lên vẫn là stretch | Chủ dự án yêu cầu; B-roll cưới hay ghép đôi ảnh dọc. Làm bằng viewport, nhẹ. |
 | D17 | 23/11/2026 | Lưu ý giấy phép FFmpeg: bản `ffmpeg-static` là build GPL (có libx264) | Dùng nội bộ thì không sao. Trước khi phát hành/bán phải xem lại (build LGPL + chỉ NVENC/encoder ngoài, hoặc tuân thủ GPL). Ghi trong ASSETS.md. |
+| D18 | 23/11/2026 | Đưa chia khung 2 ô và 4 ô vào MVP (PLAN T15b); mosaic 3x3 trở lên vẫn là stretch | Chủ dự án yêu cầu; B-roll cưới hay ghép đôi ảnh dọc. Làm bằng viewport, nhẹ. |
