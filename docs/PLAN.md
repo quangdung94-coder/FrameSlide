@@ -96,11 +96,16 @@ Hạn: **thứ Tư 25/11/2026**. Bắt đầu code: tối thứ Ba 24/11/2026 sa
 - Làm: thêm 2 định dạng vào ffmpeg-args và hộp thoại xuất (đuôi .mov).
 - Xong khi: test tham số; ffprobe file ProRes ra `prores` profile HQ, yuv422p10le; DNxHR ra `dnxhd` dnxhr_hq; cả hai 1920x1080 30fps không audio.
 
+### [ ] T15b – Chia khung 2 ô và 4 ô trong một cảnh
+- Cần trước: T07, T03
+- Làm: thêm `layout`/`cells` vào schema (TEMPLATE_FORMAT mục 2b). Renderer vẽ từng ô bằng viewport/scissor (hoặc mặt phẳng riêng) với Ken Burns theo tỉ lệ ô, khe hở, `delaySec`. `autoKenBurns` nhận tỉ lệ ô.
+- Xong khi: test schema (số ô sai bị từ chối); test clamp Ken Burns với ô 960x1080 và 960x540 cho cả ảnh ngang lẫn dọc; dự án mẫu có slide `split2v`, `split2h`, `grid4` xem trước đúng, film look phủ cả khung; ảnh chụp trong PR. [DUYỆT]
+
 ## M3 – Giao diện và luồng làm việc
 
 ### [ ] T16 – Giao diện chính
 - Cần trước: T07, T08
-- Làm: bố cục: kho ảnh (trái), xem trước (giữa), Inspector (phải), danh sách slide (dưới) kéo thả đổi thứ tự, xóa, nhân đôi. Inspector chỉnh thời lượng slide, motion, transition + thời lượng, chữ. Giao diện tiếng Việt, nền tối.
+- Làm: bố cục: kho ảnh (trái), xem trước (giữa), Inspector (phải), danh sách slide (dưới) kéo thả đổi thứ tự, xóa, nhân đôi. Inspector chọn kiểu chia khung (1 / 2 dọc / 2 ngang / 4 ô) và kéo ảnh vào từng ô (nếu T15b đã merge). Inspector chỉnh thời lượng slide, motion, transition + thời lượng, chữ. Giao diện tiếng Việt, nền tối.
 - Xong khi: tạo được dự án 10 slide hoàn toàn bằng chuột; đổi thứ tự thì xem trước cập nhật ngay; ảnh chụp màn hình trong PR.
 
 ### [ ] T17 – Lưu / mở / tự lưu / hoàn tác
@@ -114,8 +119,8 @@ Hạn: **thứ Tư 25/11/2026**. Bắt đầu code: tối thứ Ba 24/11/2026 sa
 - Xong khi: test: 12 ảnh với 15s, 8 ảnh với 30s, 40 ảnh với 10s (phải bỏ bớt ảnh, có báo) đều ra đúng tổng khung ±1.
 
 ### [ ] T19 – Phong cách và Quick Create
-- Cần trước: T11, T12, T13, T14, T18
-- Làm: `styles/memory.json`, `styles/film.json` theo TEMPLATE_FORMAT mục 4; nạp phong cách; Quick Create: chọn ảnh + phong cách + độ dài → dựng dự án (không lặp transition liền nhau, tiêu đề slide đầu nếu có).
+- Cần trước: T11, T12, T13, T14, T15b, T18
+- Làm: `styles/memory.json`, `styles/film.json` theo TEMPLATE_FORMAT mục 4 (có `layouts`); nạp phong cách; Quick Create: chọn ảnh + phong cách + độ dài → dựng dự án (không lặp transition liền nhau, tiêu đề slide đầu nếu có).
 - Xong khi: test: cùng seed cùng ảnh → cùng dự án; không có 2 transition giống nhau liền kề; video mẫu 15s mỗi phong cách trong PR. [DUYỆT]
 
 ### [ ] T20 – Xuất hàng loạt
@@ -150,7 +155,7 @@ Hạn: **thứ Tư 25/11/2026**. Bắt đầu code: tối thứ Ba 24/11/2026 sa
 
 ### [ ] S02 – Phong cách Mosaic
 - Cần trước: T19
-- Xong khi: lưới 2x2 / 3x3 ảnh xuất hiện lệch thời gian; video mẫu 15s. [DUYỆT]
+- Xong khi: lưới 3x3 trở lên, các ô xuất hiện lệch thời gian; video mẫu 15s. [DUYỆT]
 
 ### [ ] S03 – Thêm film look (instant, disposable90s, sepia, vhs, bleach)
 - Cần trước: T13

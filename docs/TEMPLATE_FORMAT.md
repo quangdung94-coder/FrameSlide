@@ -53,6 +53,29 @@ Không có trường `output.width/height/fps` vì đó là hằng số (1920x10
 
 Engine phải **kẹp (clamp)** tâm và zoom để khung không bao giờ ra ngoài ảnh (không lộ viền đen), kể cả với ảnh dọc. Easing hỗ trợ: `linear`, `easeInOutSine`, `easeInOutCubic`, `easeOutQuad`.
 
+## 2b. Chia khung (`layout`)
+
+Slide mặc định một ảnh (`photoId` + `motion`). Slide chia khung dùng `layout` + `cells` thay cho `photoId`/`motion`:
+
+```json
+{
+  "id": "s4",
+  "durationSec": 3.5,
+  "layout": { "type": "split2v", "gapPx": 8, "gapColor": "#000000" },
+  "cells": [
+    { "photoId": "p7", "motion": { "type": "kenburns", "from": {"cx":0.5,"cy":0.5,"zoom":1.0}, "to": {"cx":0.5,"cy":0.45,"zoom":1.12}, "easing": "easeInOutSine" }, "delaySec": 0 },
+    { "photoId": "p8", "motion": { "type": "kenburns", "from": {"cx":0.5,"cy":0.5,"zoom":1.12}, "to": {"cx":0.5,"cy":0.5,"zoom":1.0}, "easing": "easeInOutSine" }, "delaySec": 0.2 }
+  ],
+  "transition": { "id": "fade", "durationSec": 1.0 }
+}
+```
+
+- `layout.type`: `single` (mặc định), `split2v` (2 ô trái/phải), `split2h` (2 ô trên/dưới), `grid4` (2x2). Số `cells` phải khớp: 1, 2, 2, 4.
+- Tỉ lệ khung Ken Burns của mỗi ô bằng tỉ lệ của ô (ví dụ `split2v` là 960x1080 trừ khe), không phải 16:9. Clamp không lộ viền vẫn áp dụng trong từng ô.
+- `delaySec` (0–1s): ô hiện ra muộn hơn bằng fade nhanh 0.3s, tạo cảm giác lệch nhịp. Mặc định 0.
+- `gapPx` tính theo khung 1920x1080, 0–40. Chữ (`texts`) vẽ trên toàn khung, không theo ô.
+- Transition giữa slide chia khung và slide khác vẫn chạy trên toàn khung như bình thường.
+
 ## 3. Giải độ dài cố định
 
 Khi `output.fixedDuration = true`: cho trước tổng D và danh sách slide, tìm độ dài mỗi slide sao cho tổng = D (sai số ≤ 1 khung). Cách làm: giữ nguyên tỉ lệ giữa các slide, giữ transition theo phong cách, co giãn đều, mỗi slide ≥ 1.2 giây. Nếu không đủ chỗ thì bỏ bớt ảnh cuối (báo cho người dùng). Hàm thuần trong `engine/timeline.ts`, có test.
@@ -80,10 +103,16 @@ Phong cách là **công thức** để Quick Create dựng dự án, không ph�
     { "type": "kenburns", "zoomRange": [1.0, 1.15], "weight": 3 },
     { "type": "camera25d", "preset": "dolly-in", "intensity": 0.3, "weight": 1 }
   ],
+  "layouts": [
+    { "type": "single", "weight": 6 },
+    { "type": "split2v", "weight": 2 },
+    { "type": "grid4", "weight": 1 }
+  ],
   "title": { "fontId": "playfair-display", "animation": "fade-up", "onFirstSlide": true }
 }
 ```
 
+- `layouts`: tỉ lệ chọn kiểu chia khung khi Quick Create. Ưu tiên ghép ảnh dọc vào `split2v`. Không đặt hai slide chia khung liền nhau.
 - `weight` (light/medium/heavy) hiển thị cho người dùng biết độ nặng.
 - Lựa chọn ngẫu nhiên trong phong cách dùng PRNG với seed của dự án, không lặp cùng transition hai lần liên tiếp.
 

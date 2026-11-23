@@ -35,11 +35,12 @@ Editor video sự kiện (chủ dự án là người dùng đầu tiên). Có m
 8. **Độ dài cố định:** 10, 15, 20, 30 giây hoặc tự nhập. App tự chia thời lượng cho các slide.
 9. **Xuất hàng loạt:** chia một thư mục ảnh thành N clip, mỗi clip một độ dài, cùng hoặc khác phong cách, xuất lần lượt.
 10. **Xem trước** thời gian thực, chế độ Tự động / Nửa / Đầy đủ độ phân giải.
-11. **Lưu / mở dự án** (`.fslide`, JSON), tự lưu, hoàn tác/làm lại.
+11. **Chia khung trong một cảnh:** một slide có thể chứa 2 ảnh (chia đôi dọc hoặc ngang) hoặc 4 ảnh (lưới 2x2). Mỗi ô có Ken Burns riêng, khe hở giữa các ô chỉnh được (mặc định 8px, màu đen hoặc trắng kem). Film look áp lên cả khung hình sau khi ghép.
+12. **Lưu / mở dự án** (`.fslide`, JSON), tự lưu, hoàn tác/làm lại.
 
 ## 5. Làm nếu kịp (stretch, sau MVP)
 
-- Phong cách Polaroid (khung trắng, bóng đổ, ảnh bay vào) và Mosaic (lưới nhiều ảnh lệch thời gian).
+- Phong cách Polaroid (khung trắng, bóng đổ, ảnh bay vào) và Mosaic (lưới 3x3 trở lên, các ô xuất hiện lệch thời gian).
 - Thêm film look: phim dương bản 60–70, instant, máy dùng một lần 90s, sepia, máy chiếu, VHS, bleach bypass.
 - Transition bằng overlay light leak / film burn tự làm bằng shader.
 - Tùy chọn 25fps.
