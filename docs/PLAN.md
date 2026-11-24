@@ -88,7 +88,7 @@
 - [x] 1.4 **S1:** sao chép / dán thiết lập scene (chọn phần: bố cục, thời lượng, chuyển động, nền, chuyển cảnh, chữ; menu "Dán chỉ: …"). Logic thuần trong `src/engine/sceneSettings.ts`; bộ nhớ tạm không vào file dự án.
 
 ### Đợt 2: Bảng theo ngữ cảnh
-- [ ] 2.1 **U1:** bảng phải đổi theo lựa chọn (Dự án / Scene / Ảnh) + breadcrumb `Dự án › Scene 2 › Ảnh 1`.
+- [x] 2.1 **U1:** bảng phải đổi theo lựa chọn (Dự án / Scene / Ảnh) + breadcrumb `Dự án › Scene 2 › Ảnh 1`. (`ScenePanel.tsx`, `PhotoPanel.tsx`; bấm thẻ scene → bảng Scene, bấm ảnh → bảng Ảnh, bấm breadcrumb để đổi; bảng Dự án giữ 4 tab; khi xuất thì tự về tab Xuất.)
 - [ ] 2.2 **U7 + U6:** thanh nổi trên khung xem khi chọn ảnh; thanh trên cùng chia 3 cụm, nút "Nhập" thả xuống, nút "Xuất" nổi bật mở hộp thoại Xuất.
 
 ### Đợt 3: Scene mạnh hơn (học ProShow)

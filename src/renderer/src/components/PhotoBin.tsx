@@ -123,6 +123,7 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
   const selectedPhotoId = useAppStore((s) => s.selectedPhotoId);
   const selectedPhotoIds = useAppStore((s) => s.selectedPhotoIds);
   const setPhotoSelection = useAppStore((s) => s.setPhotoSelection);
+  const setInspectorScope = useAppStore((s) => s.setInspectorScope);
   const appendScenesForPhotos = useAppStore((s) => s.appendScenesForPhotos);
   const selectSceneAndSeek = useAppStore((s) => s.selectSceneAndSeek);
   const removePhoto = useAppStore((s) => s.removePhoto);
@@ -244,6 +245,7 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
       if (a >= 0 && b >= 0) {
         const [from, to] = a <= b ? [a, b] : [b, a];
         setPhotoSelection(order.slice(from, to + 1), photoId);
+        setInspectorScope('photo');
         return;
       }
     }
@@ -255,10 +257,12 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
       } else {
         setPhotoSelection([...selectedPhotoIds, photoId], photoId);
       }
+      setInspectorScope('photo');
       return;
     }
     const onlyThis = selectedPhotoIds.length === 1 && selectedPhotoIds[0] === photoId;
     setPhotoSelection(onlyThis ? [] : [photoId], onlyThis ? null : photoId);
+    setInspectorScope(onlyThis ? 'scene' : 'photo');
   };
 
   const handlePhotoContext = (e: React.MouseEvent, photoId: string) => {
