@@ -13,10 +13,12 @@ import { FILM_LOOK_PRESETS } from '@engine/presets/filmLookPresets';
 import { MOTION_TEMPLATE_PRESETS } from '@engine/presets/motionTemplates';
 import { TRANSITION_PRESETS } from '@engine/presets/transitions';
 import { computeEffectiveTotalDurationSec, getTotalFrames } from '@engine/timeline';
+import { IDENTITY_PHOTO_TRANSFORM } from '@engine/photoTransform';
 import { BackgroundPanel } from './components/BackgroundPanel';
 import { PhotoBin } from './components/PhotoBin';
 import { PhotoTransformOverlay } from './components/PhotoTransformOverlay';
 import { Splitter } from './components/Splitter';
+import { useContextMenu } from './components/ContextMenu';
 import { Group, SliderRow } from './components/ui';
 import { ScenePanel } from './components/ScenePanel';
 import { PhotoPanel } from './components/PhotoPanel';
@@ -50,7 +52,7 @@ declare global {
   }
 }
 
-type InspectorTab = 'template' | 'look' | 'text' | 'export';
+type InspectorTab = 'template' | 'look' | 'text';
 
 const FPS_OPTIONS: SupportedFps[] = [23.976, 24, 25, 30];
 const DURATION_OPTIONS = [10, 15, 20, 30];
@@ -139,6 +141,7 @@ export default function App() {
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [liveFps, setLiveFps] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<InspectorTab>('template');
+  const [showExportDialog, setShowExportDialog] = useState(false);
   const [focalPickMode, setFocalPickMode] = useState(false);
   const [transformEditMode, setTransformEditMode] = useState(false);
   const [isFullscreenPreview, setIsFullscreenPreview] = useState(false);
@@ -191,6 +194,9 @@ export default function App() {
   const setCompareMode = useAppStore((s) => s.setCompareMode);
   const setIsPlaying = useAppStore((s) => s.setIsPlaying);
   const setSlides = useAppStore((s) => s.setSlides);
+  const rotatePhoto90 = useAppStore((s) => s.rotatePhoto90);
+  const setPhotoExposure = useAppStore((s) => s.setPhotoExposure);
+  const setPhotoTransform = useAppStore((s) => s.setPhotoTransform);
   const addPhotosToBin = useAppStore((s) => s.addPhotosToBin);
   const updatePhotoFocalPoint = useAppStore((s) => s.updatePhotoFocalPoint);
   const applyMotionTemplate = useAppStore((s) => s.applyMotionTemplate);
@@ -220,6 +226,8 @@ export default function App() {
   const redo = useAppStore((s) => s.redo);
   const setEngineCapabilities = useAppStore((s) => s.setEngineCapabilities);
 
+  const { menu: topMenu, openAt: openTopMenu } = useContextMenu();
+
   const flashNotice = useCallback((msg: string) => {
     setStatusNotice(msg);
     setTimeout(() => setStatusNotice((curr) => (curr === msg ? null : curr)), 3500);
@@ -235,13 +243,10 @@ export default function App() {
     return () => window.removeEventListener('frameslide:focal-pick', onFocalPick);
   }, []);
 
-  // The export progress lives in the project panel's export tab: bring it into view when a render starts.
+  // The export progress lives in the export dialog: bring it into view when a render starts.
   useEffect(() => {
-    if (isExporting) {
-      setInspectorScope('project');
-      setActiveTab('export');
-    }
-  }, [isExporting, setInspectorScope]);
+    if (isExporting) setShowExportDialog(true);
+  }, [isExporting]);
 
   // Starting playback leaves the photo editor (handles would not follow the motion).
   useEffect(() => {
@@ -329,6 +334,7 @@ export default function App() {
       if (e.key === 'Escape') {
         if (isFullscreenPreview) setIsFullscreenPreview(false);
         if (showShortcutsModal) setShowShortcutsModal(false);
+        if (showExportDialog) setShowExportDialog(false);
         if (focalPickMode) setFocalPickMode(false);
         if (transformEditMode && !inInput) setTransformEditMode(false);
         return;
@@ -404,9 +410,9 @@ export default function App() {
           flashNotice('Đã dán thiết lập vào scene đang chọn.');
         }
       } else if (!inInput && !isExporting && (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'e') {
-        // Ctrl+E: go to the export panel (never starts a render by accident)
+        // Ctrl+E: open the export dialog (never starts a render by accident)
         e.preventDefault();
-        setActiveTab('export');
+        setShowExportDialog(true);
       } else if (!inInput && !isExporting && !e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'Home') {
         e.preventDefault();
         const s = useAppStore.getState();
@@ -463,7 +469,7 @@ export default function App() {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [isExporting, isFullscreenPreview, showShortcutsModal, focalPickMode, transformEditMode, totalFrames]);
+  }, [isExporting, isFullscreenPreview, showShortcutsModal, showExportDialog, focalPickMode, transformEditMode, totalFrames]);
 
   useEffect(() => {
     let active = true;
@@ -975,55 +981,16 @@ export default function App() {
       }}
       onDrop={handleWindowDrop}
     >
-      {/* Top Toolbar */}
-      <header className="flex items-center justify-between border-b border-zinc-800 bg-[#16161b] px-3 py-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold tracking-wide text-amber-400">FRAMESLIDE</span>
-          <div className="h-4 w-px bg-zinc-700" />
-          <button
-            onClick={handlePickImages}
-            disabled={!window.frameSlideAPI || loadingSlides || isExporting}
-            className="rounded bg-amber-500 px-2.5 py-1 text-xs font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-40"
-          >
-            + Chọn ảnh
-          </button>
-          <button
-            onClick={handlePickFolder}
-            disabled={!window.frameSlideAPI || loadingSlides || isExporting}
-            className="rounded border border-zinc-700 bg-zinc-800 px-2.5 py-1 text-xs text-zinc-200 hover:bg-zinc-700 disabled:opacity-40"
-          >
-            + Thư mục
-          </button>
-          <button
-            onClick={handleLoadSamples}
-            disabled={loadingSlides || isExporting}
-            className="rounded border border-zinc-800 bg-zinc-900 px-2 h-8 text-xs text-zinc-400 hover:text-zinc-200 disabled:opacity-40"
-          >
-            Ảnh mẫu
-          </button>
-
-          <div className="h-4 w-px bg-zinc-700" />
-
-          <button
-            onClick={undo}
-            disabled={!canUndo || isExporting}
-            title="Hoàn tác (Ctrl+Z)"
-            className="rounded border border-zinc-800 px-2 h-8 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-30"
-          >
-            ↶
-          </button>
-          <button
-            onClick={redo}
-            disabled={!canRedo || isExporting}
-            title="Làm lại (Ctrl+Y)"
-            className="rounded border border-zinc-800 px-2 h-8 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-30"
-          >
-            ↷
-          </button>
+      {/* Top Toolbar: [File] [Import] .......... [Preview settings] [Export] */}
+      <header className="flex items-center justify-between gap-3 border-b border-zinc-800 bg-[#16161b] px-3 py-2">
+        <div className="flex items-center gap-1.5">
+          <span className="mr-1 text-sm font-semibold tracking-wide text-amber-400">FRAMESLIDE</span>
+          <div className="mx-1 h-5 w-px bg-zinc-700" />
           <button
             onClick={handleOpenProject}
             disabled={!window.frameSlideAPI || isExporting}
-            className="rounded border border-zinc-800 px-2 h-8 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
+            title="Mở dự án (.frameslide)"
+            className="h-8 rounded border border-zinc-800 px-3 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
           >
             Mở
           </button>
@@ -1031,20 +998,57 @@ export default function App() {
             onClick={handleSaveProject}
             disabled={!window.frameSlideAPI || isExporting}
             title={projectFilePath ?? 'Lưu dự án (Ctrl+S)'}
-            className="rounded border border-zinc-800 px-2 h-8 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
+            className="h-8 rounded border border-zinc-800 px-3 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
           >
             Lưu
           </button>
+          <button
+            onClick={undo}
+            disabled={!canUndo || isExporting}
+            title="Hoàn tác (Ctrl+Z)"
+            aria-label="Hoàn tác"
+            className="h-8 w-8 rounded border border-zinc-800 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-30"
+          >
+            ↶
+          </button>
+          <button
+            onClick={redo}
+            disabled={!canRedo || isExporting}
+            title="Làm lại (Ctrl+Y)"
+            aria-label="Làm lại"
+            className="h-8 w-8 rounded border border-zinc-800 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-30"
+          >
+            ↷
+          </button>
+
+          <div className="mx-1 h-5 w-px bg-zinc-700" />
+
+          <button
+            type="button"
+            disabled={loadingSlides || isExporting}
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              openTopMenu({ clientX: r.left, clientY: r.bottom + 4 }, [
+                { label: 'Chọn ảnh…', onClick: handlePickImages, disabled: !window.frameSlideAPI },
+                { label: 'Chọn thư mục…', onClick: handlePickFolder, disabled: !window.frameSlideAPI },
+                { separator: true, label: '' },
+                { label: 'Ảnh mẫu', onClick: handleLoadSamples },
+              ]);
+            }}
+            className="h-8 rounded bg-amber-500 px-3 text-xs font-semibold text-zinc-950 hover:bg-amber-400 disabled:opacity-40"
+          >
+            + Nhập ▾
+          </button>
         </div>
 
-        <div className="flex items-center gap-3 text-xs">
+        <div className="flex items-center gap-2 text-xs">
           <label className="flex items-center gap-1.5 text-zinc-400">
             FPS
             <select
               value={fps}
               disabled={isExporting}
               onChange={(e) => setFps(Number(e.target.value) as SupportedFps)}
-              className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
+              className="h-8 rounded border border-zinc-700 bg-zinc-900 px-2 text-zinc-100"
             >
               {FPS_OPTIONS.map((v) => (
                 <option key={v} value={v}>
@@ -1060,7 +1064,7 @@ export default function App() {
               value={previewQuality}
               disabled={isExporting}
               onChange={(e) => setPreviewQuality(e.target.value as PreviewQuality)}
-              className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
+              className="h-8 rounded border border-zinc-700 bg-zinc-900 px-2 text-zinc-100"
             >
               {QUALITY_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -1074,7 +1078,7 @@ export default function App() {
             type="button"
             onClick={resetLayout}
             title="Đặt lại kích thước khay ảnh, timeline, bảng bên phải và zoom thẻ scene về mặc định"
-            className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-xs text-zinc-300 hover:border-amber-400 hover:text-amber-300"
+            className="h-8 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-300 hover:border-amber-400 hover:text-amber-300"
           >
             ⟲ Bố cục
           </button>
@@ -1083,12 +1087,26 @@ export default function App() {
             type="button"
             onClick={() => setShowShortcutsModal(true)}
             title="Bảng phím tắt dựng phim"
-            className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-xs font-semibold text-zinc-300 hover:border-amber-400 hover:text-amber-300"
+            className="h-8 w-8 rounded border border-zinc-700 bg-zinc-900 text-xs font-semibold text-zinc-300 hover:border-amber-400 hover:text-amber-300"
           >
             ?
           </button>
+
+          <div className="mx-1 h-5 w-px bg-zinc-700" />
+
+          <button
+            type="button"
+            onClick={() => setShowExportDialog(true)}
+            title="Xuất video (Ctrl+E)"
+            className={`h-8 rounded px-4 text-xs font-bold text-zinc-950 shadow ${
+              isExporting ? 'animate-pulse bg-emerald-400' : 'bg-orange-500 hover:bg-orange-400'
+            }`}
+          >
+            {isExporting ? 'Đang xuất…' : 'XUẤT ▸'}
+          </button>
         </div>
       </header>
+      {topMenu}
 
       {/* Autosave Restore Banner */}
       {autosaveBanner && (
@@ -1241,20 +1259,89 @@ export default function App() {
                 />
               )}
 
-              {!isFullscreenPreview && scenes.length > 0 && !transformEditMode && (
-                <button
-                  type="button"
-                  disabled={isExporting}
-                  onClick={() => {
-                    setIsPlaying(false);
-                    setFocalPickMode(false);
-                    setTransformEditMode(true);
-                  }}
-                  title="Kéo trực tiếp trên khung xem để di chuyển, phóng to, xoay ảnh đang chọn"
-                  className="absolute top-2.5 right-2.5 z-20 rounded border border-zinc-700 bg-black/75 px-2 h-8 text-xs font-medium text-zinc-200 hover:border-amber-400 hover:text-amber-300 disabled:opacity-40"
+              {!isFullscreenPreview && scenes.length > 0 && !transformEditMode && focalTargetPhoto && (
+                <div
+                  role="toolbar"
+                  aria-label="Chỉnh nhanh ảnh đang chọn"
+                  className="absolute top-2.5 right-2.5 z-20 flex items-center gap-0.5 rounded-md border border-zinc-700 bg-black/80 p-0.5 text-xs text-zinc-200 shadow-lg backdrop-blur-sm"
                 >
-                  ✥ Chỉnh ảnh
-                </button>
+                  {(
+                    [
+                      {
+                        key: 'edit',
+                        label: '✥ Chỉnh',
+                        title: 'Kéo trực tiếp trên khung xem để di chuyển, phóng to, xoay ảnh',
+                        active: false,
+                        onClick: () => {
+                          setIsPlaying(false);
+                          setFocalPickMode(false);
+                          setTransformEditMode(true);
+                        },
+                      },
+                      {
+                        key: 'focal',
+                        label: '◎ Tâm',
+                        title: 'Bấm lên khung xem để đặt tâm điểm (phần quan trọng của ảnh)',
+                        active: focalPickMode,
+                        onClick: () => setFocalPickMode(!focalPickMode),
+                      },
+                      {
+                        key: 'rot',
+                        label: '↻ 90°',
+                        title: 'Xoay ảnh 90° theo chiều kim đồng hồ',
+                        active: false,
+                        onClick: () => rotatePhoto90(focalTargetPhoto.id),
+                      },
+                      {
+                        key: 'dark',
+                        label: '☀−',
+                        title: 'Tối đi 0.25 EV',
+                        active: false,
+                        onClick: () =>
+                          setPhotoExposure(
+                            focalTargetPhoto.id,
+                            Math.max(-1.5, (focalTargetPhoto.exposure ?? 0) - 0.25)
+                          ),
+                      },
+                      {
+                        key: 'bright',
+                        label: '☀+',
+                        title: 'Sáng lên 0.25 EV',
+                        active: false,
+                        onClick: () =>
+                          setPhotoExposure(
+                            focalTargetPhoto.id,
+                            Math.min(1.5, (focalTargetPhoto.exposure ?? 0) + 0.25)
+                          ),
+                      },
+                      {
+                        key: 'reset',
+                        label: '⟲',
+                        title: 'Đặt lại vị trí, phóng to, xoay tự do và độ sáng của ảnh này',
+                        active: false,
+                        onClick: () => {
+                          setPhotoExposure(focalTargetPhoto.id, 0);
+                          setPhotoTransform(focalTargetPhoto.id, { ...IDENTITY_PHOTO_TRANSFORM }, true);
+                        },
+                      },
+                    ] as const
+                  ).map((b) => (
+                    <button
+                      key={b.key}
+                      type="button"
+                      disabled={isExporting}
+                      title={b.title}
+                      onClick={b.onClick}
+                      className={`h-8 rounded px-2.5 font-medium transition disabled:opacity-40 ${
+                        b.active
+                          ? 'bg-amber-500/25 text-amber-300'
+                          : 'hover:bg-zinc-800 hover:text-amber-300'
+                      }`}
+                    >
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
               )}
 
               {isFullscreenPreview && (
@@ -1374,13 +1461,12 @@ export default function App() {
             )}
           </nav>
           {inspectorScope === 'project' && (
-          <div className="grid grid-cols-4 border-b border-zinc-800 bg-[#16161b] text-xs font-medium">
+          <div className="grid grid-cols-3 border-b border-zinc-800 bg-[#16161b] text-xs font-medium">
             {(
               [
                 ['template', 'Template'],
                 ['look', 'Look/LUT'],
                 ['text', 'Chữ'],
-                ['export', 'Xuất'],
               ] as [InspectorTab, string][]
             ).map(([id, label]) => (
               <button
@@ -1927,176 +2013,202 @@ export default function App() {
               </Group>
             )}
 
-            {/* TAB 4: SINGLE & BATCH EXPORT */}
-            {inspectorScope === 'project' && activeTab === 'export' && (
-              <>
-                <Group id="export-single" title={<>Xuất 1 clip ({exportRes.width}×{exportRes.height} • {scenes.length} Scene • {effectiveDurationSec.toFixed(1)}s)</>}>
-                  <div className="grid grid-cols-2 gap-2">
-                    <SliderRow
-                      label="Fade In đầu (s)"
-                      value={renderParams.videoFadeInSec}
-                      min={0}
-                      max={1.5}
-                      step={0.1}
-                      disabled={isExporting}
-                      onChange={setVideoFadeInSec}
-                    />
-                    <SliderRow
-                      label="Fade Out cuối (s)"
-                      value={renderParams.videoFadeOutSec}
-                      min={0}
-                      max={1.5}
-                      step={0.1}
-                      disabled={isExporting}
-                      onChange={setVideoFadeOutSec}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <button
-                      onClick={handleExportMp4}
-                      disabled={scenes.length === 0 || isExporting}
-                      className="w-full rounded bg-emerald-500 px-3 py-2 text-xs font-semibold text-zinc-950 hover:bg-emerald-400 disabled:opacity-40"
-                    >
-                      Xuất MP4 H.264 (WebCodecs)
-                    </button>
-                    <button
-                      onClick={() => handleExportFfmpegCodec('dnxhr_hq')}
-                      disabled={!window.frameSlideAPI || !appInfo?.ffmpegAvailable || scenes.length === 0 || isExporting}
-                      className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs font-medium text-zinc-100 hover:bg-zinc-700 disabled:opacity-40"
-                    >
-                      Xuất DNxHR HQ (.mov • bt709)
-                    </button>
-                    <button
-                      onClick={() => handleExportFfmpegCodec('prores422')}
-                      disabled={!window.frameSlideAPI || !appInfo?.ffmpegAvailable || scenes.length === 0 || isExporting}
-                      className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs font-medium text-zinc-100 hover:bg-zinc-700 disabled:opacity-40"
-                    >
-                      Xuất ProRes 422 (.mov • bt709)
-                    </button>
-                  </div>
-                </Group>
-
-                
-                <Group id="export-batch" title="Batch Export (Chia nhiều clip B-roll)" accent>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="flex flex-col gap-1 text-xs text-zinc-400">
-                      Số ảnh / clip
-                      <input
-                        type="number"
-                        min={1}
-                        max={30}
-                        value={batchSlidesPerClip}
-                        disabled={isExporting}
-                        onChange={(e) => setBatchSlidesPerClip(Math.max(1, Number(e.target.value)))}
-                        className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-zinc-400">
-                      Định dạng
-                      <select
-                        value={batchCodec}
-                        disabled={isExporting}
-                        onChange={(e) => setBatchCodec(e.target.value as ExportCodec)}
-                        className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
-                      >
-                        <option value="h264">MP4 H.264</option>
-                        <option value="dnxhr_hq">DNxHR HQ (.mov)</option>
-                        <option value="prores422">ProRes 422 (.mov)</option>
-                      </select>
-                    </label>
-                  </div>
-                  <div className="text-xs text-zinc-500">
-                    Dự kiến xuất:{' '}
-                    <strong className="text-zinc-300">
-                      {Math.ceil(slides.length / Math.max(1, batchSlidesPerClip))}
-                    </strong>{' '}
-                    clip B-roll từ {slides.length} ảnh.
-                  </div>
-                  <button
-                    onClick={handleBatchExport}
-                    disabled={!window.frameSlideAPI || slides.length === 0 || isExporting}
-                    className="w-full rounded bg-amber-500 px-3 py-2 text-xs font-semibold text-zinc-950 hover:bg-amber-400 disabled:opacity-40"
-                  >
-                    Chọn thư mục & Xuất hàng loạt
-                  </button>
-                </Group>
-
-                {exportProgress && (
-                  <div className="space-y-1.5 rounded border border-zinc-700 bg-zinc-900 p-2.5">
-                    <div className="flex justify-between text-xs">
-                      <span>
-                        {exportProgress.clipCount
-                          ? `Clip ${exportProgress.clipIndex}/${exportProgress.clipCount}`
-                          : 'Đang render 1080p...'}
-                      </span>
-                      <span className="font-mono">{exportProgress.percent}%</span>
-                    </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded bg-zinc-800">
-                      <div
-                        className="h-full bg-amber-400 transition-all"
-                        style={{ width: `${exportProgress.percent}%` }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-zinc-400">
-                      <span>
-                        Frame {exportProgress.currentFrame}/{exportProgress.totalFrames}
-                      </span>
-                      <button
-                        onClick={() => exportAbortRef.current?.abort()}
-                        className="text-red-400 hover:text-red-300"
-                      >
-                        Hủy
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {exportSummary && (
-                  <div className="rounded border border-emerald-500/40 bg-emerald-950/30 p-2.5 text-xs text-emerald-200">
-                    <div className="font-semibold">
-                      Xuất xong {exportSummary.clipCount ? `${exportSummary.clipCount} clip ` : ''}
-                      ({exportSummary.codec.toUpperCase()})
-                    </div>
-                    <div className="mt-0.5 font-mono text-xs text-emerald-300">
-                      {exportSummary.totalFrames} frames trong {(exportSummary.durationMs / 1000).toFixed(2)}s •{' '}
-                      {exportSummary.speedFactor.toFixed(2)}x realtime
-                    </div>
-                    {exportSummary.filePath && (
-                      <div className="mt-1.5 flex items-center justify-between gap-2">
-                        <div className="truncate text-xs text-zinc-400" title={exportSummary.filePath}>
-                          {exportSummary.filePath}
-                        </div>
-                        {window.frameSlideAPI && (
-                          <button
-                            type="button"
-                            onClick={() => void window.frameSlideAPI?.revealInFolder(exportSummary.filePath!)}
-                            className="shrink-0 rounded bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/30"
-                          >
-                            Mở thư mục
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {exportStatusMsg && (
-                  <div className="rounded border border-zinc-700 bg-zinc-900 p-2 text-xs text-zinc-300">
-                    {exportStatusMsg}
-                  </div>
-                )}
-
-                {exportError && (
-                  <div className="rounded border border-red-500/40 bg-red-950/40 p-2 text-xs text-red-300">
-                    {exportError}
-                  </div>
-                )}
-              </>
-            )}
           </div>
         </aside>
         )}
       </div>
+
+
+      {/* Export dialog */}
+      {showExportDialog && (
+        <div
+          onClick={() => setShowExportDialog(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs"
+        >
+          <div
+            role="dialog"
+            aria-label="Xuất video"
+            onClick={(e) => e.stopPropagation()}
+            className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-lg border border-zinc-700 bg-[#18181f] text-xs shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-2.5">
+              <span className="text-sm font-semibold text-amber-400">Xuất video</span>
+              <button
+                type="button"
+                onClick={() => setShowExportDialog(false)}
+                title="Đóng (Esc). Việc xuất đang chạy vẫn tiếp tục."
+                className="h-8 w-8 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 space-y-3 overflow-y-auto p-4">
+        <Group id="export-single" title={<>Xuất 1 clip ({exportRes.width}×{exportRes.height} • {scenes.length} Scene • {effectiveDurationSec.toFixed(1)}s)</>}>
+          <div className="grid grid-cols-2 gap-2">
+            <SliderRow
+              label="Fade In đầu (s)"
+              value={renderParams.videoFadeInSec}
+              min={0}
+              max={1.5}
+              step={0.1}
+              disabled={isExporting}
+              onChange={setVideoFadeInSec}
+            />
+            <SliderRow
+              label="Fade Out cuối (s)"
+              value={renderParams.videoFadeOutSec}
+              min={0}
+              max={1.5}
+              step={0.1}
+              disabled={isExporting}
+              onChange={setVideoFadeOutSec}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={handleExportMp4}
+              disabled={scenes.length === 0 || isExporting}
+              className="w-full rounded bg-emerald-500 px-3 py-2 text-xs font-semibold text-zinc-950 hover:bg-emerald-400 disabled:opacity-40"
+            >
+              Xuất MP4 H.264 (WebCodecs)
+            </button>
+            <button
+              onClick={() => handleExportFfmpegCodec('dnxhr_hq')}
+              disabled={!window.frameSlideAPI || !appInfo?.ffmpegAvailable || scenes.length === 0 || isExporting}
+              className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs font-medium text-zinc-100 hover:bg-zinc-700 disabled:opacity-40"
+            >
+              Xuất DNxHR HQ (.mov • bt709)
+            </button>
+            <button
+              onClick={() => handleExportFfmpegCodec('prores422')}
+              disabled={!window.frameSlideAPI || !appInfo?.ffmpegAvailable || scenes.length === 0 || isExporting}
+              className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs font-medium text-zinc-100 hover:bg-zinc-700 disabled:opacity-40"
+            >
+              Xuất ProRes 422 (.mov • bt709)
+            </button>
+          </div>
+        </Group>
+
+        
+        <Group id="export-batch" title="Batch Export (Chia nhiều clip B-roll)" accent>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col gap-1 text-xs text-zinc-400">
+              Số ảnh / clip
+              <input
+                type="number"
+                min={1}
+                max={30}
+                value={batchSlidesPerClip}
+                disabled={isExporting}
+                onChange={(e) => setBatchSlidesPerClip(Math.max(1, Number(e.target.value)))}
+                className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-zinc-400">
+              Định dạng
+              <select
+                value={batchCodec}
+                disabled={isExporting}
+                onChange={(e) => setBatchCodec(e.target.value as ExportCodec)}
+                className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
+              >
+                <option value="h264">MP4 H.264</option>
+                <option value="dnxhr_hq">DNxHR HQ (.mov)</option>
+                <option value="prores422">ProRes 422 (.mov)</option>
+              </select>
+            </label>
+          </div>
+          <div className="text-xs text-zinc-500">
+            Dự kiến xuất:{' '}
+            <strong className="text-zinc-300">
+              {Math.ceil(slides.length / Math.max(1, batchSlidesPerClip))}
+            </strong>{' '}
+            clip B-roll từ {slides.length} ảnh.
+          </div>
+          <button
+            onClick={handleBatchExport}
+            disabled={!window.frameSlideAPI || slides.length === 0 || isExporting}
+            className="w-full rounded bg-amber-500 px-3 py-2 text-xs font-semibold text-zinc-950 hover:bg-amber-400 disabled:opacity-40"
+          >
+            Chọn thư mục & Xuất hàng loạt
+          </button>
+        </Group>
+
+        {exportProgress && (
+          <div className="space-y-1.5 rounded border border-zinc-700 bg-zinc-900 p-2.5">
+            <div className="flex justify-between text-xs">
+              <span>
+                {exportProgress.clipCount
+                  ? `Clip ${exportProgress.clipIndex}/${exportProgress.clipCount}`
+                  : 'Đang render 1080p...'}
+              </span>
+              <span className="font-mono">{exportProgress.percent}%</span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded bg-zinc-800">
+              <div
+                className="h-full bg-amber-400 transition-all"
+                style={{ width: `${exportProgress.percent}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs text-zinc-400">
+              <span>
+                Frame {exportProgress.currentFrame}/{exportProgress.totalFrames}
+              </span>
+              <button
+                onClick={() => exportAbortRef.current?.abort()}
+                className="text-red-400 hover:text-red-300"
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        )}
+
+        {exportSummary && (
+          <div className="rounded border border-emerald-500/40 bg-emerald-950/30 p-2.5 text-xs text-emerald-200">
+            <div className="font-semibold">
+              Xuất xong {exportSummary.clipCount ? `${exportSummary.clipCount} clip ` : ''}
+              ({exportSummary.codec.toUpperCase()})
+            </div>
+            <div className="mt-0.5 font-mono text-xs text-emerald-300">
+              {exportSummary.totalFrames} frames trong {(exportSummary.durationMs / 1000).toFixed(2)}s •{' '}
+              {exportSummary.speedFactor.toFixed(2)}x realtime
+            </div>
+            {exportSummary.filePath && (
+              <div className="mt-1.5 flex items-center justify-between gap-2">
+                <div className="truncate text-xs text-zinc-400" title={exportSummary.filePath}>
+                  {exportSummary.filePath}
+                </div>
+                {window.frameSlideAPI && (
+                  <button
+                    type="button"
+                    onClick={() => void window.frameSlideAPI?.revealInFolder(exportSummary.filePath!)}
+                    className="shrink-0 rounded bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/30"
+                  >
+                    Mở thư mục
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {exportStatusMsg && (
+          <div className="rounded border border-zinc-700 bg-zinc-900 p-2 text-xs text-zinc-300">
+            {exportStatusMsg}
+          </div>
+        )}
+
+        {exportError && (
+          <div className="rounded border border-red-500/40 bg-red-950/40 p-2 text-xs text-red-300">
+            {exportError}
+          </div>
+        )}
+
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Shortcuts Help Modal */}
       {showShortcutsModal && (
@@ -2132,7 +2244,7 @@ export default function App() {
                 ['1 / 2 / 3 / 4', 'Đổi bố cục Scene đang chọn: 1 / 2 / 3 / 4 ảnh'],
                 ['T', 'Mở bảng chọn chuyển cảnh của Scene đang chọn'],
                 ['Home / End', 'Về đầu / cuối clip'],
-                ['Ctrl + E', 'Mở bảng Xuất'],
+                ['Ctrl + E', 'Mở hộp thoại Xuất'],
                 ['Ctrl + Z / Ctrl + Y', 'Hoàn tác / Làm lại'],
                 ['Ctrl + S', 'Lưu dự án (.frameslide)'],
               ].map(([key, desc]) => (
