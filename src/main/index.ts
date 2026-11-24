@@ -34,6 +34,9 @@ import {
 
 const isDev = Boolean(process.env['ELECTRON_RENDERER_URL']);
 
+// Laptops/desktops with both Intel and NVIDIA/AMD GPUs: render on the dedicated card.
+app.commandLine.appendSwitch('force_high_performance_gpu');
+
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'frameslide-media',
