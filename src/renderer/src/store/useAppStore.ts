@@ -114,6 +114,8 @@ interface AppState {
   // Scene Track & Photo Slots actions
   setActiveSceneSilent: (sceneId: string) => void;
   selectSceneAndSeek: (sceneId: string, slotIndex?: number) => void;
+  /** Jump the playhead to a position inside a scene (0 = start, 1 = end) and show that scene. */
+  seekToSceneFraction: (sceneId: string, fraction: number) => void;
   addScene: (layout: SceneLayoutId) => void;
   duplicateScene: (sceneId: string) => void;
   removeScene: (sceneId: string) => void;
@@ -177,6 +179,23 @@ function takeSnapshot(state: AppState): HistorySnapshot {
       textOverlay: { ...state.renderParams.textOverlay },
     },
   };
+}
+
+/** Start time and length (seconds) of scene `idx`, using the same rules as the render timeline. */
+export function getSceneTimeRange(
+  s: Pick<AppState, 'scenes' | 'renderParams'>,
+  idx: number
+): { startSec: number; durationSec: number } {
+  const durations = resolveSlideDurations(s.scenes.length, {
+    durationMode: s.renderParams.durationMode,
+    totalDurationSec: s.renderParams.totalDurationSec,
+    defaultSlideDurationSec: s.renderParams.defaultSlideDurationSec,
+    slideDurations: s.scenes.map((item) => item.durationSec),
+    handlesSec: s.renderParams.handlesSec,
+  });
+  let startSec = 0;
+  for (let i = 0; i < idx; i++) startSec += durations[i];
+  return { startSec, durationSec: durations[idx] ?? 0 };
 }
 
 function pushPast(state: AppState): { past: HistorySnapshot[]; future: HistorySnapshot[] } {
@@ -369,22 +388,32 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (idx < 0) return { activeSceneId: sceneId, activeSlotIndex: 0 };
       const sc = s.scenes[idx];
       const clampedSlot = Math.max(0, Math.min(sc.slots.length - 1, slotIndex));
-
-      const durations = resolveSlideDurations(s.scenes.length, {
-        durationMode: s.renderParams.durationMode,
-        totalDurationSec: s.renderParams.totalDurationSec,
-        defaultSlideDurationSec: s.renderParams.defaultSlideDurationSec,
-        slideDurations: s.scenes.map((item) => item.durationSec),
-        handlesSec: s.renderParams.handlesSec,
-      });
-
-      let startSec = 0;
-      for (let i = 0; i < idx; i++) startSec += durations[i];
+      const { startSec } = getSceneTimeRange(s, idx);
       // Land slightly inside the scene (past any incoming transition) for clean preview
       const targetFrame = Math.round((startSec + 0.05) * s.fps);
       return {
         activeSceneId: sceneId,
         activeSlotIndex: clampedSlot,
+        frameIndex: targetFrame,
+        isPlaying: false,
+      };
+    }),
+
+  seekToSceneFraction: (sceneId, fraction) =>
+    set((s) => {
+      const idx = s.scenes.findIndex((sc) => sc.id === sceneId);
+      if (idx < 0) return s;
+      const { startSec, durationSec } = getSceneTimeRange(s, idx);
+      const startFrame = Math.round(startSec * s.fps);
+      const lastFrame = Math.max(startFrame, Math.round((startSec + durationSec) * s.fps) - 1);
+      const f = Math.max(0, Math.min(1, fraction));
+      const targetFrame = Math.max(
+        startFrame,
+        Math.min(lastFrame, Math.round((startSec + f * durationSec) * s.fps))
+      );
+      return {
+        activeSceneId: sceneId,
+        activeSlotIndex: s.activeSceneId === sceneId ? s.activeSlotIndex : 0,
         frameIndex: targetFrame,
         isPlaying: false,
       };
