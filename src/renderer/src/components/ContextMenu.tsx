@@ -62,7 +62,7 @@ function MenuView({ state, onClose }: { state: OpenState; onClose: () => void })
       role="menu"
       style={{ left: pos.x, top: pos.y }}
       onContextMenu={(e) => e.preventDefault()}
-      className="fixed z-[100] min-w-[200px] rounded-lg border border-zinc-700 bg-[#18181f] py-1 text-xs shadow-2xl"
+      className="fixed z-[100] max-h-[calc(100vh-8px)] min-w-[220px] overflow-y-auto rounded-lg border border-zinc-700 bg-[#18181f] py-1 text-xs shadow-2xl"
     >
       {state.items.map((item, i) =>
         item.separator ? (

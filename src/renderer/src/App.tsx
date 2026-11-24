@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FrameSlideEngine } from '@engine/FrameSlideEngine';
 import { getExportResolution, resolvePreviewResolution } from '@engine/capabilities';
 import {
@@ -18,6 +18,7 @@ import { PhotoBin } from './components/PhotoBin';
 import { PhotoTransformOverlay } from './components/PhotoTransformOverlay';
 import { Splitter } from './components/Splitter';
 import { Group, SliderRow } from './components/ui';
+import { SCENE_SETTING_PARTS } from '@engine/sceneSettings';
 import { DEFAULT_LAYOUT, useLayoutStore } from './store/useLayoutStore';
 import { PlaybackBar } from './components/PlaybackBar';
 import { SceneTrack } from './components/SceneTrack';
@@ -220,6 +221,11 @@ export default function App() {
   const redo = useAppStore((s) => s.redo);
   const setEngineCapabilities = useAppStore((s) => s.setEngineCapabilities);
 
+  const flashNotice = useCallback((msg: string) => {
+    setStatusNotice(msg);
+    setTimeout(() => setStatusNotice((curr) => (curr === msg ? null : curr)), 3500);
+  }, []);
+
   // Right-click menu on a photo slot ("Đặt tâm điểm") asks the preview to enter focal-point mode.
   useEffect(() => {
     const onFocalPick = () => {
@@ -361,6 +367,73 @@ export default function App() {
         const s = useAppStore.getState();
         if (s.activeSceneId && s.scenes.length > 1) {
           s.removeScene(s.activeSceneId);
+        }
+      } else if (!inInput && !isExporting && (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'd') {
+        // Ctrl+D: duplicate the selected scene
+        e.preventDefault();
+        const s = useAppStore.getState();
+        if (s.activeSceneId) s.duplicateScene(s.activeSceneId);
+      } else if (!inInput && !isExporting && (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'n') {
+        // Ctrl+N: new empty scene after the selected one
+        e.preventDefault();
+        const s = useAppStore.getState();
+        const at = s.scenes.findIndex((sc) => sc.id === s.activeSceneId);
+        s.insertSceneAt('single', at < 0 ? s.scenes.length : at + 1);
+      } else if (!inInput && !isExporting && (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        const s = useAppStore.getState();
+        if (s.activeSceneId && s.copySceneSettings(s.activeSceneId)) {
+          flashNotice('Đã sao chép thiết lập scene. Chọn scene khác rồi Ctrl+Shift+V để dán.');
+        }
+      } else if (!inInput && !isExporting && (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        const s = useAppStore.getState();
+        if (s.activeSceneId && s.pasteSceneSettings(s.activeSceneId, SCENE_SETTING_PARTS.map((p) => p.id))) {
+          flashNotice('Đã dán thiết lập vào scene đang chọn.');
+        }
+      } else if (!inInput && !isExporting && (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'e') {
+        // Ctrl+E: go to the export panel (never starts a render by accident)
+        e.preventDefault();
+        setActiveTab('export');
+      } else if (!inInput && !isExporting && !e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'Home') {
+        e.preventDefault();
+        const s = useAppStore.getState();
+        s.setIsPlaying(false);
+        s.setFrameIndex(0);
+      } else if (!inInput && !isExporting && !e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'End') {
+        e.preventDefault();
+        const s = useAppStore.getState();
+        s.setIsPlaying(false);
+        s.setFrameIndex(Math.max(0, totalFrames - 1));
+      } else if (
+        !inInput &&
+        !isExporting &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        !e.shiftKey &&
+        ['1', '2', '3', '4'].includes(e.key)
+      ) {
+        // 1-4: change the layout of the selected scene to 1/2/3/4 photos
+        const s = useAppStore.getState();
+        if (s.activeSceneId) {
+          const layouts = ['single', 'diptych', 'triptych', 'mosaic4'] as const;
+          s.setSceneLayout(s.activeSceneId, layouts[Number(e.key) - 1]);
+        }
+      } else if (
+        !inInput &&
+        !isExporting &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        !e.shiftKey &&
+        e.key.toLowerCase() === 't'
+      ) {
+        const s = useAppStore.getState();
+        if (s.activeSceneId) {
+          window.dispatchEvent(
+            new CustomEvent('frameslide:open-transition', { detail: { sceneId: s.activeSceneId } })
+          );
         }
       }
     };
@@ -567,11 +640,6 @@ export default function App() {
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
   }, [isPlaying, isExporting, fps, effectiveDurationSec]);
-
-  const flashNotice = (msg: string) => {
-    setStatusNotice(msg);
-    setTimeout(() => setStatusNotice((curr) => (curr === msg ? null : curr)), 3500);
-  };
 
   const binImportNotice = (total: number, added: number) =>
     added === 0
@@ -2045,6 +2113,13 @@ export default function App() {
                 ['Giữ phím \\', 'Xem nhanh ảnh gốc (Before / After)'],
                 ['F / Esc', 'Phóng to / Thu nhỏ màn hình Preview'],
                 ['Delete', 'Xóa Scene đang chọn'],
+                ['Ctrl + D', 'Nhân bản Scene đang chọn'],
+                ['Ctrl + N', 'Thêm Scene trống sau Scene đang chọn'],
+                ['Ctrl + Shift + C / V', 'Sao chép / Dán thiết lập Scene'],
+                ['1 / 2 / 3 / 4', 'Đổi bố cục Scene đang chọn: 1 / 2 / 3 / 4 ảnh'],
+                ['T', 'Mở bảng chọn chuyển cảnh của Scene đang chọn'],
+                ['Home / End', 'Về đầu / cuối clip'],
+                ['Ctrl + E', 'Mở bảng Xuất'],
                 ['Ctrl + Z / Ctrl + Y', 'Hoàn tác / Làm lại'],
                 ['Ctrl + S', 'Lưu dự án (.frameslide)'],
               ].map(([key, desc]) => (
