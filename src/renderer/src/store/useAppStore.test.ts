@@ -355,3 +355,53 @@ describe('per-scene motion template', () => {
     expect(useAppStore.getState().scenes[0].motionTemplate).toBe('polaroid-memories');
   });
 });
+
+describe('photo Start/End keyframes', () => {
+  const setup = () => {
+    useAppStore.setState({ scenes: [], slides: [], past: [], future: [], renderParams: INITIAL_RENDER_PARAMS });
+    useAppStore.getState().setSlides([makePhoto('A'), makePhoto('B')], false);
+    useAppStore.getState().addScene('single');
+    useAppStore.getState().addScene('single');
+    const [s1, s2] = useAppStore.getState().scenes.map((s) => s.id);
+    useAppStore.getState().assignPhotoToSlot(s1, 0, 'A');
+    useAppStore.getState().assignPhotoToSlot(s2, 0, 'B');
+    return { s1, s2 };
+  };
+  const photo = (id: string) => useAppStore.getState().slides.find((p) => p.id === id)!;
+
+  it('enables with a push-in End, edits End, and disabling removes End + ease', () => {
+    setup();
+    useAppStore.getState().enablePhotoKeyframes('A');
+    expect(photo('A').transformEnd?.scale).toBeCloseTo(1.12);
+    expect(photo('A').keyframeEase).toBe('smooth');
+    useAppStore.getState().setPhotoTransformEnd('A', { x: 0.2 }, false);
+    expect(photo('A').transformEnd).toMatchObject({ x: 0.2, scale: 1.12 });
+    useAppStore.getState().setPhotoTransformEnd('A', null);
+    expect(photo('A').transformEnd).toBeUndefined();
+    expect(photo('A').keyframeEase).toBeUndefined();
+    useAppStore.getState().undo();
+    expect(photo('A').transformEnd?.x).toBeCloseTo(0.2);
+  });
+
+  it('swaps Start/End, copies Start→End and End→Start', () => {
+    setup();
+    useAppStore.getState().setPhotoTransform('A', { x: 0.1, scale: 1.5 });
+    useAppStore.getState().setPhotoTransformEnd('A', { x: -0.3, scale: 2 });
+    useAppStore.getState().swapPhotoKeyframes('A');
+    expect(photo('A').transform).toMatchObject({ x: -0.3, scale: 2 });
+    expect(photo('A').transformEnd).toMatchObject({ x: 0.1, scale: 1.5 });
+    useAppStore.getState().copyPhotoKeyframe('A', 'start');
+    expect(photo('A').transformEnd).toEqual(photo('A').transform);
+    useAppStore.getState().setPhotoTransformEnd('A', { x: 0.4, scale: 1 });
+    useAppStore.getState().copyPhotoKeyframe('A', 'end');
+    expect(photo('A').transform).toMatchObject({ x: 0.4, scale: 1 });
+  });
+
+  it("chains a scene's Start to the previous scene's End", () => {
+    const { s1, s2 } = setup();
+    useAppStore.getState().setPhotoTransformEnd('A', { x: 0.25, scale: 1.3 });
+    expect(useAppStore.getState().chainPhotoKeyframeFromPrevious(s2, 0)).toBe(true);
+    expect(photo('B').transform).toMatchObject({ x: 0.25, scale: 1.3 });
+    expect(useAppStore.getState().chainPhotoKeyframeFromPrevious(s1, 0)).toBe(false); // first scene
+  });
+});

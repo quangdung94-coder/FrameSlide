@@ -93,5 +93,5 @@
 
 ### Đợt 3: Scene mạnh hơn (học ProShow)
 - [x] 3.1 **S2:** Motion Template riêng từng scene ("Theo dự án" là mặc định). (`SceneItem.motionTemplate`; shader có thêm `uMotionStyleB` để scene A và B khi chuyển cảnh dùng đúng template của mình; lưu trong file dự án, nhân bản và sao chép/dán theo phần "Chuyển động".)
-- [ ] 3.2 **S3:** Keyframe Đầu/Cuối cho từng ảnh (vị trí, zoom, xoay; làm mượt Đều/Êm/Tăng/Giảm tốc; Đổi chiều, Copy Đầu→Cuối), tính theo `frameIndex`.
+- [x] 3.2 **S3:** Keyframe Đầu/Cuối cho từng ảnh (vị trí, zoom, xoay; làm mượt Đều/Êm/Tăng/Giảm tốc; Đổi chiều, Copy Đầu→Cuối), tính theo `frameIndex`. (`SlideAsset.transformEnd` + `keyframeEase`; logic thuần `src/engine/photoKeyframes.ts` dùng `motionProgress` của timeline nên preview và xuất khớp; bảng Ảnh › "Chuyển động Đầu → Cuối" có 2 khung nhỏ Đầu/Cuối, Đổi chiều, Đầu → Cuối, Nối với scene trước; khi chỉnh trên khung xem có tab Đầu/Cuối, preview ghim đúng tư thế đang chỉnh.)
 - [ ] 3.3 **S4 + S5 + S6:** chỉnh màu riêng ảnh/scene (có công tắc bỏ qua Film Look), viền/bóng/bo góc/làm mờ cạnh ô ảnh, thời lượng chuyển cảnh riêng từng scene.

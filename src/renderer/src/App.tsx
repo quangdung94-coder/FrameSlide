@@ -275,6 +275,17 @@ export default function App() {
     return slotPid ? slides.find((p) => p.id === slotPid) ?? null : null;
   }, [selectedPhotoId, activeScene, activeSlotIndex, slides]);
 
+  // While editing a photo that has Start/End keyframes, the preview shows exactly the pose being edited.
+  const keyframeEditPhase = useAppStore((s) => s.keyframeEditPhase);
+  const focalHasKeyframes = Boolean(focalTargetPhoto?.transformEnd);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setKeyframePreview(transformEditMode && focalHasKeyframes ? keyframeEditPhase : null);
+    const s = useAppStore.getState();
+    engine.renderFrame(s.frameIndex, s.fps, s.renderParams, s.compareMode);
+  }, [transformEditMode, focalHasKeyframes, keyframeEditPhase, slides]);
+
   const effectiveDurationSec = useMemo(
     () =>
       computeEffectiveTotalDurationSec(scenes.length, {

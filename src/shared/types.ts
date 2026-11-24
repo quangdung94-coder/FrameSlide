@@ -145,6 +145,9 @@ export interface PhotoTransform {
   rotationDeg: number;
 }
 
+/** How the move/zoom/rotate eases between a photo's Start and End keyframe. */
+export type PhotoKeyframeEase = 'linear' | 'smooth' | 'ease-in' | 'ease-out';
+
 export interface SlideAsset {
   id: string;
   name: string;
@@ -160,6 +163,9 @@ export interface SlideAsset {
   exposure?: number; // -1..+1 stops
   /** Move / scale / free rotation of the photo inside its frame (edited on the preview). */
   transform?: PhotoTransform;
+  /** End keyframe: when set, the photo animates from `transform` (Start) to this over its scene. */
+  transformEnd?: PhotoTransform;
+  keyframeEase?: PhotoKeyframeEase;
   durationSec?: number;
   transitionType?: TransitionType;
 }
