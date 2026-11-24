@@ -5,6 +5,10 @@ import type { SlideAsset, SortOrder } from '@shared/types';
 
 interface PhotoBinProps {
   disabled: boolean;
+  /** Tray width in px (resizable, saved with the layout). */
+  width?: number;
+  /** Drag handle shown on the right edge while the tray is expanded. */
+  resizeHandle?: React.ReactNode;
 }
 
 type PhotoFilter = 'all' | 'unused' | 'portrait' | 'landscape';
@@ -109,7 +113,7 @@ const PhotoCard = memo(function PhotoCard({
   );
 });
 
-export function PhotoBin({ disabled }: PhotoBinProps) {
+export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps) {
   const slides = useAppStore((s) => s.slides);
   const scenes = useAppStore((s) => s.scenes);
   const selectedPhotoId = useAppStore((s) => s.selectedPhotoId);
@@ -281,7 +285,11 @@ export function PhotoBin({ disabled }: PhotoBinProps) {
   }
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r border-zinc-800 bg-[#141419] text-xs">
+    <>
+    <aside
+      className="flex shrink-0 flex-col bg-[#141419] text-xs"
+      style={{ width }}
+    >
       <div className="border-b border-zinc-800 bg-[#16161b] px-2.5 py-2">
         <div className="flex items-center justify-between gap-1">
           <div className="flex items-center gap-1.5">
@@ -455,5 +463,7 @@ export function PhotoBin({ disabled }: PhotoBinProps) {
         </button>
       </div>
     </aside>
+    {resizeHandle}
+    </>
   );
 }
