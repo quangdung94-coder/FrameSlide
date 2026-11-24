@@ -44,7 +44,10 @@ export function PhotoTransformOverlay({ canvasRef, onClose }: Props) {
   const activeSceneId = useAppStore((s) => s.activeSceneId);
   const activeSlotIndex = useAppStore((s) => s.activeSlotIndex);
   const renderParams = useAppStore((s) => s.renderParams);
-  const setPhotoTransform = useAppStore((s) => s.setPhotoTransform);
+  const setPhotoTransformStart = useAppStore((s) => s.setPhotoTransform);
+  const setPhotoTransformEnd = useAppStore((s) => s.setPhotoTransformEnd);
+  const keyframeEditPhase = useAppStore((s) => s.keyframeEditPhase);
+  const setKeyframeEditPhase = useAppStore((s) => s.setKeyframeEditPhase);
   const pushUndoPoint = useAppStore((s) => s.pushUndoPoint);
   const selectSceneAndSeek = useAppStore((s) => s.selectSceneAndSeek);
 
@@ -52,7 +55,10 @@ export function PhotoTransformOverlay({ canvasRef, onClose }: Props) {
   const slotIdx = scene ? Math.min(activeSlotIndex, scene.slots.length - 1) : 0;
   const photoId = scene?.slots[slotIdx] ?? null;
   const photo = photoId ? slides.find((p) => p.id === photoId) : undefined;
-  const xf = normalizePhotoTransform(photo?.transform);
+  // With keyframes on, the editor changes either the Start or the End pose of the photo.
+  const editingEnd = keyframeEditPhase === 'end' && Boolean(photo?.transformEnd);
+  const setPhotoTransform = editingEnd ? setPhotoTransformEnd : setPhotoTransformStart;
+  const xf = normalizePhotoTransform(editingEnd ? photo?.transformEnd : photo?.transform);
 
   // Track where the canvas image really sits inside the preview box (object-contain).
   useEffect(() => {
@@ -162,14 +168,13 @@ export function PhotoTransformOverlay({ canvasRef, onClose }: Props) {
       const now = performance.now();
       if (now - lastWheelRef.current > 400) pushUndoPoint();
       lastWheelRef.current = now;
-      const cur = normalizePhotoTransform(
-        useAppStore.getState().slides.find((p) => p.id === photo.id)?.transform
-      );
+      const live = useAppStore.getState().slides.find((p) => p.id === photo.id);
+      const cur = normalizePhotoTransform(editingEnd ? live?.transformEnd : live?.transform);
       setPhotoTransform(photo.id, { ...cur, scale: cur.scale * Math.exp(-e.deltaY * 0.0015) }, false);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [photo, pushUndoPoint, setPhotoTransform]);
+  }, [photo, editingEnd, pushUndoPoint, setPhotoTransform]);
 
   const numField = (
     label: string,
@@ -312,6 +317,30 @@ export function PhotoTransformOverlay({ canvasRef, onClose }: Props) {
         <span className="font-semibold text-amber-400">
           Chỉnh ảnh{scene && scene.slots.length > 1 ? ` • ô ${slotIdx + 1}` : ''}
         </span>
+        {photo?.transformEnd && (
+          <div className="flex overflow-hidden rounded border border-zinc-700">
+            {(
+              [
+                ['start', 'Đầu'],
+                ['end', 'Cuối'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setKeyframeEditPhase(id)}
+                title={id === 'start' ? 'Chỉnh tư thế lúc bắt đầu scene' : 'Chỉnh tư thế lúc kết thúc scene'}
+                className={`px-2 py-0.5 ${
+                  keyframeEditPhase === id
+                    ? 'bg-amber-500 font-semibold text-zinc-950'
+                    : 'bg-zinc-900 text-zinc-300 hover:text-amber-300'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         {numField('X', xf.x * 100, (v) => apply({ x: v / 100 }), 1, '%')}
         {numField('Y', xf.y * 100, (v) => apply({ y: v / 100 }), 1, '%')}
         {numField(

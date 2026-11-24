@@ -18,7 +18,7 @@ import {
 } from '@shared/types';
 import { BG_PATTERN_CODE, BG_STYLE_CODE, hexToLinearRgb, resolveSceneBackground } from './background';
 import { classifyGpuRenderer } from './capabilities';
-import { normalizePhotoTransform } from './photoTransform';
+import { resolvePhotoTransform } from './photoKeyframes';
 import { createLutStripTexture, parseCubeLut } from './cubeLutParser';
 import { MOTION_STYLE_CODE_MAP } from './presets/motionTemplates';
 import { TRANSITION_CODE_MAP } from './presets/transitions';
@@ -629,7 +629,19 @@ export class FrameSlideEngine {
     u[`uBgPattern${prefix}`].value = BG_PATTERN_CODE[bg.pattern] ?? 0;
   }
 
-  private bindSceneSlots(prefix: 'A' | 'B', scene: SceneItem | undefined): boolean {
+  /** While the user edits a photo's Start/End keyframe on the preview, show exactly that pose. */
+  private keyframePreview: 'start' | 'end' | null = null;
+
+  public setKeyframePreview(phase: 'start' | 'end' | null): void {
+    this.keyframePreview = phase;
+  }
+
+  private bindSceneSlots(
+    prefix: 'A' | 'B',
+    scene: SceneItem | undefined,
+    motionProgress: number,
+    keyframePreview: 'start' | 'end' | null
+  ): boolean {
     let missingTex = false;
     const layoutCode = scene ? LAYOUT_CODE[scene.layout] : 0;
     this.pass1Mat.uniforms[`uLayout${prefix}`].value = layoutCode;
@@ -656,7 +668,7 @@ export class FrameSlideEngine {
       this.pass1Mat.uniforms[`uRot${prefix}${k}`].value = Math.round(rotDeg / 90) % 4;
       const expStops = asset?.exposure ?? 0;
       this.pass1Mat.uniforms[`uExp${prefix}${k}`].value = Math.pow(2, expStops);
-      const xf = normalizePhotoTransform(asset?.transform);
+      const xf = resolvePhotoTransform(asset, motionProgress, keyframePreview);
       // UI stores y down; the shader works with y up.
       (this.pass1Mat.uniforms[`uXf${prefix}${k}`].value as THREE.Vector4).set(
         xf.x,
@@ -699,8 +711,10 @@ export class FrameSlideEngine {
     const sceneA = this.scenes[state.slideAIndex];
     const sceneB = this.scenes[state.slideBIndex];
 
-    const missingA = this.bindSceneSlots('A', sceneA);
-    const missingB = this.bindSceneSlots('B', sceneB);
+    // Pin keyframes to Start/End only for the on-screen preview while editing; never when exporting.
+    const keyframePreview = finalTarget ? null : this.keyframePreview;
+    const missingA = this.bindSceneSlots('A', sceneA, state.motionProgressA, keyframePreview);
+    const missingB = this.bindSceneSlots('B', sceneB, state.motionProgressB, keyframePreview);
     if (missingA || missingB) {
       void this.preloadAroundSceneIndex(state.slideAIndex);
     }

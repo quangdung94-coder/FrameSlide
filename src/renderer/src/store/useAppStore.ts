@@ -22,6 +22,7 @@ import {
   DEFAULT_TEXT_OVERLAY,
   type BackgroundOptions,
   type BackgroundStyle,
+  type PhotoKeyframeEase,
   type PhotoTransform,
   type SceneBackground,
   type CompareMode,
@@ -131,6 +132,24 @@ interface AppState {
     recordHistory?: boolean
   ) => void;
   pushUndoPoint: () => void;
+
+  // Start/End keyframes of a photo's move/zoom/rotate (Start = `transform`, End = `transformEnd`).
+  /** Which keyframe the on-preview editor changes (UI only, not saved). */
+  keyframeEditPhase: 'start' | 'end';
+  setKeyframeEditPhase: (phase: 'start' | 'end') => void;
+  /** Writes the End keyframe; `null` removes it (= no animation). */
+  setPhotoTransformEnd: (
+    photoId: string,
+    transform: Partial<PhotoTransform> | null,
+    recordHistory?: boolean
+  ) => void;
+  /** Turns keyframes on: End starts as a gentle 12% push-in from Start. */
+  enablePhotoKeyframes: (photoId: string) => void;
+  setPhotoKeyframeEase: (photoId: string, ease: PhotoKeyframeEase) => void;
+  swapPhotoKeyframes: (photoId: string) => void;
+  copyPhotoKeyframe: (photoId: string, from: 'start' | 'end') => void;
+  /** Start of this scene's photo (slot) = End of the same slot's photo in the previous scene. */
+  chainPhotoKeyframeFromPrevious: (sceneId: string, slotIndex: number) => boolean;
 
   /** Which level the right-hand panel edits: whole project, selected scene, or selected photo. */
   inspectorScope: InspectorScope;
@@ -438,6 +457,95 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
 
   pushUndoPoint: () => set((s) => pushPast(s)),
+
+  keyframeEditPhase: 'start',
+  setKeyframeEditPhase: (keyframeEditPhase) => set({ keyframeEditPhase }),
+
+  setPhotoTransformEnd: (photoId, transform, recordHistory = true) =>
+    set((s) => ({
+      ...(recordHistory ? pushPast(s) : {}),
+      slides: s.slides.map((item) => {
+        if (item.id !== photoId) return item;
+        if (!transform) {
+          const { transformEnd: _a, keyframeEase: _b, ...rest } = item;
+          void _a;
+          void _b;
+          return rest;
+        }
+        return {
+          ...item,
+          transformEnd: normalizePhotoTransform({ ...(item.transformEnd ?? item.transform), ...transform }),
+        };
+      }),
+    })),
+
+  enablePhotoKeyframes: (photoId) =>
+    set((s) => ({
+      ...pushPast(s),
+      slides: s.slides.map((item) => {
+        if (item.id !== photoId || item.transformEnd) return item;
+        const start = normalizePhotoTransform(item.transform);
+        return {
+          ...item,
+          transformEnd: normalizePhotoTransform({ ...start, scale: start.scale * 1.12 }),
+          keyframeEase: item.keyframeEase ?? 'smooth',
+        };
+      }),
+    })),
+
+  setPhotoKeyframeEase: (photoId, ease) =>
+    set((s) => ({
+      ...pushPast(s),
+      slides: s.slides.map((item) => (item.id === photoId ? { ...item, keyframeEase: ease } : item)),
+    })),
+
+  swapPhotoKeyframes: (photoId) =>
+    set((s) => ({
+      ...pushPast(s),
+      slides: s.slides.map((item) => {
+        if (item.id !== photoId || !item.transformEnd) return item;
+        const start = normalizePhotoTransform(item.transform);
+        const next: SlideAsset = { ...item, transform: normalizePhotoTransform(item.transformEnd), transformEnd: start };
+        if (isIdentityTransform(next.transform)) delete next.transform;
+        return next;
+      }),
+    })),
+
+  copyPhotoKeyframe: (photoId, from) =>
+    set((s) => ({
+      ...pushPast(s),
+      slides: s.slides.map((item) => {
+        if (item.id !== photoId || !item.transformEnd) return item;
+        if (from === 'start') {
+          return { ...item, transformEnd: normalizePhotoTransform(item.transform) };
+        }
+        const next: SlideAsset = { ...item, transform: normalizePhotoTransform(item.transformEnd) };
+        if (isIdentityTransform(next.transform)) delete next.transform;
+        return next;
+      }),
+    })),
+
+  chainPhotoKeyframeFromPrevious: (sceneId, slotIndex) => {
+    const st = get();
+    const idx = st.scenes.findIndex((sc) => sc.id === sceneId);
+    if (idx <= 0) return false;
+    const curId = st.scenes[idx].slots[slotIndex] ?? null;
+    const prev = st.scenes[idx - 1];
+    const prevId = prev.slots[Math.min(slotIndex, prev.slots.length - 1)] ?? null;
+    const prevPhoto = prevId ? st.slides.find((p) => p.id === prevId) : undefined;
+    if (!curId || !prevPhoto || curId === prevId) return false;
+    const carried = normalizePhotoTransform(prevPhoto.transformEnd ?? prevPhoto.transform);
+    set((s) => ({
+      ...pushPast(s),
+      slides: s.slides.map((item) => {
+        if (item.id !== curId) return item;
+        const next: SlideAsset = { ...item, transform: carried };
+        if (isIdentityTransform(carried)) delete next.transform;
+        return next;
+      }),
+    }));
+    return true;
+  },
 
   setActiveSceneSilent: (sceneId) =>
     set((s) =>
