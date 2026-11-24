@@ -132,6 +132,8 @@ interface AppState {
   /** Jump the playhead to a position inside a scene (0 = start, 1 = end) and show that scene. */
   seekToSceneFraction: (sceneId: string, fraction: number) => void;
   addScene: (layout: SceneLayoutId) => void;
+  /** Inserts an empty scene at `index` (0 = first) and selects it. */
+  insertSceneAt: (layout: SceneLayoutId, index: number) => void;
   duplicateScene: (sceneId: string) => void;
   removeScene: (sceneId: string) => void;
   moveScene: (sceneId: string, dir: -1 | 1) => void;
@@ -476,6 +478,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
     }),
 
+  insertSceneAt: (layout, index) =>
+    set((s) => {
+      const created = createEmptyScene(
+        layout,
+        s.renderParams.defaultSlideDurationSec,
+        s.renderParams.transitionType
+      );
+      const at = Math.max(0, Math.min(index, s.scenes.length));
+      const nextScenes = [...s.scenes];
+      nextScenes.splice(at, 0, created);
+      return { ...pushPast(s), scenes: nextScenes, activeSceneId: created.id, activeSlotIndex: 0 };
+    }),
+
   duplicateScene: (sceneId) =>
     set((s) => {
       const idx = s.scenes.findIndex((sc) => sc.id === sceneId);
@@ -486,6 +501,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         slots: [...src.slots],
         motionDirection: src.motionDirection,
         caption: src.caption,
+        background: src.background ? { ...src.background } : undefined,
       };
       const nextScenes = [...s.scenes];
       nextScenes.splice(idx + 1, 0, cloned);

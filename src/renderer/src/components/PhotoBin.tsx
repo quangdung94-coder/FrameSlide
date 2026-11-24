@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { buildPhotoTree, flattenPhotoTree, type TrayRow } from './photoTree';
+import { useContextMenu, type MenuItem } from './ContextMenu';
 import { useAppStore } from '../store/useAppStore';
 import type { SlideAsset, SortOrder } from '@shared/types';
 
@@ -27,6 +28,7 @@ interface PhotoCardProps {
   isSelected: boolean;
   disabled: boolean;
   onClick: (e: React.MouseEvent, photoId: string) => void;
+  onContextMenu: (e: React.MouseEvent, photoId: string) => void;
   onRemove: (photoId: string) => void;
 }
 
@@ -37,6 +39,7 @@ const PhotoCard = memo(function PhotoCard({
   isSelected,
   disabled,
   onClick,
+  onContextMenu,
   onRemove,
 }: PhotoCardProps) {
   const rot = p.rotationDeg ?? 0;
@@ -46,6 +49,7 @@ const PhotoCard = memo(function PhotoCard({
     <div
       draggable={!disabled}
       onClick={(e) => onClick(e, p.id)}
+      onContextMenu={(e) => onContextMenu(e, p.id)}
       onDragStart={(e) => {
         e.dataTransfer.setData(
           'application/x-frameslide',
@@ -123,6 +127,9 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
   const selectSceneAndSeek = useAppStore((s) => s.selectSceneAndSeek);
   const removePhoto = useAppStore((s) => s.removePhoto);
   const sortSlides = useAppStore((s) => s.sortSlides);
+  const assignPhotoToSlot = useAppStore((s) => s.assignPhotoToSlot);
+  const rotatePhoto90 = useAppStore((s) => s.rotatePhoto90);
+  const { menu, openAt } = useContextMenu();
 
   const [collapsed, setCollapsed] = useState(false);
   const [filter, setFilter] = useState<PhotoFilter>('all');
@@ -252,6 +259,51 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
     }
     const onlyThis = selectedPhotoIds.length === 1 && selectedPhotoIds[0] === photoId;
     setPhotoSelection(onlyThis ? [] : [photoId], onlyThis ? null : photoId);
+  };
+
+  const handlePhotoContext = (e: React.MouseEvent, photoId: string) => {
+    // Right-clicking a photo outside the current selection selects just that photo.
+    const inSelection = selectedSet.has(photoId);
+    const ids = inSelection ? selectedPhotoIds : [photoId];
+    if (!inSelection) {
+      anchorIdRef.current = photoId;
+      setPhotoSelection([photoId], photoId);
+    }
+    const st = useAppStore.getState();
+    const photo = st.slides.find((x) => x.id === photoId);
+    const many = ids.length > 1;
+    const items: MenuItem[] = [
+      {
+        label: many ? `Thêm ${ids.length} ảnh vào cuối timeline` : 'Thêm vào cuối timeline',
+        onClick: () => addToTimeline(ids),
+        disabled,
+      },
+      {
+        label: 'Thêm vào scene đang chọn',
+        onClick: () => {
+          const cur = useAppStore.getState();
+          if (cur.activeSceneId) assignPhotoToSlot(cur.activeSceneId, cur.activeSlotIndex, photoId);
+        },
+        disabled: disabled || !st.activeSceneId,
+      },
+      { separator: true, label: '' },
+      { label: 'Xoay 90°', onClick: () => rotatePhoto90(photoId), disabled },
+      {
+        label: 'Mở thư mục chứa ảnh',
+        onClick: () => {
+          if (photo?.originalPath) void window.frameSlideAPI?.revealInFolder(photo.originalPath);
+        },
+        disabled: !window.frameSlideAPI || !photo?.originalPath,
+      },
+      { separator: true, label: '' },
+      {
+        label: many ? `Xóa ${ids.length} ảnh khỏi khay` : 'Xóa ảnh khỏi khay',
+        danger: true,
+        onClick: () => ids.forEach((id) => removePhoto(id)),
+        disabled,
+      },
+    ];
+    openAt(e, items);
   };
 
   const addToTimeline = (photoIds: string[]) => {
@@ -428,6 +480,7 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
                       isSelected={selectedSet.has(p.id) || selectedPhotoId === p.id}
                       disabled={disabled}
                       onClick={handlePhotoClick}
+                      onContextMenu={handlePhotoContext}
                       onRemove={removePhoto}
                     />
                   ))}
@@ -464,6 +517,7 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
       </div>
     </aside>
     {resizeHandle}
+      {menu}
     </>
   );
 }

@@ -10,6 +10,7 @@ import { getLayoutRects } from '@engine/layoutGeometry';
 import { backgroundCss, resolveSceneBackground } from '@engine/background';
 import { resolveSlideDurations } from '@engine/timeline';
 import { useAppStore } from '../store/useAppStore';
+import { useContextMenu, type MenuItem } from './ContextMenu';
 import { LAYOUT_LIMITS, useLayoutStore } from '../store/useLayoutStore';
 import type { SceneLayoutId } from '@shared/types';
 
@@ -109,6 +110,8 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
 
   const selectSceneAndSeek = useAppStore((s) => s.selectSceneAndSeek);
   const addScene = useAppStore((s) => s.addScene);
+  const insertSceneAt = useAppStore((s) => s.insertSceneAt);
+  const rotatePhoto90 = useAppStore((s) => s.rotatePhoto90);
   const duplicateScene = useAppStore((s) => s.duplicateScene);
   const removeScene = useAppStore((s) => s.removeScene);
   const moveScene = useAppStore((s) => s.moveScene);
@@ -121,6 +124,8 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
   const swapSceneSlots = useAppStore((s) => s.swapSceneSlots);
   const autoFillScenes = useAppStore((s) => s.autoFillScenes);
   const clearAllSceneSlots = useAppStore((s) => s.clearAllSceneSlots);
+
+  const { menu, openAt } = useContextMenu();
 
   const sceneZoom = useLayoutStore((s) => s.sceneZoom);
   const setLayout = useLayoutStore((s) => s.setLayout);
@@ -188,8 +193,91 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
     return { totalSlots: total, filledSlots: filled };
   }, [scenes, photoMap]);
 
+  const buildSceneMenu = (sceneId: string): MenuItem[] => {
+    const idx = scenes.findIndex((sc) => sc.id === sceneId);
+    const sc = scenes[idx];
+    if (!sc) return [];
+    const layoutNames: Record<SceneLayoutId, string> = {
+      single: '1 ảnh',
+      diptych: '2 ảnh',
+      triptych: '3 ảnh',
+      mosaic4: '4 ảnh',
+    };
+    return [
+      { label: 'Nhân bản scene', onClick: () => duplicateScene(sceneId), disabled },
+      { label: 'Dịch sang trái', onClick: () => moveScene(sceneId, -1), disabled: disabled || idx === 0 },
+      {
+        label: 'Dịch sang phải',
+        onClick: () => moveScene(sceneId, 1),
+        disabled: disabled || idx === scenes.length - 1,
+      },
+      { separator: true, label: '' },
+      { label: 'Chèn scene trống phía trước', onClick: () => insertSceneAt('single', idx), disabled },
+      { label: 'Chèn scene trống phía sau', onClick: () => insertSceneAt('single', idx + 1), disabled },
+      { separator: true, label: '' },
+      ...(Object.keys(layoutNames) as SceneLayoutId[]).map((lay) => ({
+        label: `Bố cục: ${layoutNames[lay]}`,
+        checked: sc.layout === lay,
+        onClick: () => setSceneLayout(sceneId, lay),
+        disabled,
+      })),
+      ...(idx < scenes.length - 1
+        ? [
+            { separator: true, label: '' },
+            {
+              label: 'Đặt chuyển cảnh sang scene sau…',
+              // Deferred so the click that picked this item doesn't immediately close the popover.
+              onClick: () => setTimeout(() => setOpenTransMenuSceneId(sceneId), 0),
+              disabled,
+            },
+          ]
+        : []),
+      { separator: true, label: '' },
+      {
+        label: 'Xóa scene',
+        danger: true,
+        onClick: () => removeScene(sceneId),
+        disabled: disabled || scenes.length <= 1,
+      },
+    ];
+  };
+
+  const buildSlotMenu = (sceneId: string, slotIdx: number): MenuItem[] => {
+    const sc = scenes.find((x) => x.id === sceneId);
+    const pid = sc?.slots[slotIdx] ?? null;
+    const photo = pid ? photoMap.get(pid) : undefined;
+    return [
+      {
+        label: 'Dùng ảnh đang chọn ở khay',
+        onClick: () => selectedPhotoId && assignPhotoToSlot(sceneId, slotIdx, selectedPhotoId),
+        disabled: disabled || !selectedPhotoId,
+      },
+      {
+        label: 'Đặt tâm điểm (Focal Point)',
+        onClick: () => {
+          selectSceneAndSeek(sceneId, slotIdx);
+          window.dispatchEvent(new CustomEvent('frameslide:focal-pick'));
+        },
+        disabled: disabled || !photo,
+      },
+      {
+        label: 'Xoay 90°',
+        onClick: () => photo && rotatePhoto90(photo.id),
+        disabled: disabled || !photo,
+      },
+      { separator: true, label: '' },
+      {
+        label: 'Gỡ ảnh khỏi ô',
+        danger: true,
+        onClick: () => assignPhotoToSlot(sceneId, slotIdx, null),
+        disabled: disabled || !photo,
+      },
+    ];
+  };
+
   return (
     <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2">
+      {menu}
       {/* Scene Track Header */}
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <div className="flex flex-wrap items-center gap-1.5 text-zinc-300">
@@ -272,6 +360,10 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
               <div
                 draggable={!disabled}
                 onClick={() => selectSceneAndSeek(sc.id, 0)}
+                onContextMenu={(e) => {
+                  selectSceneAndSeek(sc.id, 0);
+                  openAt(e, buildSceneMenu(sc.id));
+                }}
                 onDragStart={(e) => {
                   if (disabled) return;
                   e.dataTransfer.effectAllowed = 'move';
@@ -343,64 +435,25 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                       disabled={disabled}
                       onClick={(e) => e.stopPropagation()}
                       onChange={(e) => setSceneDuration(sc.id, Number(e.target.value) || 3)}
-                      className="w-10 rounded border border-zinc-700 bg-zinc-950 px-1 py-0.5 text-center font-mono text-xs text-zinc-200"
+                      className="h-7 w-14 rounded border border-zinc-700 bg-zinc-950 px-1 text-center font-mono text-xs text-zinc-200"
                       title="Thời lượng Scene (giây)"
                     />
                     <span className="text-xs text-zinc-500">s</span>
                   </div>
 
-                  <div className="flex items-center gap-0.5 text-xs">
-                    <button
-                      type="button"
-                      disabled={disabled || idx === 0}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        moveScene(sc.id, -1);
-                      }}
-                      className="rounded px-0.5 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100 disabled:opacity-30"
-                      title="Dịch trái"
-                    >
-                      ◀
-                    </button>
-                    <button
-                      type="button"
-                      disabled={disabled || idx === scenes.length - 1}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        moveScene(sc.id, 1);
-                      }}
-                      className="rounded px-0.5 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100 disabled:opacity-30"
-                      title="Dịch phải"
-                    >
-                      ▶
-                    </button>
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        duplicateScene(sc.id);
-                      }}
-                      className="rounded px-1 text-zinc-400 hover:bg-zinc-700 hover:text-amber-300 disabled:opacity-30"
-                      title="Nhân bản Scene này"
-                    >
-                      ⧉
-                    </button>
-                    {scenes.length > 1 && (
-                      <button
-                        type="button"
-                        disabled={disabled}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeScene(sc.id);
-                        }}
-                        className="rounded px-1 text-zinc-400 hover:bg-red-500 hover:text-white disabled:opacity-30"
-                        title="Xóa Scene"
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const r = e.currentTarget.getBoundingClientRect();
+                      openAt({ clientX: r.left, clientY: r.bottom + 2 }, buildSceneMenu(sc.id));
+                    }}
+                    title="Thêm thao tác cho scene (hoặc bấm chuột phải vào thẻ)"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-base leading-none text-zinc-300 hover:bg-zinc-700 hover:text-amber-300 disabled:opacity-30"
+                  >
+                    ⋯
+                  </button>
                 </div>
 
                 {/* Layout Selector (hidden in compact mode to save vertical space) */}
@@ -447,6 +500,10 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                             ? `Ô ${slotIdx + 1}: ${photo.name} — Click chọn chỉnh Focal Point/Xoay/Sáng, hoặc kéo đổi ô`
                             : `Ô ${slotIdx + 1} trống — Kéo ảnh vào hoặc click ảnh bên Khay rồi click vào đây`
                         }
+                        onContextMenu={(e) => {
+                          selectSceneAndSeek(sc.id, slotIdx);
+                          openAt(e, buildSlotMenu(sc.id, slotIdx));
+                        }}
                         onClick={(e) => {
                           e.stopPropagation();
                           if (selectedPhotoId && !disabled) {

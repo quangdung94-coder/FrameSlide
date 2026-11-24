@@ -220,6 +220,16 @@ export default function App() {
   const redo = useAppStore((s) => s.redo);
   const setEngineCapabilities = useAppStore((s) => s.setEngineCapabilities);
 
+  // Right-click menu on a photo slot ("Đặt tâm điểm") asks the preview to enter focal-point mode.
+  useEffect(() => {
+    const onFocalPick = () => {
+      setTransformEditMode(false);
+      setFocalPickMode(true);
+    };
+    window.addEventListener('frameslide:focal-pick', onFocalPick);
+    return () => window.removeEventListener('frameslide:focal-pick', onFocalPick);
+  }, []);
+
   // Starting playback leaves the photo editor (handles would not follow the motion).
   useEffect(() => {
     if (isPlaying) setTransformEditMode(false);
