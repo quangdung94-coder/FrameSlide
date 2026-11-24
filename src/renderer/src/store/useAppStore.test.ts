@@ -331,3 +331,27 @@ describe('insertSceneAt & duplicateScene', () => {
     expect(useAppStore.getState().scenes[1].background?.color1).toBe('#112233');
   });
 });
+
+describe('per-scene motion template', () => {
+  it('sets, clears (follow project) and survives duplicate + copy/paste', () => {
+    useAppStore.setState({ scenes: [], slides: [], past: [], future: [], renderParams: INITIAL_RENDER_PARAMS });
+    useAppStore.getState().addScene('single');
+    useAppStore.getState().addScene('single');
+    const [a, b] = useAppStore.getState().scenes.map((s) => s.id);
+    useAppStore.getState().setSceneMotionTemplate(a, 'polaroid-memories');
+    expect(useAppStore.getState().scenes[0].motionTemplate).toBe('polaroid-memories');
+    expect(useAppStore.getState().scenes[1].motionTemplate).toBeUndefined();
+
+    useAppStore.getState().copySceneSettings(a);
+    useAppStore.getState().pasteSceneSettings(b, ['motion']);
+    expect(useAppStore.getState().scenes[1].motionTemplate).toBe('polaroid-memories');
+
+    useAppStore.getState().duplicateScene(a);
+    expect(useAppStore.getState().scenes[1].motionTemplate).toBe('polaroid-memories');
+
+    useAppStore.getState().setSceneMotionTemplate(a, null);
+    expect('motionTemplate' in useAppStore.getState().scenes[0]).toBe(false);
+    useAppStore.getState().undo();
+    expect(useAppStore.getState().scenes[0].motionTemplate).toBe('polaroid-memories');
+  });
+});

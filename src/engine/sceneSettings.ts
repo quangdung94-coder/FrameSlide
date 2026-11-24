@@ -1,4 +1,4 @@
-import type { MotionDirection, SceneBackground, SceneItem, SceneLayoutId, TransitionType } from '@shared/types';
+import type { MotionDirection, MotionTemplateId, SceneBackground, SceneItem, SceneLayoutId, TransitionType } from '@shared/types';
 import { resizeSceneSlots } from './sceneBuilder';
 
 /** Parts of a scene that can be copied to another scene (the photos themselves never are). */
@@ -25,6 +25,7 @@ export interface SceneSettings {
   durationSec: number;
   transitionType: TransitionType;
   motionDirection?: MotionDirection;
+  motionTemplate?: MotionTemplateId;
   background?: SceneBackground;
   caption?: string;
 }
@@ -35,6 +36,7 @@ export function copySceneSettings(scene: SceneItem): SceneSettings {
     durationSec: scene.durationSec,
     transitionType: scene.transitionType,
     motionDirection: scene.motionDirection,
+    motionTemplate: scene.motionTemplate,
     background: scene.background ? { ...scene.background } : undefined,
     caption: scene.caption,
   };
@@ -57,6 +59,7 @@ export function applySceneSettings(
         break;
       case 'motion':
         next.motionDirection = settings.motionDirection;
+        next.motionTemplate = settings.motionTemplate;
         break;
       case 'background':
         next.background = settings.background ? { ...settings.background } : undefined;

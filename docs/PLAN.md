@@ -92,6 +92,6 @@
 - [x] 2.2 **U7 + U6:** thanh nổi trên khung xem khi chọn ảnh; thanh trên cùng chia 3 cụm, nút "Nhập" thả xuống, nút "Xuất" nổi bật mở hộp thoại Xuất. (Thanh nổi: Chỉnh / Tâm / 90° / ☀− / ☀+ / ⟲; nút "+ Nhập ▾" gồm Chọn ảnh, Chọn thư mục, Ảnh mẫu; tab Xuất đã chuyển thành hộp thoại, `Ctrl+E` hoặc bấm XUẤT; hộp thoại tự mở khi bắt đầu xuất.)
 
 ### Đợt 3: Scene mạnh hơn (học ProShow)
-- [ ] 3.1 **S2:** Motion Template riêng từng scene ("Theo dự án" là mặc định).
+- [x] 3.1 **S2:** Motion Template riêng từng scene ("Theo dự án" là mặc định). (`SceneItem.motionTemplate`; shader có thêm `uMotionStyleB` để scene A và B khi chuyển cảnh dùng đúng template của mình; lưu trong file dự án, nhân bản và sao chép/dán theo phần "Chuyển động".)
 - [ ] 3.2 **S3:** Keyframe Đầu/Cuối cho từng ảnh (vị trí, zoom, xoay; làm mượt Đều/Êm/Tăng/Giảm tốc; Đổi chiều, Copy Đầu→Cuối), tính theo `frameIndex`.
 - [ ] 3.3 **S4 + S5 + S6:** chỉnh màu riêng ảnh/scene (có công tắc bỏ qua Film Look), viền/bóng/bo góc/làm mờ cạnh ô ảnh, thời lượng chuyển cảnh riêng từng scene.

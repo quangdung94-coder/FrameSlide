@@ -78,7 +78,7 @@ export function PhotoTransformOverlay({ canvasRef, onClose }: Props) {
 
   const out = getExportResolution(renderParams.outputAspect);
   const canvasAspect = out.width / out.height;
-  const motionStyle = MOTION_STYLE_CODE_MAP[renderParams.motionTemplate] ?? 0;
+  const motionStyle = MOTION_STYLE_CODE_MAP[scene?.motionTemplate ?? renderParams.motionTemplate] ?? 0;
 
   const rectFor = (idx: number) => {
     const pid = scene?.slots[idx];
