@@ -48,7 +48,14 @@ function ColorField({ label, value, disabled, onChange }: ColorFieldProps) {
  * Background behind framed photos (2–4 photo scenes, framed portraits).
  * Can be set for the whole project or only for the selected scene.
  */
-export function BackgroundPanel({ disabled }: { disabled: boolean }) {
+export function BackgroundPanel({
+  disabled,
+  fixedScope,
+}: {
+  disabled: boolean;
+  /** When set, the project/scene switch is hidden and only that level is edited. */
+  fixedScope?: Scope;
+}) {
   const renderParams = useAppStore((s) => s.renderParams);
   const scenes = useAppStore((s) => s.scenes);
   const activeSceneId = useAppStore((s) => s.activeSceneId);
@@ -61,7 +68,8 @@ export function BackgroundPanel({ disabled }: { disabled: boolean }) {
 
   const activeIdx = scenes.findIndex((sc) => sc.id === activeSceneId);
   const activeScene = activeIdx >= 0 ? scenes[activeIdx] : undefined;
-  const effectiveScope: Scope = scope === 'scene' && activeScene ? 'scene' : 'project';
+  const wantedScope: Scope = fixedScope ?? scope;
+  const effectiveScope: Scope = wantedScope === 'scene' && activeScene ? 'scene' : 'project';
   const projectBg = resolveSceneBackground(renderParams, undefined);
   const current: SceneBackground =
     effectiveScope === 'scene' ? resolveSceneBackground(renderParams, activeScene) : projectBg;
@@ -83,6 +91,7 @@ export function BackgroundPanel({ disabled }: { disabled: boolean }) {
         <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
           Nền sau ảnh
         </span>
+        {!fixedScope && (
         <div className="flex overflow-hidden rounded border border-zinc-700 text-xs">
           {(
             [
@@ -105,6 +114,7 @@ export function BackgroundPanel({ disabled }: { disabled: boolean }) {
             </button>
           ))}
         </div>
+        )}
       </div>
 
       <div className="flex items-center gap-2">

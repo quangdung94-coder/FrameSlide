@@ -110,6 +110,7 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
   const fps = useAppStore((s) => s.fps);
 
   const selectSceneAndSeek = useAppStore((s) => s.selectSceneAndSeek);
+  const setInspectorScope = useAppStore((s) => s.setInspectorScope);
   const addScene = useAppStore((s) => s.addScene);
   const insertSceneAt = useAppStore((s) => s.insertSceneAt);
   const rotatePhoto90 = useAppStore((s) => s.rotatePhoto90);
@@ -388,9 +389,13 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
             <div key={sc.id} className="relative flex shrink-0 items-stretch gap-1.5">
               <div
                 draggable={!disabled}
-                onClick={() => selectSceneAndSeek(sc.id, 0)}
+                onClick={() => {
+                  selectSceneAndSeek(sc.id, 0);
+                  setInspectorScope('scene');
+                }}
                 onContextMenu={(e) => {
                   selectSceneAndSeek(sc.id, 0);
+                  setInspectorScope('scene');
                   openAt(e, buildSceneMenu(sc.id));
                 }}
                 onDragStart={(e) => {
@@ -537,8 +542,10 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                           e.stopPropagation();
                           if (selectedPhotoId && !disabled) {
                             assignPhotoToSlot(sc.id, slotIdx, selectedPhotoId);
+                            setInspectorScope('scene');
                           } else {
                             selectSceneAndSeek(sc.id, slotIdx);
+                            setInspectorScope(photo ? 'photo' : 'scene');
                           }
                         }}
                         onDragStart={(e) => {

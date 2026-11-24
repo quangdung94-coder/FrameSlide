@@ -18,6 +18,8 @@ import { PhotoBin } from './components/PhotoBin';
 import { PhotoTransformOverlay } from './components/PhotoTransformOverlay';
 import { Splitter } from './components/Splitter';
 import { Group, SliderRow } from './components/ui';
+import { ScenePanel } from './components/ScenePanel';
+import { PhotoPanel } from './components/PhotoPanel';
 import { SCENE_SETTING_PARTS } from '@engine/sceneSettings';
 import { DEFAULT_LAYOUT, useLayoutStore } from './store/useLayoutStore';
 import { PlaybackBar } from './components/PlaybackBar';
@@ -30,7 +32,6 @@ import type {
   ExportCodec,
   FrameBorderStyle,
   FrameSlideAPI,
-  MotionDirection,
   OutputAspectId,
   PortraitMode,
   PreviewQuality,
@@ -173,6 +174,8 @@ export default function App() {
     Math.min(timelineHeight, typeof window !== 'undefined' ? window.innerHeight - 330 : timelineHeight)
   );
   const activeSceneId = useAppStore((s) => s.activeSceneId);
+  const inspectorScope = useAppStore((s) => s.inspectorScope);
+  const setInspectorScope = useAppStore((s) => s.setInspectorScope);
   const activeSlotIndex = useAppStore((s) => s.activeSlotIndex);
   const selectedPhotoId = useAppStore((s) => s.selectedPhotoId);
   const renderParams = useAppStore((s) => s.renderParams);
@@ -190,10 +193,6 @@ export default function App() {
   const setSlides = useAppStore((s) => s.setSlides);
   const addPhotosToBin = useAppStore((s) => s.addPhotosToBin);
   const updatePhotoFocalPoint = useAppStore((s) => s.updatePhotoFocalPoint);
-  const rotatePhoto90 = useAppStore((s) => s.rotatePhoto90);
-  const setPhotoExposure = useAppStore((s) => s.setPhotoExposure);
-  const setSceneMotionDirection = useAppStore((s) => s.setSceneMotionDirection);
-  const setSceneCaption = useAppStore((s) => s.setSceneCaption);
   const applyMotionTemplate = useAppStore((s) => s.applyMotionTemplate);
   const applyFilmLookPreset = useAppStore((s) => s.applyFilmLookPreset);
   const setMotionIntensity = useAppStore((s) => s.setMotionIntensity);
@@ -236,10 +235,23 @@ export default function App() {
     return () => window.removeEventListener('frameslide:focal-pick', onFocalPick);
   }, []);
 
+  // The export progress lives in the project panel's export tab: bring it into view when a render starts.
+  useEffect(() => {
+    if (isExporting) {
+      setInspectorScope('project');
+      setActiveTab('export');
+    }
+  }, [isExporting, setInspectorScope]);
+
   // Starting playback leaves the photo editor (handles would not follow the motion).
   useEffect(() => {
     if (isPlaying) setTransformEditMode(false);
   }, [isPlaying]);
+
+  const activeSceneIndex = useMemo(
+    () => scenes.findIndex((sc) => sc.id === activeSceneId),
+    [scenes, activeSceneId]
+  );
 
   const activeScene = useMemo(
     () => scenes.find((sc) => sc.id === activeSceneId) ?? scenes[0] ?? null,
@@ -1315,6 +1327,53 @@ export default function App() {
             className="flex shrink-0 flex-col border-zinc-800 bg-[#141419] text-xs"
             style={{ width: inspectorWidth }}
           >
+          {/* Breadcrumb: shows (and lets you change) what the panel below edits */}
+          <nav
+            aria-label="Đang chỉnh"
+            className="flex h-9 shrink-0 items-center gap-1 overflow-hidden border-b border-zinc-800 bg-[#16161b] px-2 text-xs"
+          >
+            <button
+              type="button"
+              onClick={() => setInspectorScope('project')}
+              className={`h-7 shrink-0 rounded px-2 hover:bg-zinc-800 ${
+                inspectorScope === 'project' ? 'font-semibold text-amber-400' : 'text-zinc-300'
+              }`}
+            >
+              Dự án
+            </button>
+            {activeSceneIndex >= 0 && (
+              <>
+                <span className="text-zinc-600">›</span>
+                <button
+                  type="button"
+                  onClick={() => setInspectorScope('scene')}
+                  className={`h-7 shrink-0 rounded px-2 hover:bg-zinc-800 ${
+                    inspectorScope === 'scene' ? 'font-semibold text-amber-400' : 'text-zinc-300'
+                  }`}
+                >
+                  Scene {activeSceneIndex + 1}
+                </button>
+              </>
+            )}
+            {activeSceneIndex >= 0 && focalTargetPhoto && (
+              <>
+                <span className="text-zinc-600">›</span>
+                <button
+                  type="button"
+                  onClick={() => setInspectorScope('photo')}
+                  title={focalTargetPhoto.name}
+                  className={`h-7 min-w-0 truncate rounded px-2 hover:bg-zinc-800 ${
+                    inspectorScope === 'photo' ? 'font-semibold text-amber-400' : 'text-zinc-300'
+                  }`}
+                >
+                  {selectedPhotoId || (activeScene?.slots.length ?? 0) <= 1
+                    ? focalTargetPhoto.name
+                    : `Ảnh ${activeSlotIndex + 1}`}
+                </button>
+              </>
+            )}
+          </nav>
+          {inspectorScope === 'project' && (
           <div className="grid grid-cols-4 border-b border-zinc-800 bg-[#16161b] text-xs font-medium">
             {(
               [
@@ -1337,10 +1396,30 @@ export default function App() {
               </button>
             ))}
           </div>
+          )}
 
           <div className="flex-1 space-y-4 overflow-y-auto p-3.5">
+            {inspectorScope === 'scene' && <ScenePanel disabled={isExporting} onNotice={flashNotice} />}
+            {inspectorScope === 'photo' && (
+              <PhotoPanel
+                photo={focalTargetPhoto}
+                disabled={isExporting}
+                focalPickMode={focalPickMode}
+                onToggleFocalPick={() => setFocalPickMode(!focalPickMode)}
+                onStartTransformEdit={() => {
+                  setIsPlaying(false);
+                  setFocalPickMode(false);
+                  setTransformEditMode(true);
+                }}
+                focalSuffix={
+                  !selectedPhotoId && activeScene && activeScene.slots.length > 1
+                    ? ` [Ô ${activeSlotIndex + 1}]`
+                    : ''
+                }
+              />
+            )}
             {/* TAB 1: 7 MOTION TEMPLATES (2D/2.5D/3D), MY PRESETS, TIMELINE & PER-PHOTO/SCENE CONTROLS */}
-            {activeTab === 'template' && (
+            {inspectorScope === 'project' && activeTab === 'template' && (
               <>
                 <Group id="tpl-templates" title="7 Motion Templates (2D / 2.5D / 3D)" accent>
                   <div className="space-y-1.5">
@@ -1414,7 +1493,7 @@ export default function App() {
                     </label>
                   </div>
 
-                  <BackgroundPanel disabled={isExporting} />
+                  <BackgroundPanel disabled={isExporting} fixedScope="project" />
 
                   <SliderRow
                     label="Biên độ chuyển động (Motion Intensity)"
@@ -1436,27 +1515,6 @@ export default function App() {
                     onChange={setTransitionDurationSec}
                   />
 
-                  {activeScene && (
-                    <label className="flex flex-col gap-1 text-xs text-zinc-400">
-                      Hướng chuyển động riêng (Scene đang chọn)
-                      <select
-                        value={activeScene.motionDirection ?? 'auto'}
-                        disabled={isExporting}
-                        onChange={(e) =>
-                          setSceneMotionDirection(activeScene.id, e.target.value as MotionDirection)
-                        }
-                        className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
-                      >
-                        <option value="auto">Tự động (Auto)</option>
-                        <option value="zoom-in">Zoom In (Tiến gần)</option>
-                        <option value="zoom-out">Zoom Out (Lùi xa)</option>
-                        <option value="pan-left">Lướt sang Trái</option>
-                        <option value="pan-right">Lướt sang Phải</option>
-                        <option value="tilt-3d">Nghiêng 3D (Perspective)</option>
-                        <option value="static">Đứng yên (Tĩnh)</option>
-                      </select>
-                    </label>
-                  )}
 
                   <div className="grid grid-cols-2 gap-2">
                     <label className="flex flex-col gap-1 text-xs text-zinc-400">
@@ -1554,50 +1612,6 @@ export default function App() {
                   </label>
                 </Group>
 
-                {/* Per-Photo Quick Fix: Focal Point, Rotate 90, Exposure */}
-                {focalTargetPhoto && (
-                  <>
-                                        <Group id="photo-rescue" title={<>Cứu ảnh nhanh: {focalTargetPhoto.name}</>} onReset={() => setPhotoExposure(focalTargetPhoto.id, 0)} resetTitle="Đặt độ sáng ảnh về 0">
-                      <div className="flex items-center justify-end">
-                        <button
-                          type="button"
-                          disabled={isExporting}
-                          onClick={() => rotatePhoto90(focalTargetPhoto.id)}
-                          title="Xoay ảnh 90° theo chiều kim đồng hồ"
-                          className="shrink-0 rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-xs text-zinc-200 hover:border-amber-400"
-                        >
-                          ↻ Xoay 90° ({focalTargetPhoto.rotationDeg ?? 0}°)
-                        </button>
-                      </div>
-
-                      <SliderRow
-                        label="Độ sáng ảnh (Exposure EV)"
-                        value={focalTargetPhoto.exposure ?? 0}
-                        min={-1.5}
-                        max={1.5}
-                        step={0.05}
-                        disabled={isExporting}
-                        onChange={(v) => setPhotoExposure(focalTargetPhoto.id, v)}
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() => setFocalPickMode(!focalPickMode)}
-                        className={`w-full rounded border px-2.5 py-1.5 text-xs font-medium ${
-                          focalPickMode
-                            ? 'border-amber-400 bg-amber-500/20 text-amber-300'
-                            : 'border-zinc-700 bg-zinc-800 text-zinc-200 hover:bg-zinc-700'
-                        }`}
-                      >
-                        {focalPickMode
-                          ? `Đang chọn tâm${!selectedPhotoId && activeScene && activeScene.slots.length > 1 ? ` (Ô ${activeSlotIndex + 1})` : ''}: Click preview...`
-                          : `Focal Point${!selectedPhotoId && activeScene && activeScene.slots.length > 1 ? ` [Ô ${activeSlotIndex + 1}]` : ''} (${Math.round(focalTargetPhoto.focalPoint.x * 100)}%, ${Math.round(focalTargetPhoto.focalPoint.y * 100)}%)`}
-                      </button>
-                    </Group>
-                  </>
-                )}
-
-                
                 {/* User Presets (Save & Recall) */}
                 <Group id="tpl-presets" title="Preset cá nhân (My Presets)">
                   <div className="flex gap-1.5">
@@ -1658,7 +1672,7 @@ export default function App() {
             )}
 
             {/* TAB 2: 12 FILM LOOK PRESETS + CLEAN + .CUBE 3D LUT */}
-            {activeTab === 'look' && (
+            {inspectorScope === 'project' && activeTab === 'look' && (
               <>
                 <Group id="look-presets" title="12 Film Look Presets + Clean" accent>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -1810,7 +1824,7 @@ export default function App() {
             )}
 
             {/* TAB 3: VIETNAMESE TEXT & DATE STAMP */}
-            {activeTab === 'text' && (
+            {inspectorScope === 'project' && activeTab === 'text' && (
               <Group id="text-main" title="Chữ & Date Stamp (Tiếng Việt)" accent>
                 <label className="flex flex-col gap-1 text-xs text-zinc-400">
                   Kiểu hiển thị
@@ -1844,18 +1858,17 @@ export default function App() {
                   </select>
                 </label>
 
-                {textOverlay.timing === 'per-scene' && activeScene ? (
-                  <label className="flex flex-col gap-1 text-xs text-amber-300">
-                    Chú thích riêng cho Scene đang chọn
-                    <input
-                      type="text"
-                      value={activeScene.caption ?? ''}
-                      disabled={textOverlay.style === 'none' || isExporting}
-                      onChange={(e) => setSceneCaption(activeScene.id, e.target.value)}
-                      placeholder="Nhập chữ riêng cho Scene này..."
-                      className="rounded border border-amber-500/50 bg-zinc-900 px-2 h-8 text-zinc-100 disabled:opacity-40"
-                    />
-                  </label>
+                {textOverlay.timing === 'per-scene' ? (
+                  <div className="flex items-center justify-between gap-2 rounded border border-amber-500/40 bg-amber-950/20 p-2 text-xs text-amber-200">
+                    <span>Chữ riêng từng scene được nhập ở bảng Scene.</span>
+                    <button
+                      type="button"
+                      onClick={() => setInspectorScope('scene')}
+                      className="h-8 shrink-0 rounded border border-amber-500/50 px-2 hover:bg-amber-500/20"
+                    >
+                      Mở bảng Scene
+                    </button>
+                  </div>
                 ) : (
                   <label className="flex flex-col gap-1 text-xs text-zinc-400">
                     Tiêu đề chính
@@ -1915,7 +1928,7 @@ export default function App() {
             )}
 
             {/* TAB 4: SINGLE & BATCH EXPORT */}
-            {activeTab === 'export' && (
+            {inspectorScope === 'project' && activeTab === 'export' && (
               <>
                 <Group id="export-single" title={<>Xuất 1 clip ({exportRes.width}×{exportRes.height} • {scenes.length} Scene • {effectiveDurationSec.toFixed(1)}s)</>}>
                   <div className="grid grid-cols-2 gap-2">

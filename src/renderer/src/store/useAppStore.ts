@@ -132,6 +132,10 @@ interface AppState {
   ) => void;
   pushUndoPoint: () => void;
 
+  /** Which level the right-hand panel edits: whole project, selected scene, or selected photo. */
+  inspectorScope: InspectorScope;
+  setInspectorScope: (scope: InspectorScope) => void;
+
   // Scene Track & Photo Slots actions
   setActiveSceneSilent: (sceneId: string) => void;
   selectSceneAndSeek: (sceneId: string, slotIndex?: number) => void;
@@ -255,6 +259,8 @@ export const INITIAL_RENDER_PARAMS: RenderParams = {
   lutIntensity: 0.85,
   textOverlay: { ...DEFAULT_TEXT_OVERLAY },
 };
+
+export type InspectorScope = 'project' | 'scene' | 'photo';
 
 export const useAppStore = create<AppState>((set, get) => ({
   fps: 30,
@@ -489,6 +495,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     }),
 
   sceneClipboard: null,
+  inspectorScope: 'project',
+  setInspectorScope: (inspectorScope) => set({ inspectorScope }),
 
   copySceneSettings: (sceneId) => {
     const sc = get().scenes.find((x) => x.id === sceneId);
