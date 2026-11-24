@@ -8,11 +8,14 @@ import {
   createEmptyScene,
   resizeSceneSlots,
 } from '@engine/sceneBuilder';
+import { DEFAULT_BACKGROUND_OPTIONS } from '@engine/background';
 import { resolveSlideDurations } from '@engine/timeline';
 import {
   DEFAULT_SUPER8_PARAMS,
   DEFAULT_TEXT_OVERLAY,
+  type BackgroundOptions,
   type BackgroundStyle,
+  type SceneBackground,
   type CompareMode,
   type CustomLutInfo,
   type DurationMode,
@@ -138,6 +141,10 @@ interface AppState {
   applyFilmLookPreset: (lookId: FilmLookId) => void;
   setMotionIntensity: (v: number) => void;
   setBackgroundStyle: (style: BackgroundStyle) => void;
+  setBackgroundOptions: (patch: Partial<BackgroundOptions>) => void;
+  /** Give one scene its own background (null = use the project background again). */
+  setSceneBackground: (sceneId: string, background: SceneBackground | null) => void;
+  clearAllSceneBackgrounds: () => void;
   setFrameBorderStyle: (style: FrameBorderStyle) => void;
   setOutputAspect: (aspect: OutputAspectId) => void;
   setDurationMode: (mode: DurationMode) => void;
@@ -208,6 +215,7 @@ export const INITIAL_RENDER_PARAMS: RenderParams = {
   motionTemplate: 'ken-burns-classic',
   motionIntensity: 1.0,
   backgroundStyle: 'blur',
+  backgroundOptions: { ...DEFAULT_BACKGROUND_OPTIONS },
   frameBorderStyle: 'auto',
   outputAspect: '16:9',
   durationMode: 'per-slide',
@@ -660,6 +668,47 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setBackgroundStyle: (backgroundStyle) =>
     set((s) => ({ ...pushPast(s), renderParams: { ...s.renderParams, backgroundStyle } })),
+
+  setBackgroundOptions: (patch) =>
+    set((s) => ({
+      ...pushPast(s),
+      renderParams: {
+        ...s.renderParams,
+        backgroundOptions: {
+          ...DEFAULT_BACKGROUND_OPTIONS,
+          ...(s.renderParams.backgroundOptions ?? {}),
+          ...patch,
+        },
+      },
+    })),
+
+  setSceneBackground: (sceneId, background) =>
+    set((s) => ({
+      ...pushPast(s),
+      scenes: s.scenes.map((sc) => {
+        if (sc.id !== sceneId) return sc;
+        if (!background) {
+          const { background: _drop, ...rest } = sc;
+          void _drop;
+          return rest;
+        }
+        return { ...sc, background: { ...background } };
+      }),
+    })),
+
+  clearAllSceneBackgrounds: () =>
+    set((s) => {
+      if (!s.scenes.some((sc) => sc.background)) return s;
+      return {
+        ...pushPast(s),
+        scenes: s.scenes.map((sc) => {
+          if (!sc.background) return sc;
+          const { background: _drop, ...rest } = sc;
+          void _drop;
+          return rest;
+        }),
+      };
+    }),
 
   setFrameBorderStyle: (frameBorderStyle) =>
     set((s) => ({ ...pushPast(s), renderParams: { ...s.renderParams, frameBorderStyle } })),

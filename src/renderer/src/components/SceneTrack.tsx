@@ -7,6 +7,7 @@ import {
 import { LAYOUT_LABELS } from '@engine/sceneBuilder';
 import { getExportResolution } from '@engine/capabilities';
 import { getLayoutRects } from '@engine/layoutGeometry';
+import { backgroundCss, resolveSceneBackground } from '@engine/background';
 import { resolveSlideDurations } from '@engine/timeline';
 import { useAppStore } from '../store/useAppStore';
 import { LAYOUT_LIMITS, useLayoutStore } from '../store/useLayoutStore';
@@ -422,7 +423,11 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                 {/* Mini frame: each slot drawn where it really sits in the video */}
                 <div
                   className="relative mx-auto overflow-hidden rounded border border-zinc-800 bg-zinc-950"
-                  style={{ width: miniW, height: Math.round(miniW / canvasAspect) }}
+                  style={{
+                    width: miniW,
+                    height: Math.round(miniW / canvasAspect),
+                    background: sc.slots.length > 1 ? backgroundCss(resolveSceneBackground(renderParams, sc)) : undefined,
+                  }}
                   title={`${LAYOUT_LABELS[sc.layout]}: kéo ô này sang ô khác để đổi chỗ ảnh`}
                 >
                   {sc.slots.map((pid, slotIdx) => {

@@ -13,6 +13,7 @@ import { FILM_LOOK_PRESETS } from '@engine/presets/filmLookPresets';
 import { MOTION_TEMPLATE_PRESETS } from '@engine/presets/motionTemplates';
 import { TRANSITION_PRESETS } from '@engine/presets/transitions';
 import { computeEffectiveTotalDurationSec, getTotalFrames } from '@engine/timeline';
+import { BackgroundPanel } from './components/BackgroundPanel';
 import { PhotoBin } from './components/PhotoBin';
 import { Splitter } from './components/Splitter';
 import { DEFAULT_LAYOUT, useLayoutStore } from './store/useLayoutStore';
@@ -22,7 +23,6 @@ import { useAppStore } from './store/useAppStore';
 import type {
   AppInfo,
   AspectMaskId,
-  BackgroundStyle,
   DurationMode,
   ExportCodec,
   FrameBorderStyle,
@@ -224,7 +224,6 @@ export default function App() {
   const applyMotionTemplate = useAppStore((s) => s.applyMotionTemplate);
   const applyFilmLookPreset = useAppStore((s) => s.applyFilmLookPreset);
   const setMotionIntensity = useAppStore((s) => s.setMotionIntensity);
-  const setBackgroundStyle = useAppStore((s) => s.setBackgroundStyle);
   const setFrameBorderStyle = useAppStore((s) => s.setFrameBorderStyle);
   const setOutputAspect = useAppStore((s) => s.setOutputAspect);
   const setDurationMode = useAppStore((s) => s.setDurationMode);
@@ -1313,7 +1312,7 @@ export default function App() {
                     Chuyển động, Nền, Viền & Tỷ lệ
                   </h2>
 
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-2 gap-1.5">
                     <label className="flex flex-col gap-1 text-[10px] text-zinc-400">
                       Tỷ lệ xuất
                       <select
@@ -1325,20 +1324,6 @@ export default function App() {
                         <option value="16:9">16:9 FHD</option>
                         <option value="9:16">9:16 Reels</option>
                         <option value="1:1">1:1 Vuông</option>
-                      </select>
-                    </label>
-                    <label className="flex flex-col gap-1 text-[10px] text-zinc-400">
-                      Kiểu nền
-                      <select
-                        value={renderParams.backgroundStyle}
-                        disabled={isExporting}
-                        onChange={(e) => setBackgroundStyle(e.target.value as BackgroundStyle)}
-                        className="rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-[11px] text-zinc-100"
-                      >
-                        <option value="blur">Ảnh mờ</option>
-                        <option value="black">Đen thuần</option>
-                        <option value="paper">Giấy ảnh</option>
-                        <option value="studio">Studio</option>
                       </select>
                     </label>
                     <label className="flex flex-col gap-1 text-[10px] text-zinc-400">
@@ -1356,6 +1341,8 @@ export default function App() {
                       </select>
                     </label>
                   </div>
+
+                  <BackgroundPanel disabled={isExporting} />
 
                   <SliderRow
                     label="Biên độ chuyển động (Motion Intensity)"

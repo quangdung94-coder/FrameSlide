@@ -73,7 +73,18 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
   uniform int uTransType;      // 0..19
   uniform int uMotionStyle;    // 0..6
   uniform float uMotionIntensity; // 0..1.5
-  uniform int uBgStyle;        // 0=blur, 1=black, 2=paper, 3=studio
+  // Background per scene (A = current, B = next): 0=blur, 1=black, 2=paper, 3=studio,
+  // 4=solid, 5=gradient, 6=pattern. Colours are linear RGB.
+  uniform int uBgStyleA;
+  uniform int uBgStyleB;
+  uniform vec3 uBgCol1A;
+  uniform vec3 uBgCol2A;
+  uniform vec3 uBgCol1B;
+  uniform vec3 uBgCol2B;
+  uniform float uBgAngleA;     // radians, CSS convention (0 = bottom→top, 90° = left→right)
+  uniform float uBgAngleB;
+  uniform int uBgPatternA;     // 0=dots, 1=stripes, 2=grid, 3=diamonds
+  uniform int uBgPatternB;
   uniform int uBorderStyle;    // 0=auto, 1=none, 2=thin, 3=polaroid
   uniform int uPortraitMode;   // 0=matte-framed/smart-pairing, 1=safe-top-third
   uniform int uSlideIndexA;
@@ -284,16 +295,53 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     return edge.x * edge.y;
   }
 
-  vec3 computeBackground(int slot0, vec2 screenUv, float easeP, float canvasAspect, bool parallax, bool filmstrip) {
-    if (uBgStyle == 1) {
+  vec3 computeBackground(int scene, int slot0, vec2 screenUv, float easeP, float canvasAspect, bool parallax, bool filmstrip) {
+    int bgStyle = scene == 0 ? uBgStyleA : uBgStyleB;
+    vec3 c1 = scene == 0 ? uBgCol1A : uBgCol1B;
+    vec3 c2 = scene == 0 ? uBgCol2A : uBgCol2B;
+    if (bgStyle == 4) {
+      return c1;
+    }
+    if (bgStyle == 5) {
+      // Linear gradient matching CSS linear-gradient(<angle>deg, c1, c2)
+      float ang = scene == 0 ? uBgAngleA : uBgAngleB;
+      vec2 dir = vec2(sin(ang), cos(ang));
+      vec2 p = (screenUv - 0.5) * vec2(canvasAspect, 1.0);
+      float halfLen = 0.5 * (abs(canvasAspect * dir.x) + abs(dir.y));
+      float t = clamp(dot(p, dir) / max(1e-4, 2.0 * halfLen) + 0.5, 0.0, 1.0);
+      return mix(c1, c2, t);
+    }
+    if (bgStyle == 6) {
+      // Static pattern (deterministic, no time input): c1 = base, c2 = ink
+      int pat = scene == 0 ? uBgPatternA : uBgPatternB;
+      float cells = 16.0;
+      vec2 p = screenUv * vec2(canvasAspect, 1.0) * cells;
+      float aaw = cells / max(1.0, uResolution.y) * 1.5;
+      vec2 cell = fract(p) - 0.5;
+      float m = 0.0;
+      if (pat == 1) {
+        float st = abs(fract((p.x + p.y) * 0.5) - 0.5);
+        m = 1.0 - smoothstep(0.12, 0.12 + aaw, st);
+      } else if (pat == 2) {
+        vec2 e = 0.5 - abs(cell);
+        m = 1.0 - smoothstep(0.035, 0.035 + aaw, min(e.x, e.y));
+      } else if (pat == 3) {
+        float d = abs(cell.x) + abs(cell.y);
+        m = 1.0 - smoothstep(0.26, 0.26 + aaw, d);
+      } else {
+        m = 1.0 - smoothstep(0.2, 0.2 + aaw, length(cell));
+      }
+      return mix(c1, c2, m);
+    }
+    if (bgStyle == 1) {
       return vec3(0.008, 0.008, 0.010);
     }
-    if (uBgStyle == 2) {
+    if (bgStyle == 2) {
       // Warm archival photo paper background
       float vig = 1.0 - length((screenUv - 0.5) * vec2(0.9, 1.0)) * 0.22;
       return vec3(0.76, 0.72, 0.65) * vig;
     }
-    if (uBgStyle == 3) {
+    if (bgStyle == 3) {
       // Studio charcoal radial gradient
       float g = exp(-dot(screenUv - 0.5, screenUv - 0.5) * 3.2);
       return mix(vec3(0.025, 0.026, 0.032), vec3(0.085, 0.088, 0.10), g);
@@ -442,7 +490,7 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
       return samplePhotoSlot(base, uv);
     }
 
-    vec3 col = computeBackground(base, screenUv, easeP, canvasAspect, parallax || is3d, filmstrip);
+    vec3 col = computeBackground(scene, base, screenUv, easeP, canvasAspect, parallax || is3d, filmstrip);
 
     // Shared per-layout values (same numbers as the original per-layout code).
     int cardCount = 1;

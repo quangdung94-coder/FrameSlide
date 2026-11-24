@@ -255,3 +255,29 @@ describe('timeline seeking', () => {
     expect(useAppStore.getState().frameIndex).toBe(30 * 8);
   });
 });
+
+describe('scene backgrounds', () => {
+  it('sets, clears and bulk-clears per-scene backgrounds with undo', () => {
+    useAppStore.setState({ scenes: [], slides: [], past: [], future: [], renderParams: INITIAL_RENDER_PARAMS });
+    useAppStore.getState().setSlides([makePhoto('A'), makePhoto('B')], false);
+    const [s1] = useAppStore.getState().scenes;
+    const bg = { style: 'solid' as const, color1: '#112233', color2: '#000000', angleDeg: 0, pattern: 'dots' as const };
+    useAppStore.getState().setSceneBackground(s1.id, bg);
+    expect(useAppStore.getState().scenes[0].background).toEqual(bg);
+    useAppStore.getState().undo();
+    expect(useAppStore.getState().scenes[0].background).toBeUndefined();
+    useAppStore.getState().redo();
+    useAppStore.getState().setSceneBackground(s1.id, null);
+    expect('background' in useAppStore.getState().scenes[0]).toBe(false);
+    useAppStore.getState().setSceneBackground(s1.id, bg);
+    useAppStore.getState().clearAllSceneBackgrounds();
+    expect(useAppStore.getState().scenes.some((sc) => sc.background)).toBe(false);
+  });
+
+  it('merges project background options', () => {
+    useAppStore.getState().setBackgroundOptions({ angleDeg: 30 });
+    const opts = useAppStore.getState().renderParams.backgroundOptions;
+    expect(opts?.angleDeg).toBe(30);
+    expect(opts?.color1).toMatch(/^#/);
+  });
+});
