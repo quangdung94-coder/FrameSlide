@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import type { SortOrder } from '@shared/types';
 
@@ -12,12 +12,16 @@ export function PhotoBin({ disabled }: PhotoBinProps) {
   const slides = useAppStore((s) => s.slides);
   const scenes = useAppStore((s) => s.scenes);
   const selectedPhotoId = useAppStore((s) => s.selectedPhotoId);
-  const selectPhoto = useAppStore((s) => s.selectPhoto);
+  const selectedPhotoIds = useAppStore((s) => s.selectedPhotoIds);
+  const setPhotoSelection = useAppStore((s) => s.setPhotoSelection);
+  const appendScenesForPhotos = useAppStore((s) => s.appendScenesForPhotos);
+  const selectSceneAndSeek = useAppStore((s) => s.selectSceneAndSeek);
   const removePhoto = useAppStore((s) => s.removePhoto);
   const sortSlides = useAppStore((s) => s.sortSlides);
 
   const [collapsed, setCollapsed] = useState(false);
   const [filter, setFilter] = useState<PhotoFilter>('all');
+  const anchorIdRef = useRef<string | null>(null);
 
   const usageMap = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -33,11 +37,6 @@ export function PhotoBin({ disabled }: PhotoBinProps) {
     return map;
   }, [scenes]);
 
-  const unusedCount = useMemo(
-    () => slides.filter((p) => (usageMap.get(p.id)?.length ?? 0) === 0).length,
-    [slides, usageMap]
-  );
-
   const filteredSlides = useMemo(() => {
     return slides.filter((p) => {
       if (filter === 'unused') return (usageMap.get(p.id)?.length ?? 0) === 0;
@@ -46,6 +45,46 @@ export function PhotoBin({ disabled }: PhotoBinProps) {
       return true;
     });
   }, [slides, filter, usageMap]);
+
+  const selectedSet = useMemo(() => new Set(selectedPhotoIds), [selectedPhotoIds]);
+  const unusedIds = useMemo(
+    () => slides.filter((p) => (usageMap.get(p.id)?.length ?? 0) === 0).map((p) => p.id),
+    [slides, usageMap]
+  );
+
+  const handlePhotoClick = (e: React.MouseEvent, photoId: string) => {
+    if (e.shiftKey && anchorIdRef.current) {
+      const order = filteredSlides.map((p) => p.id);
+      const a = order.indexOf(anchorIdRef.current);
+      const b = order.indexOf(photoId);
+      if (a >= 0 && b >= 0) {
+        const [from, to] = a <= b ? [a, b] : [b, a];
+        setPhotoSelection(order.slice(from, to + 1), photoId);
+        return;
+      }
+    }
+    anchorIdRef.current = photoId;
+    if (e.ctrlKey || e.metaKey) {
+      if (selectedSet.has(photoId)) {
+        const rest = selectedPhotoIds.filter((id) => id !== photoId);
+        setPhotoSelection(rest, rest.length === 1 ? rest[0] : null);
+      } else {
+        setPhotoSelection([...selectedPhotoIds, photoId], photoId);
+      }
+      return;
+    }
+    const onlyThis = selectedPhotoIds.length === 1 && selectedPhotoIds[0] === photoId;
+    setPhotoSelection(onlyThis ? [] : [photoId], onlyThis ? null : photoId);
+  };
+
+  const addToTimeline = (photoIds: string[]) => {
+    const before = useAppStore.getState().scenes.length;
+    const added = appendScenesForPhotos(photoIds);
+    if (added === 0) return;
+    const firstNew = useAppStore.getState().scenes[before];
+    if (firstNew) selectSceneAndSeek(firstNew.id);
+    setPhotoSelection([], null);
+  };
 
   if (collapsed) {
     return (
@@ -109,7 +148,7 @@ export function PhotoBin({ disabled }: PhotoBinProps) {
           {(
             [
               ['all', `Tất cả (${slides.length})`],
-              ['unused', `Chưa dùng (${unusedCount})`],
+              ['unused', `Chưa dùng (${unusedIds.length})`],
               ['portrait', 'Dọc'],
               ['landscape', 'Ngang'],
             ] as [PhotoFilter, string][]
@@ -139,7 +178,7 @@ export function PhotoBin({ disabled }: PhotoBinProps) {
 
         {filteredSlides.map((p) => {
           const usedIn = usageMap.get(p.id) ?? [];
-          const isSelected = selectedPhotoId === p.id;
+          const isSelected = selectedSet.has(p.id) || selectedPhotoId === p.id;
           const rot = p.rotationDeg ?? 0;
           const exp = p.exposure ?? 0;
 
@@ -147,7 +186,7 @@ export function PhotoBin({ disabled }: PhotoBinProps) {
             <div
               key={p.id}
               draggable={!disabled}
-              onClick={() => selectPhoto(isSelected ? null : p.id)}
+              onClick={(e) => handlePhotoClick(e, p.id)}
               onDragStart={(e) => {
                 e.dataTransfer.setData(
                   'application/x-frameslide',
@@ -209,6 +248,30 @@ export function PhotoBin({ disabled }: PhotoBinProps) {
             </div>
           );
         })}
+      </div>
+      <div className="flex flex-col gap-1.5 border-t border-zinc-800 bg-[#16161b] p-2">
+        <button
+          type="button"
+          disabled={disabled || selectedPhotoIds.length === 0}
+          onClick={() => addToTimeline(selectedPhotoIds)}
+          title="Đưa các ảnh đang chọn lên cuối timeline (giữ Ctrl để chọn nhiều, Shift để chọn một dãy)"
+          className="rounded bg-amber-500 px-2 py-1.5 text-[11px] font-semibold text-zinc-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Thêm ảnh đã chọn{selectedPhotoIds.length > 0 ? ` (${selectedPhotoIds.length})` : ''}
+        </button>
+        <button
+          type="button"
+          disabled={disabled || unusedIds.length === 0}
+          onClick={() => addToTimeline(unusedIds)}
+          title={
+            unusedIds.length === 0
+              ? 'Mọi ảnh trong khay đều đã có trên timeline'
+              : 'Đưa tất cả ảnh chưa dùng trong khay lên cuối timeline'
+          }
+          className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-[11px] font-medium text-zinc-200 hover:border-amber-400 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Thêm cả thư mục{unusedIds.length > 0 ? ` (${unusedIds.length})` : ''}
+        </button>
       </div>
     </aside>
   );

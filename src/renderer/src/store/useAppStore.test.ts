@@ -163,3 +163,58 @@ describe('useAppStore scene & slot actions', () => {
     expect(useAppStore.getState().userPresets.some((p) => p.id === saved.id)).toBe(false);
   });
 });
+
+describe('photo tray import (no auto timeline)', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      slides: [],
+      scenes: [],
+      activeSceneId: null,
+      selectedPhotoId: null,
+      selectedPhotoIds: [],
+      renderParams: INITIAL_RENDER_PARAMS,
+      past: [],
+      future: [],
+    });
+  });
+
+  it('adds photos to the tray only, skipping duplicates, without creating scenes', () => {
+    const st = useAppStore.getState();
+    expect(st.addPhotosToBin([makePhoto('A'), makePhoto('B'), makePhoto('A')])).toBe(2);
+    expect(useAppStore.getState().slides.map((p) => p.id)).toEqual(['A', 'B']);
+    expect(useAppStore.getState().scenes).toHaveLength(0);
+    expect(useAppStore.getState().addPhotosToBin([makePhoto('B')])).toBe(0);
+    expect(useAppStore.getState().past).toHaveLength(1);
+  });
+
+  it('keeps existing scenes when more photos are imported', () => {
+    useAppStore.getState().setSlides([makePhoto('A')], false);
+    const before = useAppStore.getState().scenes;
+    useAppStore.getState().addPhotosToBin([makePhoto('B'), makePhoto('C')]);
+    expect(useAppStore.getState().scenes).toEqual(before);
+    expect(useAppStore.getState().slides).toHaveLength(3);
+  });
+
+  it('appends scenes for selected photos in tray order and supports undo', () => {
+    useAppStore.getState().addPhotosToBin([makePhoto('A'), makePhoto('B'), makePhoto('C')]);
+    const added = useAppStore.getState().appendScenesForPhotos(['C', 'A']);
+    expect(added).toBeGreaterThan(0);
+    const used = useAppStore.getState().scenes.flatMap((sc) => sc.slots);
+    expect(used).toEqual(['A', 'C']);
+    expect(useAppStore.getState().activeSceneId).toBe(useAppStore.getState().scenes[0].id);
+    useAppStore.getState().undo();
+    expect(useAppStore.getState().scenes).toHaveLength(0);
+    expect(useAppStore.getState().slides).toHaveLength(3);
+    expect(useAppStore.getState().appendScenesForPhotos(['missing'])).toBe(0);
+  });
+
+  it('tracks multi-selection and clears removed photos from it', () => {
+    useAppStore.getState().addPhotosToBin([makePhoto('A'), makePhoto('B')]);
+    useAppStore.getState().setPhotoSelection(['A', 'B'], 'B');
+    expect(useAppStore.getState().selectedPhotoId).toBe('B');
+    useAppStore.getState().removePhoto('A');
+    expect(useAppStore.getState().selectedPhotoIds).toEqual(['B']);
+    useAppStore.getState().selectPhoto(null);
+    expect(useAppStore.getState().selectedPhotoIds).toEqual([]);
+  });
+});

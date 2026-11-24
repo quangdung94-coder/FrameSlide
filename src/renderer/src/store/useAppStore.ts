@@ -81,6 +81,8 @@ interface AppState {
   activeSceneId: string | null;
   activeSlotIndex: number;
   selectedPhotoId: string | null;
+  /** Multi-selection in the photo tray (Ctrl/Shift click). Used by "Thêm ảnh đã chọn". */
+  selectedPhotoIds: string[];
   renderParams: RenderParams;
   engineCapabilities: EngineCapabilities | null;
   customLut: CustomLutInfo | null;
@@ -97,7 +99,11 @@ interface AppState {
 
   // Photo Bin actions
   setSlides: (slides: SlideAsset[], pushHistory?: boolean) => void;
-  appendSlides: (incoming: SlideAsset[]) => void;
+  /** Add photos to the tray only (no scenes are created). Returns how many were new. */
+  addPhotosToBin: (incoming: SlideAsset[]) => number;
+  /** Build scenes from the given tray photos (in tray order) and append them to the timeline. Returns scenes added. */
+  appendScenesForPhotos: (photoIds: string[]) => number;
+  setPhotoSelection: (photoIds: string[], primaryId?: string | null) => void;
   removePhoto: (photoId: string) => void;
   sortSlides: (order: SortOrder) => void;
   selectPhoto: (photoId: string | null) => void;
@@ -210,6 +216,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeSceneId: null,
   activeSlotIndex: 0,
   selectedPhotoId: null,
+  selectedPhotoIds: [],
   renderParams: INITIAL_RENDER_PARAMS,
   engineCapabilities: null,
   customLut: null,
@@ -239,32 +246,51 @@ export const useAppStore = create<AppState>((set, get) => ({
         scenes: builtScenes,
         activeSceneId: builtScenes[0]?.id ?? null,
         selectedPhotoId: null,
+        selectedPhotoIds: [],
         frameIndex: 0,
       };
     }),
 
-  appendSlides: (incoming) =>
-    set((s) => {
-      if (incoming.length === 0) return s;
-      const existingIds = new Set(s.slides.map((x) => x.id));
-      const unique = incoming.filter((x) => !existingIds.has(x.id));
-      if (unique.length === 0) return s;
-      const merged = [...s.slides, ...unique];
-      // Also append new scenes for the newly dropped photos so they appear immediately
-      const extraScenes = buildScenesFromPhotos({
-        photos: unique,
-        portraitMode: s.renderParams.portraitMode,
-        motionTemplate: s.renderParams.motionTemplate,
-        defaultDurationSec: s.renderParams.defaultSlideDurationSec,
-        defaultTransition: s.renderParams.transitionType,
-      });
-      const nextScenes = [...s.scenes, ...extraScenes];
-      return {
-        ...pushPast(s),
-        slides: merged,
-        scenes: nextScenes,
-        activeSceneId: s.activeSceneId ?? nextScenes[0]?.id ?? null,
-      };
+  addPhotosToBin: (incoming) => {
+    const s = get();
+    const existingIds = new Set(s.slides.map((x) => x.id));
+    const seen = new Set<string>();
+    const unique = incoming.filter((x) => {
+      if (existingIds.has(x.id) || seen.has(x.id)) return false;
+      seen.add(x.id);
+      return true;
+    });
+    if (unique.length === 0) return 0;
+    set({ ...pushPast(s), slides: [...s.slides, ...unique] });
+    return unique.length;
+  },
+
+  appendScenesForPhotos: (photoIds) => {
+    const s = get();
+    const wanted = new Set(photoIds);
+    const photos = s.slides.filter((p) => wanted.has(p.id));
+    if (photos.length === 0) return 0;
+    const extraScenes = buildScenesFromPhotos({
+      photos,
+      portraitMode: s.renderParams.portraitMode,
+      motionTemplate: s.renderParams.motionTemplate,
+      defaultDurationSec: s.renderParams.defaultSlideDurationSec,
+      defaultTransition: s.renderParams.transitionType,
+    });
+    if (extraScenes.length === 0) return 0;
+    set({
+      ...pushPast(s),
+      scenes: [...s.scenes, ...extraScenes],
+      activeSceneId: s.activeSceneId ?? extraScenes[0].id,
+    });
+    return extraScenes.length;
+  },
+
+  setPhotoSelection: (photoIds, primaryId) =>
+    set({
+      selectedPhotoIds: photoIds,
+      selectedPhotoId:
+        primaryId !== undefined ? primaryId : photoIds.length === 1 ? photoIds[0] : null,
     }),
 
   removePhoto: (photoId) =>
@@ -279,6 +305,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         slides: nextSlides,
         scenes: nextScenes,
         selectedPhotoId: s.selectedPhotoId === photoId ? null : s.selectedPhotoId,
+        selectedPhotoIds: s.selectedPhotoIds.filter((id) => id !== photoId),
       };
     }),
 
@@ -303,7 +330,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { ...pushPast(s), slides: next };
     }),
 
-  selectPhoto: (selectedPhotoId) => set({ selectedPhotoId }),
+  selectPhoto: (selectedPhotoId) =>
+    set({ selectedPhotoId, selectedPhotoIds: selectedPhotoId ? [selectedPhotoId] : [] }),
 
   updatePhotoFocalPoint: (photoId, focalPoint) =>
     set((s) => ({
@@ -502,6 +530,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       activeSceneId: sceneId,
       activeSlotIndex: slotIndex,
       selectedPhotoId: null,
+      selectedPhotoIds: [],
     })),
 
   swapSceneSlots: (srcSceneId, srcIdx, dstSceneId, dstIdx) =>
@@ -765,6 +794,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         scenes: loadedScenes,
         activeSceneId: loadedScenes[0]?.id ?? null,
         selectedPhotoId: null,
+        selectedPhotoIds: [],
         renderParams: mergedParams,
         projectFilePath: filePath,
         frameIndex: 0,
