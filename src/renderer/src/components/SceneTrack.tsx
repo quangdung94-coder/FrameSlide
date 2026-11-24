@@ -9,6 +9,7 @@ import { getExportResolution } from '@engine/capabilities';
 import { getLayoutRects } from '@engine/layoutGeometry';
 import { backgroundCss, resolveSceneBackground } from '@engine/background';
 import { resolveSlideDurations } from '@engine/timeline';
+import { SCENE_SETTING_PARTS } from '@engine/sceneSettings';
 import { useAppStore } from '../store/useAppStore';
 import { useContextMenu, type MenuItem } from './ContextMenu';
 import { LAYOUT_LIMITS, useLayoutStore } from '../store/useLayoutStore';
@@ -112,6 +113,9 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
   const addScene = useAppStore((s) => s.addScene);
   const insertSceneAt = useAppStore((s) => s.insertSceneAt);
   const rotatePhoto90 = useAppStore((s) => s.rotatePhoto90);
+  const copySceneSettings = useAppStore((s) => s.copySceneSettings);
+  const pasteSceneSettings = useAppStore((s) => s.pasteSceneSettings);
+  const hasClipboard = useAppStore((s) => s.sceneClipboard !== null);
   const duplicateScene = useAppStore((s) => s.duplicateScene);
   const removeScene = useAppStore((s) => s.removeScene);
   const moveScene = useAppStore((s) => s.moveScene);
@@ -179,6 +183,18 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
     return () => window.removeEventListener('click', onGlobalClick);
   }, [openTransMenuSceneId]);
 
+  // "T" shortcut: open the transition picker of the selected scene (not possible on the last scene).
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const sceneId = (e as CustomEvent<{ sceneId: string }>).detail?.sceneId;
+      const st = useAppStore.getState();
+      const idx = st.scenes.findIndex((sc) => sc.id === sceneId);
+      if (idx >= 0 && idx < st.scenes.length - 1) setOpenTransMenuSceneId(sceneId);
+    };
+    window.addEventListener('frameslide:open-transition', onOpen);
+    return () => window.removeEventListener('frameslide:open-transition', onOpen);
+  }, []);
+
   const photoMap = useMemo(() => new Map(slides.map((p) => [p.id, p])), [slides]);
 
   const { totalSlots, filledSlots } = useMemo(() => {
@@ -211,6 +227,19 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
         onClick: () => moveScene(sceneId, 1),
         disabled: disabled || idx === scenes.length - 1,
       },
+      { separator: true, label: '' },
+      { label: 'Sao chép thiết lập scene', hint: 'Ctrl+Shift+C', onClick: () => copySceneSettings(sceneId) },
+      {
+        label: 'Dán thiết lập (tất cả)',
+        hint: 'Ctrl+Shift+V',
+        onClick: () => pasteSceneSettings(sceneId, SCENE_SETTING_PARTS.map((p) => p.id)),
+        disabled: disabled || !hasClipboard,
+      },
+      ...SCENE_SETTING_PARTS.map((part) => ({
+        label: `Dán chỉ: ${part.label}`,
+        onClick: () => pasteSceneSettings(sceneId, [part.id]),
+        disabled: disabled || !hasClipboard,
+      })),
       { separator: true, label: '' },
       { label: 'Chèn scene trống phía trước', onClick: () => insertSceneAt('single', idx), disabled },
       { label: 'Chèn scene trống phía sau', onClick: () => insertSceneAt('single', idx + 1), disabled },

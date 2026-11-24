@@ -84,8 +84,8 @@
 ### Đợt 1: Dễ bấm, dễ hiểu
 - [x] 1.1 **U3 + U2:** cỡ chữ/nút tối thiểu (chữ ≥12px, nút ≥28px, thanh trượt dày hơn, ô số gõ trực tiếp); nhóm thu gọn (accordion) có công tắc bật/tắt và nút ⟲ đặt lại, nhớ nhóm đang mở. (Component dùng chung `components/ui.tsx`: `Group`, `SliderRow` có ô số; chữ ≥12px; Look chia nhóm Màu / Ánh sáng / Hạt & Bụi / Rung & Nháy / Khung phim.)
 - [x] 1.2 **U4 + U5:** thẻ scene gọn (nút ◀ ▶ ⧉ ✕ chuyển vào nút "⋯") và menu chuột phải cho thẻ scene, ô ảnh, khay ảnh. (`components/ContextMenu.tsx`; ô thời lượng rộng hơn; thêm `insertSceneAt`; nhân bản scene giữ cả nền riêng.)
-- [ ] 1.3 **U8:** phím tắt mới (Ctrl+D, Ctrl+Shift+C/V, Home/End, Ctrl+N, 1–4, T, Ctrl+E) + cập nhật bảng phím `?`.
-- [ ] 1.4 **S1:** sao chép / dán thiết lập scene (chọn phần: bố cục, chuyển động, nền, chuyển cảnh, chữ).
+- [x] 1.3 **U8:** phím tắt mới (Ctrl+D, Ctrl+Shift+C/V, Home/End, Ctrl+N, 1–4, T, Ctrl+E) + cập nhật bảng phím `?`. (`T` mở bảng chuyển cảnh của scene đang chọn; `Ctrl+E` mở bảng Xuất, không tự bắt đầu render.)
+- [x] 1.4 **S1:** sao chép / dán thiết lập scene (chọn phần: bố cục, thời lượng, chuyển động, nền, chuyển cảnh, chữ; menu "Dán chỉ: …"). Logic thuần trong `src/engine/sceneSettings.ts`; bộ nhớ tạm không vào file dự án.
 
 ### Đợt 2: Bảng theo ngữ cảnh
 - [ ] 2.1 **U1:** bảng phải đổi theo lựa chọn (Dự án / Scene / Ảnh) + breadcrumb `Dự án › Scene 2 › Ảnh 1`.

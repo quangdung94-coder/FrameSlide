@@ -9,6 +9,12 @@ import {
   resizeSceneSlots,
 } from '@engine/sceneBuilder';
 import { DEFAULT_BACKGROUND_OPTIONS } from '@engine/background';
+import {
+  applySceneSettings,
+  copySceneSettings as copySceneSettingsOf,
+  type SceneSettingPart,
+  type SceneSettings,
+} from '@engine/sceneSettings';
 import { isIdentityTransform, normalizePhotoTransform } from '@engine/photoTransform';
 import { resolveSlideDurations } from '@engine/timeline';
 import {
@@ -134,6 +140,10 @@ interface AppState {
   addScene: (layout: SceneLayoutId) => void;
   /** Inserts an empty scene at `index` (0 = first) and selects it. */
   insertSceneAt: (layout: SceneLayoutId, index: number) => void;
+  /** Copied scene settings waiting to be pasted (not part of undo history or the project file). */
+  sceneClipboard: SceneSettings | null;
+  copySceneSettings: (sceneId: string) => boolean;
+  pasteSceneSettings: (sceneId: string, parts: SceneSettingPart[]) => boolean;
   duplicateScene: (sceneId: string) => void;
   removeScene: (sceneId: string) => void;
   moveScene: (sceneId: string, dir: -1 | 1) => void;
@@ -477,6 +487,27 @@ export const useAppStore = create<AppState>((set, get) => ({
         activeSceneId: created.id,
       };
     }),
+
+  sceneClipboard: null,
+
+  copySceneSettings: (sceneId) => {
+    const sc = get().scenes.find((x) => x.id === sceneId);
+    if (!sc) return false;
+    set({ sceneClipboard: copySceneSettingsOf(sc) });
+    return true;
+  },
+
+  pasteSceneSettings: (sceneId, parts) => {
+    const clip = get().sceneClipboard;
+    if (!clip || parts.length === 0) return false;
+    if (!get().scenes.some((x) => x.id === sceneId)) return false;
+    set((s) => ({
+      ...pushPast(s),
+      scenes: s.scenes.map((sc) => (sc.id === sceneId ? applySceneSettings(sc, clip, parts) : sc)),
+      activeSceneId: sceneId,
+    }));
+    return true;
+  },
 
   insertSceneAt: (layout, index) =>
     set((s) => {
