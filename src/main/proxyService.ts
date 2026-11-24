@@ -57,6 +57,24 @@ export function decodeMediaUrl(url: string, allowedRootDir?: string): string | n
   }
 }
 
+/**
+ * Merges a freshly regenerated proxy into a slide loaded from a saved project:
+ * only the cache-related fields change, every user edit (rotation, exposure, focal
+ * point, per-slide duration/transition...) and the original id are kept.
+ */
+export function mergeRegeneratedSlide(saved: SlideAsset, regenerated: SlideAsset): SlideAsset {
+  return {
+    ...saved,
+    proxyUrl: regenerated.proxyUrl,
+    thumbUrl: regenerated.thumbUrl,
+    width: regenerated.width,
+    height: regenerated.height,
+    orientation: regenerated.orientation,
+    takenAtMs: saved.takenAtMs ?? regenerated.takenAtMs,
+    focalPoint: saved.focalPoint ?? regenerated.focalPoint,
+  };
+}
+
 export async function collectImagePaths(inputPaths: string[], maxDepth = 2): Promise<string[]> {
   const collected: string[] = [];
 

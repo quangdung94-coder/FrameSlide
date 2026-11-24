@@ -29,6 +29,7 @@ import {
   createImageProxy,
   decodeMediaUrl,
   ensureSamplePhotos,
+  mergeRegeneratedSlide,
 } from './proxyService';
 
 const isDev = Boolean(process.env['ELECTRON_RENDERER_URL']);
@@ -158,13 +159,7 @@ app.whenReady().then(() => {
         if (s.originalPath && existsSync(s.originalPath)) {
           try {
             const regenerated = await createImageProxy(s.originalPath, cacheDir);
-            out.push({
-              ...regenerated,
-              id: s.id,
-              focalPoint: s.focalPoint ?? regenerated.focalPoint,
-              durationSec: s.durationSec,
-              transitionType: s.transitionType,
-            });
+            out.push(mergeRegeneratedSlide(s, regenerated));
             continue;
           } catch {
             // Fall through and keep metadata if regeneration fails

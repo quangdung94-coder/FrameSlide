@@ -633,8 +633,8 @@ export class FrameSlideEngine {
     const motionCode = MOTION_STYLE_CODE_MAP[params?.motionTemplate ?? 'ken-burns-classic'] ?? 0;
     const timeSec = frameIndex / Math.max(1, fps);
 
-    this.pass1Mat.uniforms['uProgressA'].value = state.slideAProgress;
-    this.pass1Mat.uniforms['uProgressB'].value = state.slideBProgress;
+    this.pass1Mat.uniforms['uProgressA'].value = state.motionProgressA;
+    this.pass1Mat.uniforms['uProgressB'].value = state.motionProgressB;
     this.pass1Mat.uniforms['uTransProgress'].value = state.transitionProgress;
     this.pass1Mat.uniforms['uTransType'].value = transCode;
     this.pass1Mat.uniforms['uMotionStyle'].value = motionCode;

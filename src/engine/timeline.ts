@@ -9,6 +9,12 @@ export interface TimelineState {
   slideBProgress: number;     // 0..1 within slide B
   transitionProgress: number; // 0..1 (0 when not in transition)
   isInTransition: boolean;
+  /**
+   * Continuous motion (Ken Burns / 3D) progress 0..1 spanning the incoming transition
+   * plus the slide's own slot, so a slide never jumps when it changes from B to A.
+   */
+  motionProgressA: number;
+  motionProgressB: number;
 }
 
 export interface TimelineDurationInput {
@@ -102,8 +108,14 @@ export function evaluateTimeline(opts: {
       slideBProgress: p,
       transitionProgress: 0,
       isInTransition: false,
+      motionProgressA: p,
+      motionProgressB: p,
     };
   }
+
+  const transitionDurationSec = opts.transitionDurationSec;
+  const clampTransition = (slot: number): number =>
+    Math.max(0, Math.min(transitionDurationSec, slot * 0.45));
 
   // Locate current slide slot from cumulative durations
   let acc = 0;
@@ -123,7 +135,13 @@ export function evaluateTimeline(opts: {
   }
 
   const slideAProgress = Math.max(0, Math.min(1, localTime / slotDuration));
-  const clampedTrans = Math.max(0, Math.min(opts.transitionDurationSec, slotDuration * 0.45));
+  // Motion window of slide A starts when the incoming transition (from previous slide) begins
+  const incomingTrans = slideIdx > 0 ? clampTransition(durations[slideIdx - 1]) : 0;
+  const motionProgressA = Math.max(
+    0,
+    Math.min(1, (localTime + incomingTrans) / (slotDuration + incomingTrans))
+  );
+  const clampedTrans = clampTransition(slotDuration);
   const transitionStart = slotDuration - clampedTrans;
   const hasNextSlide = slideIdx < safeCount - 1;
 
@@ -146,6 +164,11 @@ export function evaluateTimeline(opts: {
       slideBProgress,
       transitionProgress,
       isInTransition: true,
+      motionProgressA,
+      motionProgressB: Math.max(
+        0,
+        Math.min(1, (localTime - transitionStart) / (nextDuration + clampedTrans))
+      ),
     };
   }
 
@@ -158,5 +181,7 @@ export function evaluateTimeline(opts: {
     slideBProgress: 0,
     transitionProgress: 0,
     isInTransition: false,
+    motionProgressA,
+    motionProgressB: 0,
   };
 }
