@@ -297,3 +297,37 @@ describe('photo transform editing', () => {
     expect('transform' in useAppStore.getState().slides[0]).toBe(false);
   });
 });
+
+describe('insertSceneAt & duplicateScene', () => {
+  it('inserts an empty scene at the requested index and selects it', () => {
+    useAppStore.setState({ scenes: [], slides: [], past: [], future: [], renderParams: INITIAL_RENDER_PARAMS });
+    useAppStore.getState().addScene('single');
+    useAppStore.getState().addScene('single');
+    const [a, b] = useAppStore.getState().scenes.map((s) => s.id);
+    useAppStore.getState().insertSceneAt('diptych', 1);
+    const st = useAppStore.getState();
+    expect(st.scenes.map((s) => s.id)[0]).toBe(a);
+    expect(st.scenes[1].layout).toBe('diptych');
+    expect(st.scenes[2].id).toBe(b);
+    expect(st.activeSceneId).toBe(st.scenes[1].id);
+    useAppStore.getState().insertSceneAt('single', 99); // clamps to the end
+    expect(useAppStore.getState().scenes).toHaveLength(4);
+    useAppStore.getState().undo();
+    expect(useAppStore.getState().scenes).toHaveLength(3);
+  });
+
+  it('duplicates the scene background too', () => {
+    useAppStore.setState({ scenes: [], slides: [], past: [], future: [], renderParams: INITIAL_RENDER_PARAMS });
+    useAppStore.getState().addScene('diptych');
+    const id = useAppStore.getState().scenes[0].id;
+    useAppStore.getState().setSceneBackground(id, {
+      style: 'solid',
+      color1: '#112233',
+      color2: '#000000',
+      angleDeg: 0,
+      pattern: 'dots',
+    });
+    useAppStore.getState().duplicateScene(id);
+    expect(useAppStore.getState().scenes[1].background?.color1).toBe('#112233');
+  });
+});
