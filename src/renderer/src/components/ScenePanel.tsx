@@ -5,6 +5,7 @@ import { SCENE_SETTING_PARTS } from '@engine/sceneSettings';
 import type { MotionDirection, MotionTemplateId, SceneLayoutId } from '@shared/types';
 import { useAppStore } from '../store/useAppStore';
 import { BackgroundPanel } from './BackgroundPanel';
+import { normalizeCardStyle } from '@engine/cardStyle';
 import { Group, SliderRow } from './ui';
 
 const FIELD =
@@ -23,6 +24,7 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
   const setSceneMotionDirection = useAppStore((s) => s.setSceneMotionDirection);
   const setSceneMotionTemplate = useAppStore((s) => s.setSceneMotionTemplate);
   const setSceneTransition = useAppStore((s) => s.setSceneTransition);
+  const setSceneCardStyle = useAppStore((s) => s.setSceneCardStyle);
   const setSceneFilmLookOff = useAppStore((s) => s.setSceneFilmLookOff);
   const setSceneTransitionDuration = useAppStore((s) => s.setSceneTransitionDuration);
   const setSceneCaption = useAppStore((s) => s.setSceneCaption);
@@ -117,6 +119,30 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
             <option value="static">Đứng yên (Tĩnh)</option>
           </select>
         </label>
+      </Group>
+
+      <Group
+        id="scene-frame"
+        title="Khung ảnh: bo góc, bóng, viền"
+        defaultOpen={false}
+        disabled={disabled}
+        onReset={() => setSceneCardStyle(scene.id, null)}
+        resetTitle="Trả khung ảnh về mặc định"
+      >
+        {(() => {
+          const cs = normalizeCardStyle(scene.cardStyle);
+          return (
+            <>
+              <SliderRow label="Bo góc" value={cs.corner} min={0} max={1} step={0.02} disabled={disabled} onChange={(v) => setSceneCardStyle(scene.id, { corner: v })} />
+              <SliderRow label="Bóng đổ" value={cs.shadow} min={0} max={2} step={0.05} disabled={disabled} onChange={(v) => setSceneCardStyle(scene.id, { shadow: v })} />
+              <SliderRow label="Độ dày viền" value={cs.border} min={0} max={3} step={0.1} disabled={disabled} onChange={(v) => setSceneCardStyle(scene.id, { border: v })} />
+              <SliderRow label="Làm mờ cạnh" value={cs.feather} min={0} max={1} step={0.02} disabled={disabled} onChange={(v) => setSceneCardStyle(scene.id, { feather: v })} />
+              <p className="text-xs text-zinc-500">
+                Hiện rõ nhất ở scene 2–4 ảnh và ảnh có khung. Ảnh ngang tràn khung không có khung nên không đổi.
+              </p>
+            </>
+          );
+        })()}
       </Group>
 
       <Group

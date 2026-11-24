@@ -67,4 +67,9 @@ describe('GLSL ES 3.00 shader sources', () => {
     expect(SCENE_TRANSITION_FRAGMENT_SHADER).toContain('uniform vec4 uAdjB3;');
     expect(SCENE_TRANSITION_FRAGMENT_SHADER).toContain('vec4 slotAdj(int slot)');
   });
+
+  it('scene shader has per-scene frame style (corner, shadow, border, feather) in the single card call', () => {
+    expect(SCENE_TRANSITION_FRAGMENT_SHADER).toContain('uniform vec4 uCardStyleB;');
+    expect(SCENE_TRANSITION_FRAGMENT_SHADER).toContain('float roundedMaskAA(');
+  });
 });

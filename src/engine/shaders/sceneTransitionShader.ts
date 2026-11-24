@@ -95,6 +95,9 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
   uniform float uMotionIntensity; // 0..1.5
   // Background per scene (A = current, B = next): 0=blur, 1=black, 2=paper, 3=studio,
   // 4=solid, 5=gradient, 6=pattern. Colours are linear RGB.
+  // Frame look per scene (A = current, B = next): x = corner, y = shadow, z = border, w = feather.
+  uniform vec4 uCardStyleA;
+  uniform vec4 uCardStyleB;
   uniform int uBgStyleA;
   uniform int uBgStyleB;
   uniform vec3 uBgCol1A;
@@ -357,6 +360,17 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     return col;
   }
 
+  // Rounded-rectangle mask: frac 0..1 of the smaller half-extent; d is already abs().
+  float roundedMaskAA(vec2 d, vec2 halfSize, float frac, float canvasAspect, vec2 aa) {
+    vec2 p = d * vec2(canvasAspect, 1.0);
+    vec2 h = halfSize * vec2(canvasAspect, 1.0);
+    float r = frac * min(h.x, h.y);
+    vec2 q = p - h + vec2(r);
+    float dist = length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - r;
+    float w = max(aa.y, 0.0005);
+    return smoothstep(w, -w, dist);
+  }
+
   float rectMaskAA(vec2 d, vec2 halfSize, vec2 aa) {
     vec2 edge = smoothstep(halfSize + aa, halfSize - aa, d);
     return edge.x * edge.y;
@@ -435,7 +449,8 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     float canvasAspect,
     vec2 aa,
     bool defaultPolaroid,
-    int motionStyle
+    int motionStyle,
+    vec4 cardStyle
   ) {
     // Resolve border style override
     bool isNone = (uBorderStyle == 1);
@@ -482,22 +497,33 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
       localP = rel / vec2(canvasAspect, 1.0);
     }
 
-    float padX = isNone ? 0.0 : (isPolaroid ? 0.016 / canvasAspect : 0.009 / canvasAspect);
-    float padTop = isNone ? 0.0 : (isPolaroid ? 0.018 : 0.009);
-    float padBot = isNone ? 0.0 : (isPolaroid ? 0.068 : 0.009);
+    // Scene frame look: border width multiplier (a soft edge replaces the border).
+    float softEdge = cardStyle.w;
+    float padScale = softEdge > 0.01 ? 0.0 : cardStyle.z;
+    vec2 aaM = aa + vec2(softEdge * 0.05 / canvasAspect, softEdge * 0.05);
+    float padX = isNone ? 0.0 : (isPolaroid ? 0.016 / canvasAspect : 0.009 / canvasAspect) * padScale;
+    float padTop = isNone ? 0.0 : (isPolaroid ? 0.018 : 0.009) * padScale;
+    float padBot = isNone ? 0.0 : (isPolaroid ? 0.068 : 0.009) * padScale;
 
     vec2 cardCenterShift = vec2(0.0, (padTop - padBot) * 0.5);
     vec2 cardHalf = halfExt + vec2(padX, (padTop + padBot) * 0.5);
 
     vec2 dCard = abs(localP - cardCenterShift);
     float shadowDist = length(max(dCard - cardHalf, 0.0) * vec2(canvasAspect, 1.0));
-    float shadow = exp(-shadowDist * (abs(yaw3d) > 0.01 ? 16.0 : 24.0)) * (abs(yaw3d) > 0.01 ? 0.62 : 0.52);
+    float shadow = exp(-shadowDist * (abs(yaw3d) > 0.01 ? 16.0 : 24.0)) * (abs(yaw3d) > 0.01 ? 0.62 : 0.52) * cardStyle.y;
     vec3 outCol = baseCol * (1.0 - shadow);
 
-    float outerMask = rectMaskAA(dCard, cardHalf, aa);
+    bool rounded = cardStyle.x > 0.001;
+    float outerMask = rounded
+      ? roundedMaskAA(dCard, cardHalf, cardStyle.x, canvasAspect, aaM)
+      : rectMaskAA(dCard, cardHalf, aaM);
     if (outerMask > 0.001) {
       vec2 dImg = abs(localP);
-      float innerMask = isNone ? outerMask : rectMaskAA(dImg, halfExt, aa);
+      float innerMask = isNone
+        ? outerMask
+        : (rounded
+            ? roundedMaskAA(dImg, halfExt, cardStyle.x * 0.9, canvasAspect, aaM)
+            : rectMaskAA(dImg, halfExt, aaM));
 
       vec2 boxUv = (localP + halfExt) / max(2.0 * halfExt, vec2(0.0001));
       float effKb = 1.0 + (kbScale - 1.0) * uMotionIntensity;
@@ -652,7 +678,7 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
         kb = mix(1.0, 1.07, easeP);
       }
 
-      col = compositeCard(col, base + c, screenUv, center, halfExt, tilt, yaw, pitch, z, kb, canvasAspect, aa, cardPolaroid, motionStyle);
+      col = compositeCard(col, base + c, screenUv, center, halfExt, tilt, yaw, pitch, z, kb, canvasAspect, aa, cardPolaroid, motionStyle, scene == 0 ? uCardStyleA : uCardStyleB);
     }
     return col;
   }

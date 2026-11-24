@@ -18,6 +18,7 @@ import {
 } from '@shared/types';
 import { BG_PATTERN_CODE, BG_STYLE_CODE, hexToLinearRgb, resolveSceneBackground } from './background';
 import { classifyGpuRenderer } from './capabilities';
+import { cardStyleToUniform } from './cardStyle';
 import { photoAdjustToUniform } from './photoAdjust';
 import { resolvePhotoTransform } from './photoKeyframes';
 import { createLutStripTexture, parseCubeLut } from './cubeLutParser';
@@ -238,6 +239,8 @@ export class FrameSlideEngine {
         uExpA1: { value: 1 },
         uExpA2: { value: 1 },
         uExpA3: { value: 1 },
+        uCardStyleA: { value: new THREE.Vector4(0, 1, 1, 0) },
+        uCardStyleB: { value: new THREE.Vector4(0, 1, 1, 0) },
         uAdjA0: { value: new THREE.Vector4(1, 1, 0, 1) },
         uAdjA1: { value: new THREE.Vector4(1, 1, 0, 1) },
         uAdjA2: { value: new THREE.Vector4(1, 1, 0, 1) },
@@ -655,6 +658,9 @@ export class FrameSlideEngine {
     let missingTex = false;
     const layoutCode = scene ? LAYOUT_CODE[scene.layout] : 0;
     this.pass1Mat.uniforms[`uLayout${prefix}`].value = layoutCode;
+    (this.pass1Mat.uniforms[`uCardStyle${prefix}`].value as THREE.Vector4).set(
+      ...cardStyleToUniform(scene?.cardStyle)
+    );
     this.pass1Mat.uniforms[`uMotionDir${prefix}`].value =
       MOTION_DIR_CODE[scene?.motionDirection ?? 'auto'] ?? 0;
 
