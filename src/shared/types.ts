@@ -180,11 +180,21 @@ export interface SlideAsset {
   transitionType?: TransitionType;
 }
 
+/** Look of the photo frames in a scene (mostly visible with 2–4 photos or framed photos). */
+export interface SceneCardStyle {
+  corner?: number;  // 0..1  rounded corners (1 = pill / full circle-ish)
+  shadow?: number;  // 0..2  drop shadow strength (1 = default)
+  border?: number;  // 0..3  border width multiplier (1 = default, 0 = none)
+  feather?: number; // 0..1  soft blurred edge (replaces the border)
+}
+
 export interface SceneItem {
   id: string;
   layout: SceneLayoutId;
   durationSec: number;
   transitionType: TransitionType;
+  /** Own frame look (rounded corners, shadow, border, soft edge) for this scene's photos. */
+  cardStyle?: SceneCardStyle;
   /** True = this scene is shown without the Film Look and LUT (clean colours). */
   filmLookOff?: boolean;
   /** Own length (seconds) of the transition into the next scene (undefined = project setting). */

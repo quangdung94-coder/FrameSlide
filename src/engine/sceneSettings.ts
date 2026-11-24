@@ -1,4 +1,4 @@
-import type { MotionDirection, MotionTemplateId, SceneBackground, SceneItem, SceneLayoutId, TransitionType } from '@shared/types';
+import type { MotionDirection, MotionTemplateId, SceneBackground, SceneCardStyle, SceneItem, SceneLayoutId, TransitionType } from '@shared/types';
 import { resizeSceneSlots } from './sceneBuilder';
 
 /** Parts of a scene that can be copied to another scene (the photos themselves never are). */
@@ -9,6 +9,7 @@ export type SceneSettingPart =
   | 'background'
   | 'transition'
   | 'caption'
+  | 'frame'
   | 'look';
 
 export const SCENE_SETTING_PARTS: { id: SceneSettingPart; label: string }[] = [
@@ -18,6 +19,7 @@ export const SCENE_SETTING_PARTS: { id: SceneSettingPart; label: string }[] = [
   { id: 'background', label: 'Nền' },
   { id: 'transition', label: 'Chuyển cảnh' },
   { id: 'caption', label: 'Chữ' },
+  { id: 'frame', label: 'Khung ảnh' },
   { id: 'look', label: 'Film Look' },
 ];
 
@@ -31,6 +33,7 @@ export interface SceneSettings {
   motionTemplate?: MotionTemplateId;
   background?: SceneBackground;
   caption?: string;
+  cardStyle?: SceneCardStyle;
   filmLookOff?: boolean;
 }
 
@@ -44,6 +47,7 @@ export function copySceneSettings(scene: SceneItem): SceneSettings {
     motionTemplate: scene.motionTemplate,
     background: scene.background ? { ...scene.background } : undefined,
     caption: scene.caption,
+    cardStyle: scene.cardStyle ? { ...scene.cardStyle } : undefined,
     filmLookOff: scene.filmLookOff,
   };
 }
@@ -76,6 +80,9 @@ export function applySceneSettings(
         break;
       case 'caption':
         next.caption = settings.caption;
+        break;
+      case 'frame':
+        next.cardStyle = settings.cardStyle ? { ...settings.cardStyle } : undefined;
         break;
       case 'look':
         next.filmLookOff = settings.filmLookOff;

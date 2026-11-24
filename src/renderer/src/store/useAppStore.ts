@@ -16,6 +16,7 @@ import {
   type SceneSettings,
 } from '@engine/sceneSettings';
 import { isIdentityTransform, normalizePhotoTransform } from '@engine/photoTransform';
+import { isNeutralCardStyle, normalizeCardStyle } from '@engine/cardStyle';
 import { isIdentityPhotoAdjust, normalizePhotoAdjust } from '@engine/photoAdjust';
 import { resolveSlideDurations } from '@engine/timeline';
 import {
@@ -24,6 +25,7 @@ import {
   type BackgroundOptions,
   type BackgroundStyle,
   type PhotoAdjust,
+  type SceneCardStyle,
   type PhotoKeyframeEase,
   type PhotoTransform,
   type SceneBackground,
@@ -183,6 +185,8 @@ interface AppState {
   setSceneTransitionDuration: (sceneId: string, durationSec: number | null) => void;
   /** true = show this scene without the Film Look and LUT. */
   setSceneFilmLookOff: (sceneId: string, off: boolean) => void;
+  /** Frame look (corners, shadow, border, soft edge) of a scene's photos; `null` = default look. */
+  setSceneCardStyle: (sceneId: string, style: SceneCardStyle | null) => void;
   setSceneMotionDirection: (sceneId: string, motionDirection: MotionDirection) => void;
   /** Own Motion Template for one scene; `null` = follow the project's template. */
   setSceneMotionTemplate: (sceneId: string, template: MotionTemplateId | null) => void;
@@ -675,6 +679,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         motionTemplate: src.motionTemplate,
         transitionDurationSec: src.transitionDurationSec,
         filmLookOff: src.filmLookOff,
+        cardStyle: src.cardStyle ? { ...src.cardStyle } : undefined,
         caption: src.caption,
         background: src.background ? { ...src.background } : undefined,
       };
@@ -777,6 +782,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         return durationSec === null
           ? rest
           : { ...rest, transitionDurationSec: Math.max(0.2, Math.min(2.5, durationSec)) };
+      }),
+    })),
+
+  setSceneCardStyle: (sceneId, style) =>
+    set((s) => ({
+      ...pushPast(s),
+      scenes: s.scenes.map((sc) => {
+        if (sc.id !== sceneId) return sc;
+        const { cardStyle: _drop, ...rest } = sc;
+        void _drop;
+        const merged = style ? { ...sc.cardStyle, ...style } : null;
+        return !merged || isNeutralCardStyle(merged)
+          ? rest
+          : { ...rest, cardStyle: normalizeCardStyle(merged) };
       }),
     })),
 

@@ -455,3 +455,24 @@ describe('per-photo colour and per-scene Film Look bypass', () => {
     expect('filmLookOff' in useAppStore.getState().scenes[0]).toBe(false);
   });
 });
+
+describe('scene frame style', () => {
+  it('merges fields, drops the neutral look, and travels with duplicate/paste', () => {
+    useAppStore.setState({ scenes: [], slides: [], past: [], future: [], renderParams: INITIAL_RENDER_PARAMS });
+    useAppStore.getState().addScene('diptych');
+    useAppStore.getState().addScene('diptych');
+    const [a, b] = useAppStore.getState().scenes.map((s) => s.id);
+    useAppStore.getState().setSceneCardStyle(a, { corner: 0.4 });
+    useAppStore.getState().setSceneCardStyle(a, { feather: 0.5 });
+    expect(useAppStore.getState().scenes[0].cardStyle).toEqual({ corner: 0.4, shadow: 1, border: 1, feather: 0.5 });
+    useAppStore.getState().copySceneSettings(a);
+    useAppStore.getState().pasteSceneSettings(b, ['frame']);
+    expect(useAppStore.getState().scenes[1].cardStyle?.corner).toBe(0.4);
+    useAppStore.getState().duplicateScene(a);
+    expect(useAppStore.getState().scenes[1].cardStyle?.feather).toBe(0.5);
+    useAppStore.getState().setSceneCardStyle(a, { corner: 0, feather: 0 });
+    expect('cardStyle' in useAppStore.getState().scenes[0]).toBe(false);
+    useAppStore.getState().setSceneCardStyle(b, null);
+    expect('cardStyle' in useAppStore.getState().scenes[2]).toBe(false);
+  });
+});
