@@ -26,7 +26,32 @@ export type MotionDirection =
   | 'tilt-3d'
   | 'static';
 
-export type BackgroundStyle = 'blur' | 'black' | 'paper' | 'studio';
+export type BackgroundStyle =
+  | 'blur'
+  | 'black'
+  | 'paper'
+  | 'studio'
+  | 'solid'
+  | 'gradient'
+  | 'pattern';
+
+export type BackgroundPattern = 'dots' | 'stripes' | 'grid' | 'diamonds';
+
+/** Colours/angle/pattern used by the 'solid', 'gradient' and 'pattern' background styles. */
+export interface BackgroundOptions {
+  /** sRGB hex, e.g. "#1a1410". Solid colour, gradient start, pattern base. */
+  color1: string;
+  /** sRGB hex. Gradient end, pattern ink. */
+  color2: string;
+  /** CSS-style gradient angle: 0 = bottom→top, 90 = left→right. */
+  angleDeg: number;
+  pattern: BackgroundPattern;
+}
+
+/** Per-scene background that replaces the project background for that scene only. */
+export interface SceneBackground extends BackgroundOptions {
+  style: BackgroundStyle;
+}
 
 export type FrameBorderStyle = 'auto' | 'none' | 'thin' | 'polaroid';
 
@@ -133,6 +158,8 @@ export interface SceneItem {
   transitionType: TransitionType;
   motionDirection?: MotionDirection;
   caption?: string;
+  /** Own background for this scene (otherwise the project background is used). */
+  background?: SceneBackground;
   /** Photo IDs from `slides` (null = empty slot waiting for photo) */
   slots: (string | null)[];
 }
@@ -224,6 +251,8 @@ export interface RenderParams {
   motionTemplate: MotionTemplateId;
   motionIntensity: number; // 0..1.5
   backgroundStyle: BackgroundStyle;
+  /** Optional for older projects; DEFAULT_BACKGROUND_OPTIONS is used when missing. */
+  backgroundOptions?: BackgroundOptions;
   frameBorderStyle: FrameBorderStyle;
   outputAspect: OutputAspectId;
   durationMode: DurationMode;

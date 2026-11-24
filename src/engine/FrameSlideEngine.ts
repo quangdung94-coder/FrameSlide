@@ -3,7 +3,7 @@ import {
   DEFAULT_SUPER8_PARAMS,
   DEFAULT_TEXT_OVERLAY,
   type AspectMaskId,
-  type BackgroundStyle,
+  type SceneBackground,
   type CompareMode,
   type EngineCapabilities,
   type FrameBorderStyle,
@@ -16,6 +16,7 @@ import {
   type SlideAsset,
   type TransitionType,
 } from '@shared/types';
+import { BG_PATTERN_CODE, BG_STYLE_CODE, hexToLinearRgb, resolveSceneBackground } from './background';
 import { classifyGpuRenderer } from './capabilities';
 import { createLutStripTexture, parseCubeLut } from './cubeLutParser';
 import { MOTION_STYLE_CODE_MAP } from './presets/motionTemplates';
@@ -66,12 +67,6 @@ const MOTION_DIR_CODE: Record<MotionDirection, number> = {
   static: 6,
 };
 
-const BG_STYLE_CODE: Record<BackgroundStyle, number> = {
-  blur: 0,
-  black: 1,
-  paper: 2,
-  studio: 3,
-};
 
 const BORDER_STYLE_CODE: Record<FrameBorderStyle, number> = {
   auto: 0,
@@ -274,7 +269,16 @@ export class FrameSlideEngine {
         uTransType: { value: 1 },
         uMotionStyle: { value: 0 },
         uMotionIntensity: { value: 1 },
-        uBgStyle: { value: 0 },
+        uBgStyleA: { value: 0 },
+        uBgStyleB: { value: 0 },
+        uBgCol1A: { value: new THREE.Vector3() },
+        uBgCol2A: { value: new THREE.Vector3() },
+        uBgCol1B: { value: new THREE.Vector3() },
+        uBgCol2B: { value: new THREE.Vector3() },
+        uBgAngleA: { value: 0 },
+        uBgAngleB: { value: 0 },
+        uBgPatternA: { value: 0 },
+        uBgPatternB: { value: 0 },
         uBorderStyle: { value: 0 },
         uPortraitMode: { value: 0 },
         uSlideIndexA: { value: 0 },
@@ -606,6 +610,15 @@ export class FrameSlideEngine {
     (this.pass3Mat.uniforms['uResolution'].value as THREE.Vector2).set(this.width, this.height);
   }
 
+  private applyBackgroundUniforms(prefix: 'A' | 'B', bg: SceneBackground): void {
+    const u = this.pass1Mat.uniforms;
+    u[`uBgStyle${prefix}`].value = BG_STYLE_CODE[bg.style] ?? 0;
+    (u[`uBgCol1${prefix}`].value as THREE.Vector3).set(...hexToLinearRgb(bg.color1));
+    (u[`uBgCol2${prefix}`].value as THREE.Vector3).set(...hexToLinearRgb(bg.color2));
+    u[`uBgAngle${prefix}`].value = ((bg.angleDeg ?? 0) * Math.PI) / 180;
+    u[`uBgPattern${prefix}`].value = BG_PATTERN_CODE[bg.pattern] ?? 0;
+  }
+
   private bindSceneSlots(prefix: 'A' | 'B', scene: SceneItem | undefined): boolean {
     let missingTex = false;
     const layoutCode = scene ? LAYOUT_CODE[scene.layout] : 0;
@@ -685,7 +698,8 @@ export class FrameSlideEngine {
     this.pass1Mat.uniforms['uTransType'].value = transCode;
     this.pass1Mat.uniforms['uMotionStyle'].value = motionCode;
     this.pass1Mat.uniforms['uMotionIntensity'].value = params?.motionIntensity ?? 1.0;
-    this.pass1Mat.uniforms['uBgStyle'].value = BG_STYLE_CODE[params?.backgroundStyle ?? 'blur'] ?? 0;
+    this.applyBackgroundUniforms('A', resolveSceneBackground(params, sceneA));
+    this.applyBackgroundUniforms('B', resolveSceneBackground(params, sceneB));
     this.pass1Mat.uniforms['uBorderStyle'].value =
       BORDER_STYLE_CODE[params?.frameBorderStyle ?? 'auto'] ?? 0;
     this.pass1Mat.uniforms['uPortraitMode'].value = portraitMode === 'safe-top-third' ? 1 : 0;
