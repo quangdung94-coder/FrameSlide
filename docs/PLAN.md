@@ -89,7 +89,7 @@
 
 ### Đợt 2: Bảng theo ngữ cảnh
 - [x] 2.1 **U1:** bảng phải đổi theo lựa chọn (Dự án / Scene / Ảnh) + breadcrumb `Dự án › Scene 2 › Ảnh 1`. (`ScenePanel.tsx`, `PhotoPanel.tsx`; bấm thẻ scene → bảng Scene, bấm ảnh → bảng Ảnh, bấm breadcrumb để đổi; bảng Dự án giữ 4 tab; khi xuất thì tự về tab Xuất.)
-- [ ] 2.2 **U7 + U6:** thanh nổi trên khung xem khi chọn ảnh; thanh trên cùng chia 3 cụm, nút "Nhập" thả xuống, nút "Xuất" nổi bật mở hộp thoại Xuất.
+- [x] 2.2 **U7 + U6:** thanh nổi trên khung xem khi chọn ảnh; thanh trên cùng chia 3 cụm, nút "Nhập" thả xuống, nút "Xuất" nổi bật mở hộp thoại Xuất. (Thanh nổi: Chỉnh / Tâm / 90° / ☀− / ☀+ / ⟲; nút "+ Nhập ▾" gồm Chọn ảnh, Chọn thư mục, Ảnh mẫu; tab Xuất đã chuyển thành hộp thoại, `Ctrl+E` hoặc bấm XUẤT; hộp thoại tự mở khi bắt đầu xuất.)
 
 ### Đợt 3: Scene mạnh hơn (học ProShow)
 - [ ] 3.1 **S2:** Motion Template riêng từng scene ("Theo dự án" là mặc định).
