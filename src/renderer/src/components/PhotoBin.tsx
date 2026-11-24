@@ -1,12 +1,113 @@
-import { useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { buildPhotoTree, flattenPhotoTree, type TrayRow } from './photoTree';
 import { useAppStore } from '../store/useAppStore';
-import type { SortOrder } from '@shared/types';
+import type { SlideAsset, SortOrder } from '@shared/types';
 
 interface PhotoBinProps {
   disabled: boolean;
 }
 
 type PhotoFilter = 'all' | 'unused' | 'portrait' | 'landscape';
+
+const GRID_PAD = 8;
+const GRID_GAP = 8;
+const FOLDER_ROW_H = 28;
+const CARD_LABEL_H = 22;
+const MIN_CARD_W = 92;
+const OVERSCAN_PX = 400;
+
+interface PhotoCardProps {
+  photo: SlideAsset;
+  width: number;
+  usedIn: string[] | undefined;
+  isSelected: boolean;
+  disabled: boolean;
+  onClick: (e: React.MouseEvent, photoId: string) => void;
+  onRemove: (photoId: string) => void;
+}
+
+const PhotoCard = memo(function PhotoCard({
+  photo: p,
+  width,
+  usedIn,
+  isSelected,
+  disabled,
+  onClick,
+  onRemove,
+}: PhotoCardProps) {
+  const rot = p.rotationDeg ?? 0;
+  const exp = p.exposure ?? 0;
+  const used = usedIn ?? [];
+  return (
+    <div
+      draggable={!disabled}
+      onClick={(e) => onClick(e, p.id)}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(
+          'application/x-frameslide',
+          JSON.stringify({ kind: 'bin-photo', photoId: p.id })
+        );
+      }}
+      title={`${p.name} (${p.width}×${p.height})`}
+      style={{ width }}
+      className={`group relative shrink-0 cursor-grab overflow-hidden rounded border transition ${
+        isSelected
+          ? 'border-amber-400 ring-1 ring-amber-400 bg-zinc-800'
+          : 'border-zinc-800 bg-zinc-900 hover:border-zinc-600'
+      }`}
+    >
+      <div className="aspect-[4/3] w-full overflow-hidden bg-zinc-950">
+        <img
+          src={p.thumbUrl}
+          alt={p.name}
+          draggable={false}
+          loading="lazy"
+          decoding="async"
+          style={rot ? { transform: `rotate(${rot}deg)` } : undefined}
+          className="h-full w-full object-cover"
+        />
+      </div>
+      <div className="flex items-center justify-between px-1.5 py-1 text-[10px]">
+        <span className="truncate text-zinc-300">{p.name}</span>
+        <span className="ml-1 shrink-0 text-zinc-500">
+          {p.orientation === 'portrait' ? 'Dọc' : 'Ngang'}
+        </span>
+      </div>
+
+      {used.length > 0 ? (
+        <span className="absolute top-1 left-1 max-w-[80%] truncate rounded bg-emerald-500 px-1 text-[9px] font-bold text-zinc-950">
+          {used.join(',')}
+        </span>
+      ) : (
+        <span className="absolute top-1 left-1 rounded bg-black/75 px-1 text-[9px] text-zinc-300">
+          Chưa dùng
+        </span>
+      )}
+
+      {(rot !== 0 || Math.abs(exp) > 0.05) && (
+        <span className="absolute bottom-6 left-1 rounded bg-amber-500/90 px-1 text-[8px] font-bold text-zinc-950">
+          {rot ? `${rot}°` : ''}
+          {rot && Math.abs(exp) > 0.05 ? ' ' : ''}
+          {Math.abs(exp) > 0.05 ? `${exp > 0 ? '+' : ''}${exp.toFixed(1)}EV` : ''}
+        </span>
+      )}
+
+      {!disabled && (
+        <button
+          type="button"
+          title="Xóa ảnh khỏi khay"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(p.id);
+          }}
+          className="absolute top-1 right-1 hidden h-4 w-4 items-center justify-center rounded bg-black/80 text-[10px] text-zinc-300 hover:bg-red-500 hover:text-white group-hover:flex"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+});
 
 export function PhotoBin({ disabled }: PhotoBinProps) {
   const slides = useAppStore((s) => s.slides);
@@ -22,6 +123,10 @@ export function PhotoBin({ disabled }: PhotoBinProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [filter, setFilter] = useState<PhotoFilter>('all');
   const anchorIdRef = useRef<string | null>(null);
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set());
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [viewport, setViewport] = useState({ width: 224, height: 600 });
+  const [scrollTop, setScrollTop] = useState(0);
 
   const usageMap = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -46,6 +151,74 @@ export function PhotoBin({ disabled }: PhotoBinProps) {
     });
   }, [slides, filter, usageMap]);
 
+  const tree = useMemo(() => buildPhotoTree(filteredSlides), [filteredSlides]);
+  const showFolders = tree.length > 1 || (tree[0]?.children.length ?? 0) > 0;
+
+  // Layout of the virtual grid: how many thumbnails fit per row at the current tray width.
+  const innerW = Math.max(60, viewport.width - GRID_PAD * 2);
+  const cols = Math.max(1, Math.floor((innerW + GRID_GAP) / (MIN_CARD_W + GRID_GAP)));
+  const cardW = Math.floor((innerW - GRID_GAP * (cols - 1)) / cols);
+  const photoRowH = Math.round((cardW * 3) / 4) + CARD_LABEL_H + 2 + GRID_GAP;
+
+  const rows: TrayRow[] = useMemo(() => {
+    if (showFolders) return flattenPhotoTree(tree, collapsedFolders, cols);
+    const flat: TrayRow[] = [];
+    for (let i = 0; i < filteredSlides.length; i += cols) {
+      flat.push({ kind: 'photos', photos: filteredSlides.slice(i, i + cols), depth: 0 });
+    }
+    return flat;
+  }, [showFolders, tree, collapsedFolders, cols, filteredSlides]);
+
+  const rowOffsets = useMemo(() => {
+    const offs = new Array<number>(rows.length + 1);
+    offs[0] = 0;
+    rows.forEach((r, i) => {
+      offs[i + 1] = offs[i] + (r.kind === 'folder' ? FOLDER_ROW_H : photoRowH);
+    });
+    return offs;
+  }, [rows, photoRowH]);
+  const totalH = rowOffsets[rows.length] ?? 0;
+
+  // Only rows near the visible area are mounted, so 500+ photos stay smooth.
+  const [firstRow, lastRow] = useMemo(() => {
+    const top = Math.max(0, scrollTop - OVERSCAN_PX);
+    const bottom = scrollTop + viewport.height + OVERSCAN_PX;
+    let lo = 0;
+    let hi = rows.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (rowOffsets[mid + 1] <= top) lo = mid + 1;
+      else hi = mid;
+    }
+    let end = lo;
+    while (end < rows.length && rowOffsets[end] < bottom) end++;
+    return [lo, end];
+  }, [rows.length, rowOffsets, scrollTop, viewport.height]);
+
+  /** Photo order as shown on screen (used for Shift+click ranges). */
+  const visualOrder = useMemo(
+    () => (showFolders ? tree.flatMap((n) => n.allPhotoIds) : filteredSlides.map((p) => p.id)),
+    [showFolders, tree, filteredSlides]
+  );
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const measure = () => setViewport({ width: el.clientWidth, height: el.clientHeight });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [collapsed]);
+
+  const toggleFolder = (key: string) =>
+    setCollapsedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
   const selectedSet = useMemo(() => new Set(selectedPhotoIds), [selectedPhotoIds]);
   const unusedIds = useMemo(
     () => slides.filter((p) => (usageMap.get(p.id)?.length ?? 0) === 0).map((p) => p.id),
@@ -54,7 +227,7 @@ export function PhotoBin({ disabled }: PhotoBinProps) {
 
   const handlePhotoClick = (e: React.MouseEvent, photoId: string) => {
     if (e.shiftKey && anchorIdRef.current) {
-      const order = filteredSlides.map((p) => p.id);
+      const order = visualOrder;
       const a = order.indexOf(anchorIdRef.current);
       const b = order.indexOf(photoId);
       if (a >= 0 && b >= 0) {
@@ -169,86 +342,94 @@ export function PhotoBin({ disabled }: PhotoBinProps) {
         </div>
       </div>
 
-      <div className="grid flex-1 grid-cols-2 content-start gap-2 overflow-y-auto p-2.5">
-        {filteredSlides.length === 0 && (
-          <div className="col-span-2 py-6 text-center text-[11px] text-zinc-500">
+      <div
+        ref={scrollRef}
+        onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+        className="relative flex-1 overflow-y-auto"
+      >
+        {filteredSlides.length === 0 ? (
+          <div className="py-6 text-center text-[11px] text-zinc-500">
             {slides.length === 0 ? 'Chưa có ảnh nào.' : 'Không có ảnh khớp bộ lọc.'}
           </div>
-        )}
-
-        {filteredSlides.map((p) => {
-          const usedIn = usageMap.get(p.id) ?? [];
-          const isSelected = selectedSet.has(p.id) || selectedPhotoId === p.id;
-          const rot = p.rotationDeg ?? 0;
-          const exp = p.exposure ?? 0;
-
-          return (
-            <div
-              key={p.id}
-              draggable={!disabled}
-              onClick={(e) => handlePhotoClick(e, p.id)}
-              onDragStart={(e) => {
-                e.dataTransfer.setData(
-                  'application/x-frameslide',
-                  JSON.stringify({ kind: 'bin-photo', photoId: p.id })
+        ) : (
+          <div style={{ height: totalH + GRID_PAD * 2, position: 'relative' }}>
+            {rows.slice(firstRow, lastRow).map((row, i) => {
+              const rowIdx = firstRow + i;
+              const top = rowOffsets[rowIdx] + GRID_PAD;
+              if (row.kind === 'folder') {
+                const n = row.node;
+                const unusedInFolder = n.allPhotoIds.filter(
+                  (id) => (usageMap.get(id)?.length ?? 0) === 0
                 );
-              }}
-              title={`${p.name} (${p.width}×${p.height})`}
-              className={`group relative cursor-grab overflow-hidden rounded border transition ${
-                isSelected
-                  ? 'border-amber-400 ring-1 ring-amber-400 bg-zinc-800'
-                  : 'border-zinc-800 bg-zinc-900 hover:border-zinc-600'
-              }`}
-            >
-              <img
-                src={p.thumbUrl}
-                alt={p.name}
-                draggable={false}
-                style={rot ? { transform: `rotate(${rot}deg)` } : undefined}
-                className="aspect-[4/3] w-full object-cover bg-zinc-950"
-              />
-              <div className="flex items-center justify-between px-1.5 py-1 text-[10px]">
-                <span className="truncate text-zinc-300">{p.name}</span>
-                <span className="ml-1 shrink-0 text-zinc-500">
-                  {p.orientation === 'portrait' ? 'Dọc' : 'Ngang'}
-                </span>
-              </div>
-
-              {usedIn.length > 0 ? (
-                <span className="absolute top-1 left-1 rounded bg-emerald-500 px-1 text-[9px] font-bold text-zinc-950">
-                  {usedIn.join(',')}
-                </span>
-              ) : (
-                <span className="absolute top-1 left-1 rounded bg-black/75 px-1 text-[9px] text-zinc-300">
-                  Chưa dùng
-                </span>
-              )}
-
-              {(rot !== 0 || Math.abs(exp) > 0.05) && (
-                <span className="absolute bottom-6 left-1 rounded bg-amber-500/90 px-1 text-[8px] font-bold text-zinc-950">
-                  {rot ? `${rot}°` : ''}
-                  {rot && Math.abs(exp) > 0.05 ? ' ' : ''}
-                  {Math.abs(exp) > 0.05 ? `${exp > 0 ? '+' : ''}${exp.toFixed(1)}EV` : ''}
-                </span>
-              )}
-
-              {!disabled && (
-                <button
-                  type="button"
-                  title="Xóa ảnh khỏi khay"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removePhoto(p.id);
-                  }}
-                  className="absolute top-1 right-1 hidden h-4 w-4 items-center justify-center rounded bg-black/80 text-[10px] text-zinc-300 hover:bg-red-500 hover:text-white group-hover:flex"
+                return (
+                  <div
+                    key={`f:${n.key}`}
+                    style={{
+                      top,
+                      height: FOLDER_ROW_H - 4,
+                      left: GRID_PAD + Math.min(n.depth, 5) * 10,
+                      right: GRID_PAD,
+                    }}
+                    className="group absolute flex items-center gap-1 rounded bg-zinc-900/80 pr-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleFolder(n.key)}
+                      title={row.collapsed ? 'Mở thư mục' : 'Thu thư mục'}
+                      className="flex min-w-0 flex-1 items-center gap-1 px-1 py-0.5 text-left"
+                    >
+                      <span className="w-3 shrink-0 text-[9px] text-zinc-500">
+                        {row.collapsed ? '▶' : '▼'}
+                      </span>
+                      <span className="shrink-0">📁</span>
+                      <span className="truncate font-medium" title={n.label}>
+                        {n.label}
+                      </span>
+                      <span className="shrink-0 text-[10px] text-zinc-500">
+                        ({n.allPhotoIds.length})
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={disabled || unusedInFolder.length === 0}
+                      onClick={() => addToTimeline(unusedInFolder)}
+                      title={
+                        unusedInFolder.length === 0
+                          ? 'Mọi ảnh trong thư mục này đã có trên timeline'
+                          : `Đưa ${unusedInFolder.length} ảnh chưa dùng của thư mục này lên cuối timeline`
+                      }
+                      className="shrink-0 rounded border border-zinc-700 px-1 text-[10px] text-zinc-300 hover:border-amber-400 hover:text-amber-300 disabled:opacity-30"
+                    >
+                      + Thêm
+                    </button>
+                  </div>
+                );
+              }
+              return (
+                <div
+                  key={`p:${row.photos[0]?.id ?? rowIdx}`}
+                  style={{ top, left: GRID_PAD, right: GRID_PAD, gap: GRID_GAP }}
+                  className="absolute flex"
                 >
-                  ×
-                </button>
-              )}
-            </div>
-          );
-        })}
+                  {row.photos.map((p) => (
+                    <PhotoCard
+                      key={p.id}
+                      photo={p}
+                      width={cardW}
+                      usedIn={usageMap.get(p.id)}
+                      isSelected={selectedSet.has(p.id) || selectedPhotoId === p.id}
+                      disabled={disabled}
+                      onClick={handlePhotoClick}
+                      onRemove={removePhoto}
+                    />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
+
       <div className="flex flex-col gap-1.5 border-t border-zinc-800 bg-[#16161b] p-2">
         <button
           type="button"
