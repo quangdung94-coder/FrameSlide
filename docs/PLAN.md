@@ -70,7 +70,7 @@
 - [ ] 1. **Khay ảnh:** thumbnail thật, nhóm theo thư mục mẹ/con kiểu Explorer (mở/thu được), chỉ tải thumbnail phần đang thấy (500 ảnh vẫn mượt).
 - [x] 2. **Khung xem giữa:** bỏ dòng "1920x1080 • 30fps" đè lên hình, chuyển xuống thanh trạng thái.
 - [ ] 3. **Bố cục kéo giãn:** khay ảnh, khung xem, timeline, bảng phải kéo giãn bằng thanh chia, lưu bố cục, nút đặt lại. Thẻ scene ở timeline to hơn, có thanh zoom.
-- [ ] 4. **Bấm scene / vị trí trên timeline:** playhead nhảy tới đó, khung giữa hiện scene đó.
+- [x] 4. **Bấm scene / vị trí trên timeline:** playhead nhảy tới đó, khung giữa hiện scene đó. (Bấm thẻ scene → đầu scene; bấm/kéo thanh thời gian dưới mỗi thẻ → đúng vị trí trong scene, có vạch playhead.)
 - [ ] 5. **Chỉnh ảnh trực tiếp trên khung giữa:** kéo đổi position, scale, rotation; tay nắm + ô số; nút đặt lại.
 - [ ] 6. **Nền sau scene 2–4 ảnh:** nền trơn, gradient (nhiều mẫu, chỉnh màu và góc), ảnh mờ, họa tiết; áp cho một scene hoặc cả dự án.
 - [ ] 7. **Thẻ scene nhiều ảnh:** ô nhỏ đúng kiểu chia khung (2 ảnh cạnh nhau, 4 ảnh lưới 2x2), số thứ tự, kéo thả đổi chỗ.

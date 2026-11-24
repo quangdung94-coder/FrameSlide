@@ -218,3 +218,40 @@ describe('photo tray import (no auto timeline)', () => {
     expect(useAppStore.getState().selectedPhotoIds).toEqual([]);
   });
 });
+
+describe('timeline seeking', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      fps: 30,
+      frameIndex: 0,
+      isPlaying: true,
+      slides: [],
+      scenes: [],
+      activeSceneId: null,
+      activeSlotIndex: 0,
+      renderParams: { ...INITIAL_RENDER_PARAMS, durationMode: 'per-slide', handlesSec: 0 },
+      past: [],
+      future: [],
+    });
+  });
+
+  it('jumps to a position inside a scene, clamped to that scene, and stops playback', () => {
+    useAppStore.getState().setSlides([makePhoto('A'), makePhoto('B'), makePhoto('C')], false);
+    const scenes = useAppStore.getState().scenes;
+    for (const sc of scenes) useAppStore.getState().setSceneDuration(sc.id, 4);
+    useAppStore.setState({ isPlaying: true });
+
+    useAppStore.getState().seekToSceneFraction(scenes[1].id, 0.5);
+    let st = useAppStore.getState();
+    expect(st.frameIndex).toBe(30 * 6); // scene 2 starts at 4s, half of 4s → 6s
+    expect(st.activeSceneId).toBe(scenes[1].id);
+    expect(st.isPlaying).toBe(false);
+
+    useAppStore.getState().seekToSceneFraction(scenes[1].id, 1.5);
+    st = useAppStore.getState();
+    expect(st.frameIndex).toBe(30 * 8 - 1); // last frame of scene 2, not scene 3
+
+    useAppStore.getState().seekToSceneFraction(scenes[2].id, -1);
+    expect(useAppStore.getState().frameIndex).toBe(30 * 8);
+  });
+});

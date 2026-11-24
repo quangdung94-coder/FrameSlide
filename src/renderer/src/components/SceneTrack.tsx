@@ -5,6 +5,7 @@ import {
   type TransitionPreset,
 } from '@engine/presets/transitions';
 import { LAYOUT_LABELS } from '@engine/sceneBuilder';
+import { resolveSlideDurations } from '@engine/timeline';
 import { useAppStore } from '../store/useAppStore';
 import type { SceneLayoutId } from '@shared/types';
 
@@ -27,12 +28,86 @@ const TRANSITION_GROUPS: TransitionPreset['group'][] = [
   '3D Phối cảnh',
 ];
 
+/**
+ * Thin time bar under a scene card: shows the playhead while it is inside this scene,
+ * and clicking/dragging on it jumps the playhead to that exact moment of the scene.
+ */
+function SceneTimeStrip({
+  sceneId,
+  startFrame,
+  endFrame,
+  disabled,
+}: {
+  sceneId: string;
+  startFrame: number;
+  endFrame: number;
+  disabled: boolean;
+}) {
+  // Only re-renders when this scene's own playhead position changes.
+  const fraction = useAppStore((s) =>
+    s.frameIndex >= startFrame && s.frameIndex < endFrame
+      ? (s.frameIndex - startFrame) / Math.max(1, endFrame - startFrame)
+      : null
+  );
+  const seekToSceneFraction = useAppStore((s) => s.seekToSceneFraction);
+
+  const seekFromPointer = (e: React.PointerEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    seekToSceneFraction(sceneId, (e.clientX - rect.left) / Math.max(1, rect.width));
+  };
+
+  return (
+    <div
+      role="slider"
+      aria-label="Vị trí trong scene"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={fraction === null ? 0 : Math.round(fraction * 100)}
+      title="Bấm hoặc kéo để nhảy playhead tới vị trí này trong scene"
+      draggable={false}
+      onClick={(e) => e.stopPropagation()}
+      onDragStart={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onPointerDown={(e) => {
+        if (disabled) return;
+        e.stopPropagation();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        seekFromPointer(e);
+      }}
+      onPointerMove={(e) => {
+        if (disabled || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
+        seekFromPointer(e);
+      }}
+      className={`relative mt-1 h-2.5 w-full overflow-hidden rounded-sm bg-zinc-800 ${
+        disabled ? 'cursor-not-allowed' : 'cursor-ew-resize hover:bg-zinc-700'
+      }`}
+    >
+      {fraction !== null && (
+        <>
+          <div
+            className="pointer-events-none absolute inset-y-0 left-0 bg-amber-500/35"
+            style={{ width: `${fraction * 100}%` }}
+          />
+          <div
+            className="pointer-events-none absolute inset-y-0 w-0.5 bg-amber-400"
+            style={{ left: `calc(${fraction * 100}% - 1px)` }}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
 export function SceneTrack({ disabled }: SceneTrackProps) {
   const slides = useAppStore((s) => s.slides);
   const scenes = useAppStore((s) => s.scenes);
   const activeSceneId = useAppStore((s) => s.activeSceneId);
   const activeSlotIndex = useAppStore((s) => s.activeSlotIndex);
   const selectedPhotoId = useAppStore((s) => s.selectedPhotoId);
+  const renderParams = useAppStore((s) => s.renderParams);
+  const fps = useAppStore((s) => s.fps);
 
   const selectSceneAndSeek = useAppStore((s) => s.selectSceneAndSeek);
   const addScene = useAppStore((s) => s.addScene);
@@ -48,6 +123,25 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
   const swapSceneSlots = useAppStore((s) => s.swapSceneSlots);
   const autoFillScenes = useAppStore((s) => s.autoFillScenes);
   const clearAllSceneSlots = useAppStore((s) => s.clearAllSceneSlots);
+
+  const sceneFrameRanges = useMemo(() => {
+    const durations = resolveSlideDurations(scenes.length, {
+      durationMode: renderParams.durationMode,
+      totalDurationSec: renderParams.totalDurationSec,
+      defaultSlideDurationSec: renderParams.defaultSlideDurationSec,
+      slideDurations: scenes.map((item) => item.durationSec),
+      handlesSec: renderParams.handlesSec,
+    });
+    let startSec = 0;
+    return scenes.map((_, idx) => {
+      const range = {
+        start: Math.round(startSec * fps),
+        end: Math.round((startSec + durations[idx]) * fps),
+      };
+      startSec += durations[idx];
+      return range;
+    });
+  }, [scenes, renderParams, fps]);
 
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
   const [dropSceneId, setDropSceneId] = useState<string | null>(null);
@@ -425,6 +519,13 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                     );
                   })}
                 </div>
+
+                <SceneTimeStrip
+                  sceneId={sc.id}
+                  startFrame={sceneFrameRanges[idx]?.start ?? 0}
+                  endFrame={sceneFrameRanges[idx]?.end ?? 0}
+                  disabled={disabled}
+                />
               </div>
 
               {/* Transition Connector Pill + Grouped Popover Menu */}
