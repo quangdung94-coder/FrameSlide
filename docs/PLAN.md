@@ -61,3 +61,17 @@
 - [ ] Thêm kiểm tra GPU/Driver lần đầu mở app & cảnh báo thân thiện
 - [ ] Thử nghiệm trên máy chính và ít nhất 1 máy cấu hình yếu hơn
 - [ ] Sửa lỗi phát sinh và phát hành bản v1.0 dùng thực tế
+
+---
+
+## Bước 5b: Góp ý giao diện của anh Dũng (24/11/2026)
+> Mỗi mục một PR nhỏ; typecheck + test + build + CI Windows phải đạt trước khi gộp. Không làm đóng gói .exe ở đây. Giữ nguyên nguyên tắc D19: mọi tính năng là tùy chọn bật/tắt, film look bật sẵn.
+
+- [ ] 1. **Khay ảnh:** thumbnail thật, nhóm theo thư mục mẹ/con kiểu Explorer (mở/thu được), chỉ tải thumbnail phần đang thấy (500 ảnh vẫn mượt).
+- [x] 2. **Khung xem giữa:** bỏ dòng "1920x1080 • 30fps" đè lên hình, chuyển xuống thanh trạng thái.
+- [ ] 3. **Bố cục kéo giãn:** khay ảnh, khung xem, timeline, bảng phải kéo giãn bằng thanh chia, lưu bố cục, nút đặt lại. Thẻ scene ở timeline to hơn, có thanh zoom.
+- [ ] 4. **Bấm scene / vị trí trên timeline:** playhead nhảy tới đó, khung giữa hiện scene đó.
+- [ ] 5. **Chỉnh ảnh trực tiếp trên khung giữa:** kéo đổi position, scale, rotation; tay nắm + ô số; nút đặt lại.
+- [ ] 6. **Nền sau scene 2–4 ảnh:** nền trơn, gradient (nhiều mẫu, chỉnh màu và góc), ảnh mờ, họa tiết; áp cho một scene hoặc cả dự án.
+- [ ] 7. **Thẻ scene nhiều ảnh:** ô nhỏ đúng kiểu chia khung (2 ảnh cạnh nhau, 4 ảnh lưới 2x2), số thứ tự, kéo thả đổi chỗ.
+- [ ] 8. **Nhập thư mục:** không tự thêm tất cả ảnh vào timeline; ảnh chỉ vào khay; thêm nút "Thêm ảnh đã chọn" và "Thêm cả thư mục".

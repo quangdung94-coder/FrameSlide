@@ -1096,18 +1096,6 @@ export default function App() {
               )}
 
               <div className="pointer-events-none absolute top-2.5 left-2.5 flex flex-wrap items-center gap-2">
-                <span className="rounded bg-black/70 px-2 py-0.5 text-[11px] text-zinc-200 backdrop-blur-sm">
-                  {resolvedSize.width}×{resolvedSize.height} ({renderParams.outputAspect}) • {fps} fps
-                </span>
-                {liveFps !== null && (
-                  <span
-                    className={`rounded px-2 py-0.5 font-mono text-[11px] font-semibold backdrop-blur-sm ${
-                      liveFps >= 28 ? 'bg-emerald-500/80 text-zinc-950' : 'bg-amber-500/80 text-zinc-950'
-                    }`}
-                  >
-                    Live: {liveFps} FPS
-                  </span>
-                )}
                 {compareMode === 'before' && (
                   <span className="rounded bg-amber-500/90 px-2 py-0.5 text-[11px] font-semibold text-zinc-950">
                     Đang xem: Ảnh gốc (Clean)
@@ -2045,6 +2033,20 @@ export default function App() {
           {showIntegratedWarning && (
             <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-300">
               {engineCapabilities?.gpuTier === 'software' ? 'CPU Render' : 'Card tích hợp'}
+            </span>
+          )}
+          <span>
+            Xem trước:{' '}
+            <strong className="text-zinc-200">
+              {resolvedSize.width}×{resolvedSize.height} ({renderParams.outputAspect}) • {fps} fps
+            </strong>
+          </span>
+          {liveFps !== null && (
+            <span>
+              Live:{' '}
+              <strong className={liveFps >= 28 ? 'text-emerald-400' : 'text-amber-400'}>
+                {liveFps} FPS
+              </strong>
             </span>
           )}
           {statusNotice && <span className="text-amber-300">• {statusNotice}</span>}
