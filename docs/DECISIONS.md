@@ -1,25 +1,41 @@
-# DECISIONS – các quyết định đã chốt
+# Các quyết định đã chốt (DECISIONS)
 
-Mỗi quyết định có lý do. **Không đề xuất lại cái đã bỏ** trừ khi chủ dự án hỏi. Quyết định mới thêm vào cuối, đánh số tiếp.
+File này lưu lại các quyết định quan trọng về sản phẩm và kỹ thuật để tránh thảo luận lại hoặc đi chệch hướng ở các phiên làm việc sau.
 
-| # | Ngày | Quyết định | Lý do |
-|---|---|---|---|
-| D01 | 23/11/2026 | Electron (Chromium đóng gói) thay vì Tauri | WebGL chạy giống nhau trên mọi máy vì cùng một Chromium; Tauri dùng WebView2 của hệ thống, khác bản driver/flag. Node ở main process gọi FFmpeg qua pipe dễ. Đổi lại bộ cài nặng thêm ~100–150MB, chấp nhận được. |
-| D02 | 23/11/2026 | Three.js (WebGL2), shader GLSL | Camera 3D, render target, post-process có sẵn. WebGPU chưa cần. |
-| D03 | 23/11/2026 | **Không có nhạc**, không audio | Video là B-roll không tiếng để chèn vào phim cưới, sự kiện, year end party. Bỏ nhạc làm app nhẹ và đơn giản hơn. |
-| D04 | 23/11/2026 | **Chỉ 1920x1080, 30fps** | Slideshow ảnh không cần 4K; 4K nặng gấp 4 lần cho mọi hiệu ứng điểm ảnh và VRAM. 25fps có thể thêm sau (PLAN S05). |
-| D05 | 23/11/2026 | ~~Film look luôn bật~~ **Thay bằng D19** | Film look xưa là bản sắc của sản phẩm. Người dùng chỉ chỉnh độ mạnh cho hợp phim chính. |
-| D06 | 23/11/2026 | Xuất MP4 H.264 + ProRes 422 HQ + DNxHR HQ | Editor cần codec trung gian để đưa vào Resolve/Premiere không vỡ grain. |
-| D07 | 23/11/2026 | Xuất theo độ dài cố định và xuất hàng loạt | B-roll cần đúng độ dài để thả vào timeline; một thư mục cưới ra nhiều clip một lần. |
-| D08 | 23/11/2026 | Dựng hình tất định, xuất từng khung (offline), không quay màn hình | Bảo đảm không mất khung và khớp xem trước. Ngẫu nhiên dùng PRNG có seed. |
-| D09 | 23/11/2026 | Transition lấy từ GL Transitions (MIT), ghi công tác giả | Có sẵn hàng trăm shader nhỏ, giấy phép cho phép thương mại. Phải chọn lọc và chỉnh easing. |
-| D10 | 23/11/2026 | Hư hỏng phim (bụi, xước, grain, light leak) làm **thủ tục bằng shader** trong MVP, không dùng video overlay | Không phải lo giấy phép tài nguyên video, nhẹ hơn, không phải giải mã nhiều video song song. Video overlay có thể thêm ở bản 2. |
-| D11 | 23/11/2026 | Look và LUT tự làm, tên tự đặt | Không sao chép Resolve Film Look Creator hay Retrograde; không dùng tên thương hiệu phim (Kodak, Fuji...). Resolve chỉ dùng để so sánh khi duyệt. |
-| D12 | 23/11/2026 | Không mở file .aep/.mogrt, không plugin AE | Không khả thi; mỗi phong cách dựng lại trong app. Không sao chép template Motion Array, chỉ học phong cách. |
-| D13 | 23/11/2026 | Ảnh làm việc (proxy) 3200px cạnh dài, chỉ giữ ~4 ảnh trên GPU | Ảnh 24MP chiếm ~96MB VRAM; 3200px đủ cho zoom Ken Burns ở 1080p. |
-| D14 | 23/11/2026 | Installer .exe để sau MVP | Hạn 25/11 chỉ đủ cho app chạy được bằng `npm run dev` / build. |
-| D15 | 23/11/2026 | Làm việc bằng hai luồng Claude: coder (mỗi việc một PR) và reviewer (soát, sửa, merge) | Phiên có thể bị ngắt khi hết giới hạn; trạng thái nằm trong PLAN.md và PR nên phiên mới tiếp tục được. Xem CLAUDE.md. |
-| D16 | 23/11/2026 | React cho UI, zod cho schema, sharp cho ảnh, ffmpeg-static cho FFmpeg | Thư viện phổ biến, ổn định trên Windows, Claude viết tốt. Danh sách đầy đủ ở ARCHITECTURE.md mục 6. |
-| D17 | 23/11/2026 | Lưu ý giấy phép FFmpeg: bản `ffmpeg-static` là build GPL (có libx264) | Dùng nội bộ thì không sao. Trước khi phát hành/bán phải xem lại (build LGPL + chỉ NVENC/encoder ngoài, hoặc tuân thủ GPL). Ghi trong ASSETS.md. |
-| D18 | 23/11/2026 | Đưa chia khung 2 ô và 4 ô vào MVP (PLAN T15b); mosaic 3x3 trở lên vẫn là stretch | Chủ dự án yêu cầu; B-roll cưới hay ghép đôi ảnh dọc. Làm bằng viewport, nhẹ. |
-| D19 | 23/11/2026 | **Mọi tính năng là tùy chọn** người dùng bật/tắt: film look (và từng thành phần), chuyển động, transition, chữ, chia khung. Film look bật sẵn mặc định | Chủ dự án yêu cầu: người dùng tự quyết thêm gì vào clip. Film look vẫn là tính năng nổi bật nên bật sẵn. |
+---
+
+### D01. Phát hành cá nhân & bạn bè – Không thương mại, không bảo mật/key
+- **Quyết định:** App dùng cá nhân và chia sẻ bạn bè miễn phí. Không cài hệ thống license key, không đăng nhập/password, không mã hóa chống crack, không gửi dữ liệu/telemetry.
+- **Hệ quả:** Không cần bận tâm rào cản bản quyền GPL nếu sử dụng FFmpeg kèm `libx264` hoặc các codec dựng phim. Toàn bộ tài nguyên và xử lý chạy 100% offline/local.
+
+### D02. B-roll không nhạc (Chốt ngày 23/11)
+- **Quyết định:** Bỏ hoàn toàn tính năng nhập nhạc MP3/WAV và tự dò nhịp beat.
+- **Lý do:** Video xuất ra là B-roll không tiếng để editor ghép vào timeline phim cưới/sự kiện vốn đã có nhạc nền riêng trong DaVinci Resolve / Premiere. Bỏ nhạc giúp UI gọn hơn, tập trung tối đa vào chất lượng hình ảnh.
+
+### D03. Chỉ xuất Full HD 1080p, hỗ trợ đa FPS (Chốt ngày 23/11 & 24/11)
+- **Quyết định:** Chỉ hỗ trợ **1920×1080** (bỏ 4K ở Bản 1). Tuy nhiên **không hardcode 30fps** mà cho chọn **23.976 / 24 / 25 / 30 fps**.
+- **Lý do:** 1080p giảm 4 lần áp lực VRAM và thời gian render so với 4K. Phim cưới/sự kiện tại Việt Nam quay nhiều ở 24fps và 25fps (tránh nhấp nháy đèn 50Hz), cần khớp frame rate với project Resolve.
+
+### D04. Stack công nghệ: Electron + TypeScript + React + Three.js
+- **Quyết định:** Dùng Electron thay vì Tauri; dùng TypeScript + React + Zustand + Tailwind; dùng Three.js (WebGL2).
+- **Lý do:** Electron đóng gói sẵn nhân Chromium ổn định nhất cho WebGL2/WebGPU/WebCodecs trên Windows mà không phụ thuộc WebView2 của từng máy. TypeScript giúp AI viết code ít lỗi schema/IPC.
+
+### D05. Pipeline màu WebGL2 `RGBA16F` Linear + Hỗ trợ `.cube` LUT
+- **Quyết định:** Toàn bộ quá trình dựng hình, Halation, Bloom, Light Leak chạy trong không gian tuyến tính 16-bit float (`RGBA16F`), chỉ áp 3D LUT và Dithering ở pass cuối cùng trước khi xuất `bt709`. Hỗ trợ nạp `.cube` LUT từ DaVinci Resolve.
+- **Lý do:** Tránh bết sáng (clipping), tránh sọc màu (banding) 8-bit, và đảm bảo màu B-roll khớp khi đưa vào DaVinci Resolve.
+
+### D06. Ưu tiên Procedural Shader & Deterministic PRNG thay vì `<video>` HTML5
+- **Quyết định:** Grain, bụi, vết xước, rung khung (gate weave), nhấp nháy (flicker), light leak mềm viết bằng GLSL shader tính theo `frameIndex` (deterministic). Nếu có overlay quay thật (film burn/ink mask), giải mã bằng WebCodecs hoặc chuỗi frame texture, tuyệt đối không dùng `<video>.currentTime` khi export.
+- **Lý do:** Seeking `<video>` khi export từng frame cực chậm và dễ lệch khung. Procedural shader nét, nhẹ, và đảm bảo frame xem trước giống frame xuất ra 100%.
+
+### D07. Tách đôi `Motion Template` × `Film Look` (có chế độ Clean)
+- **Quyết định:** Không gộp cứng chuyển động với màu phim. Người dùng có thể ghép bất kỳ Motion Template nào với bất kỳ Film Look nào (hoặc tắt Look = Clean 0%).
+- **Lý do:** Nhân số lượng tổ hợp phong cách lên gấp nhiều lần và cho phép editor xuất bản Clean nếu muốn tự chấm màu đồng bộ trên Resolve.
+
+### D08. Xử lý ảnh dọc (Portrait) bắt buộc có ở Bản 1
+- **Quyết định:** Hỗ trợ sẵn 3 chế độ (Smart Pairing ghép 2–3 ảnh, Matte/Framed, Safe Top-Third Crop + click đặt focal point) ngay ở Bản 1.
+- **Lý do:** Thực tế ảnh cưới/sự kiện có 40–60% là ảnh dọc; nếu chỉ crop giữa 16:9 mặc định sẽ cắt mất đầu nhân vật.
+
+### D09. Tinh gọn Transitions (15–20) và Text (5–6) cho Bản 1
+- **Quyết định:** Thay vì 40–60 transition và 20 kiểu chữ như dự thảo ban đầu, Bản 1 chỉ chọn lọc 15–20 transition điện ảnh/editorial chất lượng cao và 5–6 kiểu chữ tối giản + date stamp.
+- **Lý do:** Tập trung làm từng hiệu ứng thật mượt và đẹp thay vì dàn trải nhiều hiệu ứng sến/cũ không dùng đến trong phim cưới hiện đại.

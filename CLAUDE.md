@@ -1,89 +1,37 @@
-# FrameSlide – hướng dẫn cho Claude
+# FrameSlide – Hướng dẫn dự án
 
-FrameSlide là app Windows làm **B-roll slideshow ảnh** (không tiếng) để chèn vào phim cưới, sự kiện, year end party. Nhẹ như ProShow, đẹp gần template After Effects: Ken Burns / camera 2.5D, transition GPU, chữ tiếng Việt, và film look xưa. **Mọi tính năng đều là tùy chọn** người dùng bật/tắt (film look bật sẵn mặc định). Xuất **1920x1080, 30fps** ra MP4 / ProRes 422 HQ / DNxHR HQ.
+App làm slideshow ảnh trên Windows, xuất video **B-roll không tiếng (1080p)** mang phong cách điện ảnh và film look xưa để chèn vào phim cưới, sự kiện, year end party (dựng trong DaVinci Resolve / Premiere).
+App dùng cá nhân và chia sẻ bạn bè: **không thương mại hóa, không cài license key, không đăng nhập/mật khẩu**.
 
-Chủ dự án nói tiếng Việt. **Luôn trả lời, viết PR và commit message bằng tiếng Việt.** Tên biến, hàm, file trong code dùng tiếng Anh.
+## Công nghệ cốt lõi
+- **Desktop Shell:** Electron + Vite + TypeScript + `electron-builder`
+- **UI:** React + Tailwind CSS + Zustand
+- **Render Engine:** Three.js (WebGL2 `RGBA16F` Linear Pipeline + Custom GLSL Shaders), tách thành module thuần chạy độc lập được trên trình duyệt để test.
+- **Xử lý ảnh:** `sharp` (tạo thumbnail & working proxy 2560–3200px, tự xoay EXIF).
+- **Export:** WebCodecs `VideoEncoder` + `mp4-muxer` (MP4 H.264) và FFmpeg (ProRes 422 / DNxHR HQ, gắn color tags `bt709`).
 
-## Đọc gì trước khi làm
+## Lệnh phát triển
+- `npm run dev` — Chạy app Electron ở chế độ phát triển
+- `npm run dev:web` — Chạy riêng `src/engine` & UI trên trình duyệt thường (debug shader / Playwright nhanh)
+- `npm run typecheck` — Kiểm tra kiểu TypeScript cho cả Node & Renderer/Engine
+- `npm run test` — Chạy unit test (`vitest`)
+- `npm run build` — Build sản phẩm (`out/main`, `out/preload`, `out/renderer`)
+- `npm run package:dir` — Build & đóng gói thử bản Windows vào thư mục `release/`
 
-| File | Khi nào đọc |
-|---|---|
-| `docs/PLAN.md` | **Luôn đọc đầu tiên.** Danh sách việc, trạng thái, tiêu chí xong. |
-| `docs/SPEC.md` | Phạm vi, cái gì làm và **không làm**. |
-| `docs/ARCHITECTURE.md` | Cấu trúc thư mục, luồng dựng hình, luồng xuất video. |
-| `docs/TEMPLATE_FORMAT.md` | Khi đụng tới file dự án, phong cách, kiểu dữ liệu. |
-| `docs/EFFECTS.md` | Khi làm transition, chuyển động, film look, chữ. |
-| `docs/DECISIONS.md` | Trước khi đề xuất đổi công nghệ hay phạm vi. Cái đã bỏ thì không đề xuất lại. |
-| `docs/ASSETS.md` | Khi thêm bất kỳ shader, font, LUT, texture, thư viện nào từ ngoài. |
+## Quy tắc làm việc bắt buộc
+1. **Giao tiếp bằng tiếng Việt.**
+2. **Đọc tài liệu trước khi code:** Khi bắt đầu phiên mới, đọc `docs/PLAN.md` để biết việc tiếp theo cần làm, và kiểm tra `docs/DECISIONS.md` để không đề xuất lại những thứ đã bỏ.
+3. **Làm từng việc nhỏ:** Mỗi lần chỉ hoàn thành một mục rõ ràng trong `PLAN.md`. Không tự ý mở rộng phạm vi ngoài `docs/SPEC.md`.
+4. **Kiểm tra trước khi báo xong:** Chạy test/typecheck sau khi sửa code. Nếu liên quan đến hình ảnh/shader, xuất ảnh hoặc kiểm tra visual.
+5. **Không tự ý thêm thư viện nặng** nếu chưa thảo luận và ghi vào `docs/DECISIONS.md`.
+6. **Không thêm cơ chế bảo mật/thu phí:** Không viết code check key, DRM, telemetry, hay login.
+7. **Deterministic Render:** Mọi hiệu ứng nhiễu/hạt/rung (grain, dust, weave, flicker) phải tính theo `frameIndex` cố định để preview và export khớp nhau 100%.
 
-## Công nghệ (đã chốt, xem DECISIONS.md)
-
-- Electron + electron-vite, TypeScript strict, React cho UI.
-- Three.js (WebGL2) để dựng hình. Shader GLSL ES 3.0.
-- FFmpeg đóng gói sẵn (`ffmpeg-static`) để mã hóa video, chạy ở main process.
-- `sharp` để tạo ảnh làm việc (proxy) khi nhập. `zod` để kiểm tra JSON dự án.
-- Vitest cho test.
-
-**Không tự thêm thư viện** ngoài danh sách trong `docs/ARCHITECTURE.md` mục "Thư viện được phép". Cần thêm thì ghi lý do vào PR và DECISIONS.md, để reviewer duyệt.
-
-## Lệnh
-
-```bash
-npm install          # cài
-npm run dev          # chạy app ở chế độ phát triển
-npm run typecheck    # kiểm tra kiểu TypeScript
-npm test             # chạy Vitest một lần
-npm run build        # build production (chưa đóng gói installer)
-```
-
-Trước khi báo xong một việc: `npm run typecheck && npm test && npm run build` phải qua hết.
-
-## Quy tắc code
-
-- Hằng số đầu ra nằm một chỗ: `src/shared/constants.ts` (`WIDTH=1920`, `HEIGHT=1080`, `FPS=30`). Không hard-code ở chỗ khác.
-- `src/engine/` là code thuần (TypeScript + three), **không import Electron, Node hay React**. Phải test được trong Vitest.
-- Dựng hình là **hàm của thời gian**: `renderFrame(project, frameIndex)` cho cùng kết quả mỗi lần gọi. Mọi ngẫu nhiên (grain, bụi, rung khung) dùng PRNG có seed theo `project.look.seed` và `frameIndex`. Không dùng `Math.random()` hay `Date.now()` trong engine.
-- Xem trước và xuất video dùng **chung** code dựng hình. Không viết hai bản.
-- **Mọi tính năng là tùy chọn**: film look, chuyển động, transition, chữ, chia khung đều tắt được. Tắt thì engine bỏ qua pass đó (không tốn GPU). Film look **bật sẵn** khi tạo dự án mới.
-- Không có audio ở bất cứ đâu. FFmpeg luôn chạy với `-an`.
-- Giải phóng texture/render target khi không dùng (`dispose()`). Không giữ ảnh gốc độ phân giải đầy trên GPU.
-- Chữ hiển thị trong UI viết bằng tiếng Việt có dấu.
-- File mới cần test nếu có logic (tính thời lượng, easing, parse JSON, dựng lệnh FFmpeg...). Shader thì test bằng render thử ra pixel khi làm được.
-
-## Quy trình làm việc: hai luồng
-
-Dự án chạy bằng hai luồng Claude tách biệt. Mỗi phiên có thể bị ngắt bất cứ lúc nào (hết giới hạn), nên **mọi trạng thái nằm trên GitHub và trong `docs/PLAN.md`**, không nằm trong trí nhớ phiên.
-
-### Luồng CODER (làm việc mới)
-
-1. `git fetch` rồi đứng trên `main` mới nhất. Đọc `docs/PLAN.md`.
-2. Xem các PR đang mở. PR có tiêu đề bắt đầu bằng mã việc (ví dụ `T05:`) nghĩa là việc đó đang làm, **không làm trùng**.
-3. Chọn việc `[ ]` đầu tiên theo thứ tự trong PLAN.md mà mọi việc ở cột "Cần trước" đã là `[x]` trên `main`. Nếu không còn việc nào đủ điều kiện, dừng và báo đang chờ PR nào được merge.
-4. Tạo nhánh `task/T05-ten-ngan` từ `main` (nếu môi trường bắt buộc tên nhánh khác thì dùng tên đó).
-5. Chỉ làm đúng phạm vi việc đó. Thấy lỗi hay ý tưởng ngoài phạm vi thì ghi vào mục "Ghi chú phát sinh" cuối PLAN.md, không tự làm.
-6. Chạy typecheck, test, build. Sửa tới khi qua.
-7. Trong cùng PR, đổi `[ ]` của việc đó thành `[x]` trong PLAN.md.
-8. Mở PR: tiêu đề `T05: <tên việc>`, thân PR liệt kê từng tiêu chí xong và cách đã kiểm tra, kèm ảnh chụp nếu là việc hình ảnh.
-9. Sang việc tiếp theo (quay lại bước 1). Mỗi PR chỉ một việc.
-
-Nếu phiên trước bị ngắt giữa chừng: nhánh `task/Txx-...` đã có commit nhưng chưa có PR thì tiếp tục trên nhánh đó.
-
-### Luồng REVIEWER (duyệt, sửa, merge)
-
-1. Lấy các PR đang mở có tiêu đề `Txx:`, làm từ PR cũ nhất.
-2. Checkout nhánh PR, chạy `npm ci && npm run typecheck && npm test && npm run build`.
-3. Đối chiếu từng tiêu chí xong trong PLAN.md. Soát lỗi: đúng hằng số 1080p30, không `Math.random`, có `dispose`, không thêm thư viện lạ, film look không tắt được, không có audio.
-4. Có lỗi nhỏ thì **sửa thẳng trên nhánh PR**, commit rõ "Reviewer: sửa ...". Lỗi lớn hoặc sai hướng thì ghi nhận xét và để PR mở.
-5. Qua hết thì squash merge vào `main`. Nếu xung đột ở PLAN.md, giữ mọi dấu `[x]` của cả hai phía.
-6. Không bao giờ merge PR mà test đỏ. Không xóa hay tắt test để cho qua.
-
-### Điểm duyệt của chủ dự án
-
-Việc có ghi **[DUYỆT]** trong PLAN.md cần chủ dự án xem bằng mắt. Reviewer vẫn merge được nếu kỹ thuật đúng, nhưng ghi rõ trong PR "chờ anh duyệt hình" và không coi phong cách đó là chốt.
-
-## Không được làm
-
-- Không làm nhạc, beat sync, 4K, khung dọc, mở file .aep, installer (để sau). Xem SPEC.md.
-- Không sao chép template hay tài nguyên Motion Array, không sao chép look của Resolve/Retrograde, không dùng tên thương hiệu phim (Kodak, Fuji...) làm tên look.
-- Không commit ảnh cá nhân, file video xuất ra, hay `node_modules`.
-- Không đổi công nghệ đã chốt mà không có quyết định mới trong DECISIONS.md.
+## Danh sách tài liệu trong `docs/`
+- `docs/SPEC.md` — Mục tiêu, tính năng Bản 1 & Bản 2, phạm vi loại trừ, tiêu chí hoàn thành.
+- `docs/ARCHITECTURE.md` — Kiến trúc Render Engine, WebGL2 Linear Pipeline, VRAM, Export.
+- `docs/DECISIONS.md` — Các quyết định kỹ thuật & sản phẩm đã chốt kèm lý do.
+- `docs/PLAN.md` — Lộ trình và checklist từng bước (Bước 1 → Bước 6).
+- `docs/TEMPLATE_FORMAT.md` — Cấu trúc JSON cho Motion Template & Film Look (nháp v0.1, khóa sau Bước 3).
+- `docs/EFFECTS.md` — Danh sách Transitions, Film Look, Text & tham số (nháp v0.1, khóa sau Bước 3).
+- `docs/ASSETS.md` — Nguồn tài nguyên, font tiếng Việt, shader/LUT và ghi công.
