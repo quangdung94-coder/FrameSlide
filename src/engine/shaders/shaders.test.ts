@@ -33,13 +33,28 @@ describe('GLSL ES 3.00 shader sources', () => {
     });
   }
 
-  it('scene shader evaluates each scene from a single call site (keeps Windows D3D compile fast)', () => {
-    // Each extra evalA/evalB call inlines the whole multi-photo scene sampler again; with
-    // ~50 call sites the Windows shader compiler froze the app on start-up.
+  it('scene shader keeps heavy functions to a single call site (keeps Windows D3D compile fast)', () => {
+    // Windows compiles WebGL through D3D, which inlines every call. Each extra call of the
+    // scene sampler / card drawer / photo read multiplies compile time: ~50 scene calls froze
+    // the app outright, and 2 scene calls x 10 cards still took ~15 s on an RTX 3060.
+    // Now: 1 scene call, 1 card call (cards are drawn in a loop) -> ~1 s.
     const count = (name: string) =>
       (SCENE_TRANSITION_FRAGMENT_SHADER.match(new RegExp(`\\b${name}\\(`, 'g')) ?? []).length;
-    expect(count('evalA')).toBe(2); // definition + one call
-    expect(count('evalB')).toBe(2);
-    expect(count('sampleScene')).toBe(3); // definition + evalA + evalB
+    expect(count('sampleScene')).toBe(2); // definition + one call in main()
+    expect(count('compositeCard')).toBe(2); // definition + one call in the card loop
+    expect(count('sampleBlurredSlot')).toBe(2);
+    expect(count('fetchSlot')).toBe(2); // definition + samplePhotoSlot
+    expect(count('evalA')).toBe(0);
+    expect(count('evalB')).toBe(0);
+    // texture reads only inside fetchSlot (8 photo slots)
+    expect((SCENE_TRANSITION_FRAGMENT_SHADER.match(/\btextureLod\(/g) ?? []).length).toBe(8);
+    expect(SCENE_TRANSITION_FRAGMENT_SHADER).not.toMatch(/\btexture2D\(/);
+  });
+
+  it('blur loop bound comes from the uBlurTaps uniform that the engine sets to 9', async () => {
+    expect(SCENE_TRANSITION_FRAGMENT_SHADER).toMatch(/uniform int uBlurTaps;/);
+    const { readFileSync } = await import('fs');
+    const engineSrc = readFileSync(new URL('../FrameSlideEngine.ts', import.meta.url), 'utf8');
+    expect(engineSrc).toMatch(/uBlurTaps:\s*\{\s*value:\s*9\s*\}/);
   });
 });
