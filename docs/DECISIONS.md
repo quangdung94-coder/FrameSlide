@@ -39,3 +39,11 @@ File này lưu lại các quyết định quan trọng về sản phẩm và k�
 ### D09. Tinh gọn Transitions (15–20) và Text (5–6) cho Bản 1
 - **Quyết định:** Thay vì 40–60 transition và 20 kiểu chữ như dự thảo ban đầu, Bản 1 chỉ chọn lọc 15–20 transition điện ảnh/editorial chất lượng cao và 5–6 kiểu chữ tối giản + date stamp.
 - **Lý do:** Tập trung làm từng hiệu ứng thật mượt và đẹp thay vì dàn trải nhiều hiệu ứng sến/cũ không dùng đến trong phim cưới hiện đại.
+
+### D20. Bảng phải theo ngữ cảnh, nhóm thu gọn có công tắc (Bước 5c)
+- **Quyết định:** Bảng bên phải đổi theo thứ đang chọn (Dự án / Scene / Ảnh); mọi nhóm thông số là accordion thu gọn được, có công tắc bật/tắt và nút ⟲ đặt lại; thao tác phụ dồn vào menu "⋯", chuột phải và phím tắt.
+- **Lý do:** Giao diện cũ trộn 3 cấp độ trong một cột cuộn dài, chữ nhỏ, nút sát nhau. Cách này giống CapCut/Resolve/Figma, không cần thêm thư viện.
+
+### D21. Keyframe Đầu/Cuối cho ảnh (Bước 5c)
+- **Quyết định:** Mỗi ảnh có tối đa 2 điểm (Đầu, Cuối) cho vị trí, zoom, xoay; nội suy theo `frameIndex` với 4 kiểu làm mượt. Không làm nhiều keyframe giữa (để Đợt 4 / sau Bản 1).
+- **Lý do:** Đủ để tự đạo diễn chuyển động như ProShow, giữ preview và export khớp 100% (D06), không cần trình sửa scene toàn màn hình.
