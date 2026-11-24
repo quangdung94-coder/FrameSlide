@@ -67,7 +67,7 @@
 ## Bước 5b: Góp ý giao diện của anh Dũng (24/11/2026)
 > Mỗi mục một PR nhỏ; typecheck + test + build + CI Windows phải đạt trước khi gộp. Không làm đóng gói .exe ở đây. Giữ nguyên nguyên tắc D19: mọi tính năng là tùy chọn bật/tắt, film look bật sẵn.
 
-- [ ] 1. **Khay ảnh:** thumbnail thật, nhóm theo thư mục mẹ/con kiểu Explorer (mở/thu được), chỉ tải thumbnail phần đang thấy (500 ảnh vẫn mượt).
+- [x] 1. **Khay ảnh:** thumbnail thật, nhóm theo thư mục mẹ/con kiểu Explorer (mở/thu được), chỉ tải thumbnail phần đang thấy (500 ảnh vẫn mượt). (Thumbnail 320px do sharp tạo sẵn; khay chỉ dựng phần đang thấy + `loading="lazy"`; mỗi thư mục có nút "+ Thêm".)
 - [x] 2. **Khung xem giữa:** bỏ dòng "1920x1080 • 30fps" đè lên hình, chuyển xuống thanh trạng thái.
 - [ ] 3. **Bố cục kéo giãn:** khay ảnh, khung xem, timeline, bảng phải kéo giãn bằng thanh chia, lưu bố cục, nút đặt lại. Thẻ scene ở timeline to hơn, có thanh zoom.
 - [x] 4. **Bấm scene / vị trí trên timeline:** playhead nhảy tới đó, khung giữa hiện scene đó. (Bấm thẻ scene → đầu scene; bấm/kéo thanh thời gian dưới mỗi thẻ → đúng vị trí trong scene, có vạch playhead.)
