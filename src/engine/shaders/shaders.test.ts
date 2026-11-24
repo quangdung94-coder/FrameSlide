@@ -32,4 +32,14 @@ describe('GLSL ES 3.00 shader sources', () => {
       expect(match?.[0] ?? null).toBeNull();
     });
   }
+
+  it('scene shader evaluates each scene from a single call site (keeps Windows D3D compile fast)', () => {
+    // Each extra evalA/evalB call inlines the whole multi-photo scene sampler again; with
+    // ~50 call sites the Windows shader compiler froze the app on start-up.
+    const count = (name: string) =>
+      (SCENE_TRANSITION_FRAGMENT_SHADER.match(new RegExp(`\\b${name}\\(`, 'g')) ?? []).length;
+    expect(count('evalA')).toBe(2); // definition + one call
+    expect(count('evalB')).toBe(2);
+    expect(count('sampleScene')).toBe(3); // definition + evalA + evalB
+  });
 });
