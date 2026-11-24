@@ -219,7 +219,7 @@ export function PhotoTransformOverlay({ canvasRef, onClose }: Props) {
             }}
             className="absolute rounded-sm border border-dashed border-white/40 hover:border-amber-300 hover:bg-amber-400/10 disabled:cursor-not-allowed"
           >
-            <span className="absolute top-1 left-1 rounded-full bg-black/70 px-1.5 text-[10px] text-white">
+            <span className="absolute top-1 left-1 rounded-full bg-black/70 px-1.5 text-xs text-white">
               {i + 1}
             </span>
           </button>
@@ -308,7 +308,7 @@ export function PhotoTransformOverlay({ canvasRef, onClose }: Props) {
       )}
 
       {/* Exact values */}
-      <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 flex-wrap items-center gap-2 rounded-md border border-zinc-700 bg-zinc-950/90 px-2 py-1 text-[11px] text-zinc-200 shadow-lg">
+      <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 flex-wrap items-center gap-2 rounded-md border border-zinc-700 bg-zinc-950/90 px-2 py-1 text-xs text-zinc-200 shadow-lg">
         <span className="font-semibold text-amber-400">
           Chỉnh ảnh{scene && scene.slots.length > 1 ? ` • ô ${slotIdx + 1}` : ''}
         </span>

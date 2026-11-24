@@ -82,7 +82,7 @@
 > Làm theo thứ tự. Mỗi mục một PR nhỏ: tự rà diff → sửa lỗi → typecheck + test + build + CI Windows đạt → gộp vào main. Mỗi tính năng mới là công tắc tùy chọn, film look bật sẵn, Full HD 30fps. Không làm Đợt 4 và không đóng gói .exe. Nếu bị ngắt giữa chừng, tiếp tục từ mục `[ ]` đầu tiên.
 
 ### Đợt 1: Dễ bấm, dễ hiểu
-- [ ] 1.1 **U3 + U2:** cỡ chữ/nút tối thiểu (chữ ≥12px, nút ≥28px, thanh trượt dày hơn, ô số gõ trực tiếp); nhóm thu gọn (accordion) có công tắc bật/tắt và nút ⟲ đặt lại, nhớ nhóm đang mở.
+- [x] 1.1 **U3 + U2:** cỡ chữ/nút tối thiểu (chữ ≥12px, nút ≥28px, thanh trượt dày hơn, ô số gõ trực tiếp); nhóm thu gọn (accordion) có công tắc bật/tắt và nút ⟲ đặt lại, nhớ nhóm đang mở. (Component dùng chung `components/ui.tsx`: `Group`, `SliderRow` có ô số; chữ ≥12px; Look chia nhóm Màu / Ánh sáng / Hạt & Bụi / Rung & Nháy / Khung phim.)
 - [ ] 1.2 **U4 + U5:** thẻ scene gọn (nút ◀ ▶ ⧉ ✕ chuyển vào nút "⋯") và menu chuột phải cho thẻ scene, ô ảnh, khay ảnh.
 - [ ] 1.3 **U8:** phím tắt mới (Ctrl+D, Ctrl+Shift+C/V, Home/End, Ctrl+N, 1–4, T, Ctrl+E) + cập nhật bảng phím `?`.
 - [ ] 1.4 **S1:** sao chép / dán thiết lập scene (chọn phần: bố cục, chuyển động, nền, chuyển cảnh, chữ).

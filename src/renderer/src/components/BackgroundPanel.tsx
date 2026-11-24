@@ -30,7 +30,7 @@ interface ColorFieldProps {
 
 function ColorField({ label, value, disabled, onChange }: ColorFieldProps) {
   return (
-    <label className="flex items-center gap-1.5 text-[10px] text-zinc-400">
+    <label className="flex items-center gap-1.5 text-xs text-zinc-400">
       <input
         type="color"
         value={value}
@@ -80,10 +80,10 @@ export function BackgroundPanel({ disabled }: { disabled: boolean }) {
   return (
     <div className="space-y-2 rounded-md border border-zinc-800 bg-zinc-900/40 p-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+        <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
           Nền sau ảnh
         </span>
-        <div className="flex overflow-hidden rounded border border-zinc-700 text-[10px]">
+        <div className="flex overflow-hidden rounded border border-zinc-700 text-xs">
           {(
             [
               ['project', 'Cả dự án'],
@@ -113,7 +113,7 @@ export function BackgroundPanel({ disabled }: { disabled: boolean }) {
           style={{ background: backgroundCss(current) }}
           title="Xem nhanh nền"
         />
-        <p className="text-[10px] leading-snug text-zinc-500">
+        <p className="text-xs leading-snug text-zinc-500">
           {effectiveScope === 'scene'
             ? activeScene?.background
               ? 'Scene này đang dùng nền riêng.'
@@ -129,7 +129,7 @@ export function BackgroundPanel({ disabled }: { disabled: boolean }) {
             type="button"
             disabled={disabled}
             onClick={() => update({ style: st })}
-            className={`rounded border px-1 py-1 text-[10px] transition disabled:opacity-40 ${
+            className={`rounded border px-1 py-1 text-xs transition disabled:opacity-40 ${
               current.style === st
                 ? 'border-amber-400 bg-amber-500/15 font-semibold text-amber-300'
                 : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-600'
@@ -161,7 +161,7 @@ export function BackgroundPanel({ disabled }: { disabled: boolean }) {
                 onClick={() =>
                   update({ color1: g.color1, color2: g.color2, angleDeg: g.angleDeg })
                 }
-                className="flex flex-col items-center gap-0.5 rounded border border-zinc-800 p-0.5 text-[9px] text-zinc-400 hover:border-amber-400 hover:text-amber-300 disabled:opacity-40"
+                className="flex flex-col items-center gap-0.5 rounded border border-zinc-800 p-0.5 text-xs text-zinc-400 hover:border-amber-400 hover:text-amber-300 disabled:opacity-40"
               >
                 <span
                   className="h-5 w-full rounded-sm"
@@ -191,12 +191,12 @@ export function BackgroundPanel({ disabled }: { disabled: boolean }) {
               disabled={disabled}
               onClick={() => update({ color1: current.color2, color2: current.color1 })}
               title="Đảo hai màu"
-              className="rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-300 hover:border-amber-400 disabled:opacity-40"
+              className="rounded border border-zinc-700 px-1.5 py-0.5 text-xs text-zinc-300 hover:border-amber-400 disabled:opacity-40"
             >
               ⇄ Đảo
             </button>
           </div>
-          <label className="flex items-center gap-2 text-[10px] text-zinc-400">
+          <label className="flex items-center gap-2 text-xs text-zinc-400">
             Góc
             <input
               type="range"
@@ -222,7 +222,7 @@ export function BackgroundPanel({ disabled }: { disabled: boolean }) {
                 type="button"
                 disabled={disabled}
                 onClick={() => update({ pattern: pt })}
-                className={`flex flex-col items-center gap-0.5 rounded border p-0.5 text-[9px] disabled:opacity-40 ${
+                className={`flex flex-col items-center gap-0.5 rounded border p-0.5 text-xs disabled:opacity-40 ${
                   current.pattern === pt
                     ? 'border-amber-400 text-amber-300'
                     : 'border-zinc-800 text-zinc-400 hover:border-zinc-600'
@@ -253,7 +253,7 @@ export function BackgroundPanel({ disabled }: { disabled: boolean }) {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+      <div className="flex flex-wrap items-center gap-1.5 text-xs">
         {effectiveScope === 'scene' && activeScene?.background && (
           <button
             type="button"
