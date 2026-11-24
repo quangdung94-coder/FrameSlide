@@ -80,6 +80,7 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
   uniform int uSlideIndexB;
   uniform float uBokeh;        // 0..1
   uniform float uTimeSec;
+  uniform int uBlurTaps;       // always 9; a uniform so the blur stays a real loop on D3D
 
   float easeInOutSine(float x) {
     return -(cos(3.14159265 * clamp(x, 0.0, 1.0)) - 1.0) * 0.5;
@@ -117,11 +118,74 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     return (q == 1 || q == 3) ? vec2(sz.y, sz.x) : sz;
   }
 
-  vec3 samplePhoto(sampler2D tex, vec2 uv, float rotQ, float expMult) {
-    vec2 ruv = rotateUv90(clamp(uv, 0.001, 0.999), rotQ);
-    // textureLod (no mipmaps anyway): no implicit derivatives, so the tap loop in main()
-    // can stay a real loop on Windows/D3D instead of being force-unrolled.
-    return textureLod(tex, clamp(ruv, 0.001, 0.999), 0.0).rgb * expMult;
+  // ---------------------------------------------------------------------------
+  // Photo "slots": slot = scene * 4 + i  (scene 0 = A, scene 1 = B; i = 0..3).
+  // Every photo is read through these helpers so the heavy scene/card code below
+  // exists ONCE in the compiled shader and is driven by loops with dynamic
+  // bounds. (Windows turns WebGL into HLSL and compiles it with D3D; that
+  // compiler inlines every call site, and the old one-call-per-card layout took
+  // ~15 s per compile on an RTX 3060, freezing the window on start-up.)
+  // ---------------------------------------------------------------------------
+  vec3 fetchSlot(int slot, vec2 uv) {
+    // textureLod (no mipmaps anyway): no implicit derivatives, so the loops that
+    // call this can stay real loops on Windows/D3D instead of being unrolled.
+    if (slot == 0) return textureLod(uTexA0, uv, 0.0).rgb;
+    if (slot == 1) return textureLod(uTexA1, uv, 0.0).rgb;
+    if (slot == 2) return textureLod(uTexA2, uv, 0.0).rgb;
+    if (slot == 3) return textureLod(uTexA3, uv, 0.0).rgb;
+    if (slot == 4) return textureLod(uTexB0, uv, 0.0).rgb;
+    if (slot == 5) return textureLod(uTexB1, uv, 0.0).rgb;
+    if (slot == 6) return textureLod(uTexB2, uv, 0.0).rgb;
+    return textureLod(uTexB3, uv, 0.0).rgb;
+  }
+
+  vec2 slotSize(int slot) {
+    if (slot == 0) return uSizeA0;
+    if (slot == 1) return uSizeA1;
+    if (slot == 2) return uSizeA2;
+    if (slot == 3) return uSizeA3;
+    if (slot == 4) return uSizeB0;
+    if (slot == 5) return uSizeB1;
+    if (slot == 6) return uSizeB2;
+    return uSizeB3;
+  }
+
+  vec2 slotFocal(int slot) {
+    if (slot == 0) return uFocalA0;
+    if (slot == 1) return uFocalA1;
+    if (slot == 2) return uFocalA2;
+    if (slot == 3) return uFocalA3;
+    if (slot == 4) return uFocalB0;
+    if (slot == 5) return uFocalB1;
+    if (slot == 6) return uFocalB2;
+    return uFocalB3;
+  }
+
+  float slotRot(int slot) {
+    if (slot == 0) return uRotA0;
+    if (slot == 1) return uRotA1;
+    if (slot == 2) return uRotA2;
+    if (slot == 3) return uRotA3;
+    if (slot == 4) return uRotB0;
+    if (slot == 5) return uRotB1;
+    if (slot == 6) return uRotB2;
+    return uRotB3;
+  }
+
+  float slotExp(int slot) {
+    if (slot == 0) return uExpA0;
+    if (slot == 1) return uExpA1;
+    if (slot == 2) return uExpA2;
+    if (slot == 3) return uExpA3;
+    if (slot == 4) return uExpB0;
+    if (slot == 5) return uExpB1;
+    if (slot == 6) return uExpB2;
+    return uExpB3;
+  }
+
+  vec3 samplePhotoSlot(int slot, vec2 uv) {
+    vec2 ruv = rotateUv90(clamp(uv, 0.001, 0.999), slotRot(slot));
+    return fetchSlot(slot, clamp(ruv, 0.001, 0.999)) * slotExp(slot);
   }
 
   vec2 applyKenBurns(vec2 uv, float progress, int slideIdx, int motionDir) {
@@ -201,17 +265,17 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     return res;
   }
 
-  vec3 sampleBlurred(sampler2D tex, vec2 uv, float rotQ, float expMult) {
-    vec2 o = vec2(0.016, 0.016);
-    vec3 col = samplePhoto(tex, uv, rotQ, expMult) * 0.24;
-    col += samplePhoto(tex, uv + vec2( o.x,  0.0), rotQ, expMult) * 0.12;
-    col += samplePhoto(tex, uv + vec2(-o.x,  0.0), rotQ, expMult) * 0.12;
-    col += samplePhoto(tex, uv + vec2( 0.0,  o.y), rotQ, expMult) * 0.12;
-    col += samplePhoto(tex, uv + vec2( 0.0, -o.y), rotQ, expMult) * 0.12;
-    col += samplePhoto(tex, uv + vec2( o.x,  o.y), rotQ, expMult) * 0.07;
-    col += samplePhoto(tex, uv + vec2(-o.x,  o.y), rotQ, expMult) * 0.07;
-    col += samplePhoto(tex, uv + vec2( o.x, -o.y), rotQ, expMult) * 0.07;
-    col += samplePhoto(tex, uv + vec2(-o.x, -o.y), rotQ, expMult) * 0.07;
+  // 3x3 blur (centre 0.24, edges 0.12, corners 0.07) as one loop: one photo read
+  // in the compiled shader instead of nine.
+  vec3 sampleBlurredSlot(int slot, vec2 uv) {
+    vec3 col = vec3(0.0);
+    for (int k = 0; k < uBlurTaps; k++) {
+      int kx = k - (k / 3) * 3 - 1;
+      int ky = k / 3 - 1;
+      int manhattan = (kx < 0 ? -kx : kx) + (ky < 0 ? -ky : ky);
+      float w = manhattan == 0 ? 0.24 : (manhattan == 1 ? 0.12 : 0.07);
+      col += samplePhotoSlot(slot, uv + vec2(float(kx), float(ky)) * 0.016) * w;
+    }
     return col;
   }
 
@@ -220,7 +284,7 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     return edge.x * edge.y;
   }
 
-  vec3 computeBackground(sampler2D t0, vec2 s0, float r0, float e0, vec2 screenUv, float easeP, float canvasAspect, bool parallax, bool filmstrip) {
+  vec3 computeBackground(int slot0, vec2 screenUv, float easeP, float canvasAspect, bool parallax, bool filmstrip) {
     if (uBgStyle == 1) {
       return vec3(0.008, 0.008, 0.010);
     }
@@ -234,21 +298,17 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
       float g = exp(-dot(screenUv - 0.5, screenUv - 0.5) * 3.2);
       return mix(vec3(0.025, 0.026, 0.032), vec3(0.085, 0.088, 0.10), g);
     }
-    vec2 effSz = effectiveSize(s0, r0);
+    vec2 effSz = effectiveSize(slotSize(slot0), slotRot(slot0));
     float asp0 = effSz.x / max(1.0, effSz.y);
     vec2 bgPan = vec2(mix(-0.025, 0.025, easeP), 0.0) * (parallax ? 1.8 : 0.7) * uMotionIntensity;
     vec2 bgUv = coverUvWithFocal(screenUv + bgPan, asp0, canvasAspect, vec2(0.5, 0.5));
-    return sampleBlurred(t0, (bgUv - 0.5) / 1.18 + 0.5, r0, e0) * (filmstrip ? 0.14 : 0.24);
+    return sampleBlurredSlot(slot0, (bgUv - 0.5) / 1.18 + 0.5) * (filmstrip ? 0.14 : 0.24);
   }
 
   // Draws one 2D or True-3D perspective photo card onto baseCol
   vec3 compositeCard(
     vec3 baseCol,
-    sampler2D tex,
-    vec2 texSize,
-    float rotQ,
-    float expMult,
-    vec2 focalUi,
+    int slot,
     vec2 screenUv,
     vec2 center,
     vec2 halfExt,
@@ -326,11 +386,11 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
       vec2 boxUv = (localP + halfExt) / max(2.0 * halfExt, vec2(0.0001));
       float effKb = 1.0 + (kbScale - 1.0) * uMotionIntensity;
       boxUv = (boxUv - 0.5) / max(1.0, effKb) + 0.5;
-      vec2 effSz = effectiveSize(texSize, rotQ);
+      vec2 effSz = effectiveSize(slotSize(slot), slotRot(slot));
       float imgAspect = effSz.x / max(1.0, effSz.y);
       float boxAspect = (halfExt.x * canvasAspect) / max(0.0001, halfExt.y);
-      vec2 sampleUv = coverUvWithFocal(boxUv, imgAspect, boxAspect, focalUi);
-      vec3 photoCol = samplePhoto(tex, sampleUv, rotQ, expMult);
+      vec2 sampleUv = coverUvWithFocal(boxUv, imgAspect, boxAspect, slotFocal(slot));
+      vec3 photoCol = samplePhotoSlot(slot, sampleUv);
 
       vec3 borderCol = (uMotionStyle == 3 && uBorderStyle == 0)
         ? vec3(0.03, 0.03, 0.035)
@@ -343,14 +403,15 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     return outCol;
   }
 
-  vec3 sampleScene(
-    sampler2D t0, sampler2D t1, sampler2D t2, sampler2D t3,
-    vec2 s0, vec2 s1, vec2 s2, vec2 s3,
-    vec2 f0, vec2 f1, vec2 f2, vec2 f3,
-    float r0, float r1, float r2, float r3,
-    float e0, float e1, float e2, float e3,
-    int layoutId, int motionDir, vec2 screenUv, float progress, int slideIdx
-  ) {
+  // Renders one scene (0 = A, 1 = B) at screenUv. Cards of every layout go through
+  // ONE compositeCard call inside a loop, so the D3D compiler sees it only once.
+  vec3 sampleScene(int scene, vec2 screenUv) {
+    int base = scene * 4;
+    int layoutId = scene == 0 ? uLayoutA : uLayoutB;
+    int motionDir = scene == 0 ? uMotionDirA : uMotionDirB;
+    float progress = scene == 0 ? uProgressA : uProgressB;
+    int slideIdx = scene == 0 ? uSlideIndexA : uSlideIndexB;
+
     float canvasAspect = uResolution.x / max(1.0, uResolution.y);
     vec2 aa = 1.25 / max(uResolution, vec2(1.0));
     float easeP = easeInOutSine(progress);
@@ -366,91 +427,114 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     float baseYaw = is3d ? mix(-0.18, 0.18, easeP) * dirSign * uMotionIntensity : 0.0;
     float basePitch = is3d ? mix(0.06, -0.05, easeP) * uMotionIntensity : 0.0;
 
-    vec3 bg = computeBackground(t0, s0, r0, e0, screenUv, easeP, canvasAspect, parallax || is3d, filmstrip);
+    bool multi = (layoutId == 1 || layoutId == 2 || layoutId == 3);
 
-    // LAYOUT 1: DIPTYCH (2-up)
-    if (layoutId == 1) {
-      float kb1 = mix(1.0, 1.06, easeP);
-      float kb2 = mix(1.06, 1.0, easeP);
-      float drift = (parallax || is3d) ? mix(-0.018, 0.018, easeP) * uMotionIntensity : 0.0;
-      float frameH = polaroid ? 0.72 : (is3d ? 0.76 : 0.80);
-      float frameW = min(0.41, frameH * (canvasAspect < 1.0 ? 0.52 : 0.72) / canvasAspect);
-      vec2 halfExt = vec2(frameW, frameH) * 0.5;
-      float gap = canvasAspect < 1.0 ? 0.022 : 0.032;
+    // LAYOUT 0: SINGLE PHOTO
+    vec2 effSz0 = effectiveSize(slotSize(base), slotRot(base));
+    float asp0 = effSz0.x / max(1.0, effSz0.y);
+    bool isPortrait = asp0 < 0.95;
+    bool framedSingle = polaroid || parallax || is3d || (isPortrait && uPortraitMode == 0 && canvasAspect > 1.05);
 
-      float tiltL = polaroid ? -0.045 : 0.0;
-      float tiltR = polaroid ?  0.040 : 0.0;
-      float z1 = wall3d ? 0.12 : (gallery3d ? 0.06 : 0.0);
-      float z2 = wall3d ? -0.10 : (gallery3d ? -0.04 : 0.0);
-
-      vec3 col = bg;
-      col = compositeCard(col, t0, s0, r0, e0, f0, screenUv, vec2(0.5 - halfExt.x - gap + drift, 0.5), halfExt, tiltL, baseYaw + (is3d ? 0.11 : 0.0), basePitch, z1, kb1, canvasAspect, aa, polaroid);
-      col = compositeCard(col, t1, s1, r1, e1, f1, screenUv, vec2(0.5 + halfExt.x + gap + drift, 0.5), halfExt, tiltR, baseYaw - (is3d ? 0.11 : 0.0), basePitch, z2, kb2, canvasAspect, aa, polaroid);
-      return col;
+    if (!multi && !framedSingle) {
+      // Plain full-frame Ken Burns: no background, no card.
+      vec2 kbUv = applyKenBurns(screenUv, progress, slideIdx, motionDir);
+      vec2 uv = coverUvWithFocal(kbUv, asp0, canvasAspect, slotFocal(base));
+      return samplePhotoSlot(base, uv);
     }
 
-    // LAYOUT 2: TRIPTYCH (3-up Filmstrip / Gallery)
-    if (layoutId == 2) {
-      float drift = mix(-0.028, 0.028, easeP) * (filmstrip ? 1.6 : 0.8) * uMotionIntensity;
-      float frameH = polaroid ? 0.64 : 0.72;
-      float frameW = 0.275;
-      vec2 halfExt = vec2(frameW, frameH) * 0.5;
-      float spacing = 0.305;
+    vec3 col = computeBackground(base, screenUv, easeP, canvasAspect, parallax || is3d, filmstrip);
 
-      vec3 col = bg;
+    // Shared per-layout values (same numbers as the original per-layout code).
+    int cardCount = 1;
+    vec2 halfExt = vec2(0.5);
+    float drift = 0.0;
+    float gap = 0.0;
+    float spacing = 0.0;
+    vec2 fgDrift = vec2(0.0);
+
+    if (layoutId == 1) {
+      // DIPTYCH (2-up)
+      cardCount = 2;
+      drift = (parallax || is3d) ? mix(-0.018, 0.018, easeP) * uMotionIntensity : 0.0;
+      float frameH = polaroid ? 0.72 : (is3d ? 0.76 : 0.80);
+      float frameW = min(0.41, frameH * (canvasAspect < 1.0 ? 0.52 : 0.72) / canvasAspect);
+      halfExt = vec2(frameW, frameH) * 0.5;
+      gap = canvasAspect < 1.0 ? 0.022 : 0.032;
+    } else if (layoutId == 2) {
+      // TRIPTYCH (3-up Filmstrip / Gallery)
+      cardCount = 3;
+      drift = mix(-0.028, 0.028, easeP) * (filmstrip ? 1.6 : 0.8) * uMotionIntensity;
+      float frameH = polaroid ? 0.64 : 0.72;
+      halfExt = vec2(0.275, frameH) * 0.5;
+      spacing = 0.305;
       if (filmstrip) {
         float barMask = smoothstep(0.42, 0.415, abs(screenUv.y - 0.5));
         col = mix(col, vec3(0.018, 0.018, 0.02), barMask * 0.92);
       }
-
-      float zSide = wall3d ? -0.14 : 0.0;
-      float zMid = wall3d ? 0.14 : 0.0;
-      col = compositeCard(col, t0, s0, r0, e0, f0, screenUv, vec2(0.5 - spacing + drift, 0.5), halfExt, polaroid ? -0.035 : 0.0, baseYaw + (is3d ? 0.14 : 0.0), basePitch, zSide, mix(1.0, 1.05, easeP), canvasAspect, aa, polaroid);
-      col = compositeCard(col, t1, s1, r1, e1, f1, screenUv, vec2(0.5 + drift, 0.5), halfExt, 0.0, baseYaw, basePitch, zMid, mix(1.05, 1.0, easeP), canvasAspect, aa, polaroid);
-      col = compositeCard(col, t2, s2, r2, e2, f2, screenUv, vec2(0.5 + spacing + drift, 0.5), halfExt, polaroid ? 0.035 : 0.0, baseYaw - (is3d ? 0.14 : 0.0), basePitch, zSide, mix(1.0, 1.05, easeP), canvasAspect, aa, polaroid);
-      return col;
-    }
-
-    // LAYOUT 3: MOSAIC 4-UP (2x2 Grid / 3D Photo Wall)
-    if (layoutId == 3) {
-      vec2 halfExt = vec2(0.215, 0.205);
-      float gx = 0.232;
-      float gy = 0.228;
-      float drift = mix(-0.012, 0.012, easeP) * uMotionIntensity;
-      float zA = wall3d ? 0.16 : 0.0;
-      float zB = wall3d ? -0.10 : 0.0;
-
-      vec3 col = bg;
-      col = compositeCard(col, t0, s0, r0, e0, f0, screenUv, vec2(0.5 - gx + drift, 0.5 + gy), halfExt, 0.0, baseYaw + (wall3d ? 0.08 : 0.0), basePitch, zA, mix(1.0, 1.06, easeP), canvasAspect, aa, false);
-      col = compositeCard(col, t1, s1, r1, e1, f1, screenUv, vec2(0.5 + gx - drift, 0.5 + gy), halfExt, 0.0, baseYaw - (wall3d ? 0.08 : 0.0), basePitch, zB, mix(1.06, 1.0, easeP), canvasAspect, aa, false);
-      col = compositeCard(col, t2, s2, r2, e2, f2, screenUv, vec2(0.5 - gx - drift, 0.5 - gy), halfExt, 0.0, baseYaw + (wall3d ? 0.08 : 0.0), -basePitch, zB, mix(1.06, 1.0, easeP), canvasAspect, aa, false);
-      col = compositeCard(col, t3, s3, r3, e3, f3, screenUv, vec2(0.5 + gx + drift, 0.5 - gy), halfExt, 0.0, baseYaw - (wall3d ? 0.08 : 0.0), -basePitch, zA, mix(1.0, 1.06, easeP), canvasAspect, aa, false);
-      return col;
-    }
-
-    // LAYOUT 0: SINGLE PHOTO
-    vec2 effSz0 = effectiveSize(s0, r0);
-    float asp0 = effSz0.x / max(1.0, effSz0.y);
-    bool isPortrait = asp0 < 0.95;
-
-    if (polaroid || parallax || is3d || (isPortrait && uPortraitMode == 0 && canvasAspect > 1.05)) {
-      float kbScale = mix(1.0, 1.07, easeP);
+    } else if (layoutId == 3) {
+      // MOSAIC 4-UP (2x2 Grid / 3D Photo Wall)
+      cardCount = 4;
+      halfExt = vec2(0.215, 0.205);
+      drift = mix(-0.012, 0.012, easeP) * uMotionIntensity;
+    } else {
+      // Framed single photo
       float frameH = polaroid ? 0.74 : (is3d ? 0.78 : (parallax ? 0.80 : 0.86));
       float targetAsp = isPortrait ? asp0 : min(asp0, 1.65);
       float frameW = min(0.84, frameH * targetAsp / canvasAspect);
-      vec2 halfExt = vec2(frameW, frameH) * 0.5;
-      float tilt = polaroid ? (dirSign * -0.032) : 0.0;
-      vec2 fgDrift = (parallax || is3d)
+      halfExt = vec2(frameW, frameH) * 0.5;
+      fgDrift = (parallax || is3d)
         ? vec2(mix(0.02, -0.02, easeP), mix(-0.008, 0.008, easeP)) * uMotionIntensity
         : vec2(0.0);
-      float zSingle = is3d ? mix(-0.08, 0.14, easeP) * uMotionIntensity : 0.0;
-
-      return compositeCard(bg, t0, s0, r0, e0, f0, screenUv, vec2(0.5) + fgDrift, halfExt, tilt, baseYaw, basePitch, zSingle, kbScale, canvasAspect, aa, polaroid);
     }
 
-    vec2 kbUv = applyKenBurns(screenUv, progress, slideIdx, motionDir);
-    vec2 uv = coverUvWithFocal(kbUv, asp0, canvasAspect, f0);
-    return samplePhoto(t0, uv, r0, e0);
+    for (int c = 0; c < cardCount; c++) {
+      vec2 center = vec2(0.5);
+      float tilt = 0.0;
+      float yaw = baseYaw;
+      float pitch = basePitch;
+      float z = 0.0;
+      float kb = 1.0;
+      bool cardPolaroid = polaroid;
+
+      if (layoutId == 1) {
+        float side = c == 0 ? -1.0 : 1.0;
+        center = vec2(0.5 + side * (halfExt.x + gap) + drift, 0.5);
+        tilt = polaroid ? (c == 0 ? -0.045 : 0.040) : 0.0;
+        yaw = baseYaw - side * (is3d ? 0.11 : 0.0);
+        z = c == 0 ? (wall3d ? 0.12 : (gallery3d ? 0.06 : 0.0))
+                   : (wall3d ? -0.10 : (gallery3d ? -0.04 : 0.0));
+        kb = c == 0 ? mix(1.0, 1.06, easeP) : mix(1.06, 1.0, easeP);
+      } else if (layoutId == 2) {
+        float side = float(c - 1); // -1, 0, +1
+        center = vec2(0.5 + side * spacing + drift, 0.5);
+        tilt = polaroid ? side * 0.035 : 0.0;
+        yaw = baseYaw - side * (is3d ? 0.14 : 0.0);
+        z = c == 1 ? (wall3d ? 0.14 : 0.0) : (wall3d ? -0.14 : 0.0);
+        kb = c == 1 ? mix(1.05, 1.0, easeP) : mix(1.0, 1.05, easeP);
+      } else if (layoutId == 3) {
+        float gx = 0.232;
+        float gy = 0.228;
+        float sx = (c == 0 || c == 2) ? -1.0 : 1.0;  // left / right column
+        float sy = (c < 2) ? 1.0 : -1.0;             // top / bottom row
+        // Cards 0 and 3 drift right, 1 and 2 drift left.
+        float dSign = (c == 0 || c == 3) ? 1.0 : -1.0;
+        center = vec2(0.5 + sx * gx + dSign * drift, 0.5 + sy * gy);
+        yaw = baseYaw - sx * (wall3d ? 0.08 : 0.0);
+        pitch = sy * basePitch;
+        bool outer = (c == 0 || c == 3);
+        z = outer ? (wall3d ? 0.16 : 0.0) : (wall3d ? -0.10 : 0.0);
+        kb = outer ? mix(1.0, 1.06, easeP) : mix(1.06, 1.0, easeP);
+        cardPolaroid = false;
+      } else {
+        center = vec2(0.5) + fgDrift;
+        tilt = polaroid ? (dirSign * -0.032) : 0.0;
+        z = is3d ? mix(-0.08, 0.14, easeP) * uMotionIntensity : 0.0;
+        kb = mix(1.0, 1.07, easeP);
+      }
+
+      col = compositeCard(col, base + c, screenUv, center, halfExt, tilt, yaw, pitch, z, kb, canvasAspect, aa, cardPolaroid);
+    }
+    return col;
   }
 
   vec3 computeLightLeak(vec2 uv, float p, bool burnMode) {
@@ -489,28 +573,6 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     return acc * strength * 0.45;
   }
 
-  vec3 evalA(vec2 uv) {
-    return sampleScene(
-      uTexA0, uTexA1, uTexA2, uTexA3,
-      uSizeA0, uSizeA1, uSizeA2, uSizeA3,
-      uFocalA0, uFocalA1, uFocalA2, uFocalA3,
-      uRotA0, uRotA1, uRotA2, uRotA3,
-      uExpA0, uExpA1, uExpA2, uExpA3,
-      uLayoutA, uMotionDirA, uv, uProgressA, uSlideIndexA
-    );
-  }
-
-  vec3 evalB(vec2 uv) {
-    return sampleScene(
-      uTexB0, uTexB1, uTexB2, uTexB3,
-      uSizeB0, uSizeB1, uSizeB2, uSizeB3,
-      uFocalB0, uFocalB1, uFocalB2, uFocalB3,
-      uRotB0, uRotB1, uRotB2, uRotB3,
-      uExpB0, uExpB1, uExpB2, uExpB3,
-      uLayoutB, uMotionDirB, uv, uProgressB, uSlideIndexB
-    );
-  }
-
   // Helper for 3D perspective plane projection of a fullscreen scene
   bool projectFullscreenPlane(vec2 uv, float angleY, float zShift, out vec2 outUv, out float shade) {
     float c = cos(angleY);
@@ -535,9 +597,9 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
   // ---------------------------------------------------------------------------
   // Tap list: every transition only *describes* which scene samples it needs
   // (scene A or B, uv, weight) plus an additive colour. main() then evaluates all
-  // taps in ONE loop, so sampleScene is inlined only twice in the compiled shader.
-  // Calling evalA/evalB directly in each transition (~50 call sites) made the
-  // Windows D3D shader compiler inline sampleScene ~50 times and freeze the app.
+  // taps in ONE loop, so sampleScene is inlined only once in the compiled shader.
+  // Calling the scene sampler directly in each transition (~50 call sites) made the
+  // Windows D3D shader compiler inline it ~50 times and freeze the app.
   // ---------------------------------------------------------------------------
   const int MAX_TAPS = 10;
   vec2 gTapUv[MAX_TAPS];
@@ -724,15 +786,11 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
 
     // Evaluate all taps in a single, non-unrolled loop (dynamic bound).
     vec3 outCol = addCol;
-    // (if/else, not ?: — HLSL evaluates both sides of a ternary.)
+    // sampleScene appears ONCE here; the tap decides which scene (A/B) it reads.
     for (int i = 0; i < gTapCount; i++) {
       float w = gTapW[i];
       if (w <= 0.00001) continue;
-      if (gTapSrc[i] == 0) {
-        outCol += evalA(gTapUv[i]) * w;
-      } else {
-        outCol += evalB(gTapUv[i]) * w;
-      }
+      outCol += sampleScene(gTapSrc[i], gTapUv[i]) * w;
     }
 
     // Add deterministic Linear HDR Bokeh / Dust Motes (glows cleanly in Pass 2 Bloom/Halation)

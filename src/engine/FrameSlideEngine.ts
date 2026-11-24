@@ -277,6 +277,9 @@ export class FrameSlideEngine {
         uSlideIndexB: { value: 0 },
         uBokeh: { value: 0 },
         uTimeSec: { value: 0 },
+        // Always 9 (3x3 background blur). Passed as a uniform so Windows/D3D keeps the
+        // blur as a real loop instead of unrolling it 9x (see sceneTransitionShader.ts).
+        uBlurTaps: { value: 9 },
       },
     });
     this.pass1Scene = new THREE.Scene();
