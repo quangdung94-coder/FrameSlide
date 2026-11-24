@@ -24,6 +24,7 @@ export interface SceneSettings {
   layout: SceneLayoutId;
   durationSec: number;
   transitionType: TransitionType;
+  transitionDurationSec?: number;
   motionDirection?: MotionDirection;
   motionTemplate?: MotionTemplateId;
   background?: SceneBackground;
@@ -35,6 +36,7 @@ export function copySceneSettings(scene: SceneItem): SceneSettings {
     layout: scene.layout,
     durationSec: scene.durationSec,
     transitionType: scene.transitionType,
+    transitionDurationSec: scene.transitionDurationSec,
     motionDirection: scene.motionDirection,
     motionTemplate: scene.motionTemplate,
     background: scene.background ? { ...scene.background } : undefined,
@@ -66,6 +68,7 @@ export function applySceneSettings(
         break;
       case 'transition':
         next.transitionType = settings.transitionType;
+        next.transitionDurationSec = settings.transitionDurationSec;
         break;
       case 'caption':
         next.caption = settings.caption;

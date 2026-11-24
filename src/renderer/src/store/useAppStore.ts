@@ -175,6 +175,8 @@ interface AppState {
   setSceneLayout: (sceneId: string, layout: SceneLayoutId) => void;
   setSceneDuration: (sceneId: string, durationSec: number) => void;
   setSceneTransition: (sceneId: string, transitionType: TransitionType) => void;
+  /** Own transition length into the next scene; `null` = follow the project's. */
+  setSceneTransitionDuration: (sceneId: string, durationSec: number | null) => void;
   setSceneMotionDirection: (sceneId: string, motionDirection: MotionDirection) => void;
   /** Own Motion Template for one scene; `null` = follow the project's template. */
   setSceneMotionTemplate: (sceneId: string, template: MotionTemplateId | null) => void;
@@ -650,6 +652,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         slots: [...src.slots],
         motionDirection: src.motionDirection,
         motionTemplate: src.motionTemplate,
+        transitionDurationSec: src.transitionDurationSec,
         caption: src.caption,
         background: src.background ? { ...src.background } : undefined,
       };
@@ -740,6 +743,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({
       ...pushPast(s),
       scenes: s.scenes.map((sc) => (sc.id === sceneId ? { ...sc, transitionType } : sc)),
+    })),
+
+  setSceneTransitionDuration: (sceneId, durationSec) =>
+    set((s) => ({
+      ...pushPast(s),
+      scenes: s.scenes.map((sc) => {
+        if (sc.id !== sceneId) return sc;
+        const { transitionDurationSec: _drop, ...rest } = sc;
+        void _drop;
+        return durationSec === null
+          ? rest
+          : { ...rest, transitionDurationSec: Math.max(0.2, Math.min(2.5, durationSec)) };
+      }),
     })),
 
   setSceneMotionDirection: (sceneId, motionDirection) =>

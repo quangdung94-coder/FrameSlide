@@ -23,6 +23,7 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
   const setSceneMotionDirection = useAppStore((s) => s.setSceneMotionDirection);
   const setSceneMotionTemplate = useAppStore((s) => s.setSceneMotionTemplate);
   const setSceneTransition = useAppStore((s) => s.setSceneTransition);
+  const setSceneTransitionDuration = useAppStore((s) => s.setSceneTransitionDuration);
   const setSceneCaption = useAppStore((s) => s.setSceneCaption);
   const setSceneBackground = useAppStore((s) => s.setSceneBackground);
   const updateTextOverlay = useAppStore((s) => s.updateTextOverlay);
@@ -134,8 +135,11 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
           title={`Chuyển cảnh S${idx + 1} → S${idx + 2}`}
           defaultOpen={false}
           disabled={disabled}
-          onReset={() => setSceneTransition(scene.id, renderParams.transitionType)}
-          resetTitle="Về kiểu chuyển cảnh mặc định của dự án"
+          onReset={() => {
+            setSceneTransition(scene.id, renderParams.transitionType);
+            setSceneTransitionDuration(scene.id, null);
+          }}
+          resetTitle="Về kiểu và thời lượng chuyển cảnh mặc định của dự án"
         >
           <select
             value={scene.transitionType}
@@ -149,6 +153,19 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
               </option>
             ))}
           </select>
+          <SliderRow
+            label={
+              scene.transitionDurationSec === undefined
+                ? `Thời lượng chuyển cảnh (đang theo dự án: ${renderParams.transitionDurationSec.toFixed(2)}s)`
+                : 'Thời lượng chuyển cảnh (giây)'
+            }
+            value={scene.transitionDurationSec ?? renderParams.transitionDurationSec}
+            min={0.2}
+            max={2.5}
+            step={0.05}
+            disabled={disabled}
+            onChange={(v) => setSceneTransitionDuration(scene.id, v)}
+          />
         </Group>
       )}
 

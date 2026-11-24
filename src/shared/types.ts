@@ -175,6 +175,8 @@ export interface SceneItem {
   layout: SceneLayoutId;
   durationSec: number;
   transitionType: TransitionType;
+  /** Own length (seconds) of the transition into the next scene (undefined = project setting). */
+  transitionDurationSec?: number;
   motionDirection?: MotionDirection;
   /** Own Motion Template for this scene (undefined = follow the project's template). */
   motionTemplate?: MotionTemplateId;

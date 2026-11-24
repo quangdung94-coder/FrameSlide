@@ -111,4 +111,32 @@ describe('timeline evaluator', () => {
     }
     expect(lastProgress.get(0)).toBeCloseTo(1, 1);
   });
+
+  it('lets each scene have its own transition length into the next scene', () => {
+    // 3 scenes x 5s. Scene 0 → 1 uses 2s, scene 1 → 2 uses the project's 0.8s.
+    const base = {
+      fps: 30,
+      slideCount: 3,
+      totalDurationSec: 15,
+      transitionDurationSec: 0.8,
+      transitionDurations: [2, undefined, undefined],
+      simulate18fps: false,
+    };
+    // t = 3.5s: inside scene 0's 2s transition (starts at 3s) but outside the default 0.8s one.
+    const own = evaluateTimeline({ ...base, frameIndex: 105 });
+    expect(own.isInTransition).toBe(true);
+    expect(own.transitionProgress).toBeCloseTo(0.25, 2);
+    const without = evaluateTimeline({ ...base, transitionDurations: undefined, frameIndex: 105 });
+    expect(without.isInTransition).toBe(false);
+    // Scene 1 keeps the project's length: its 0.8s window starts at 9.2s, so t = 9.5s is in it
+    const second = evaluateTimeline({ ...base, frameIndex: 9.5 * 30 });
+    expect(second.slideAIndex).toBe(1);
+    expect(second.isInTransition).toBe(true);
+    expect(second.transitionProgress).toBeCloseTo(0.375, 2);
+    // Own length is still capped at 45% of the scene
+    const capped = evaluateTimeline({ ...base, transitionDurations: [10, undefined, undefined], frameIndex: 2.9 * 30 });
+    // 45% of 5s = 2.25s, so it starts at 2.75s: (2.9 - 2.75) / 2.25 ≈ 0.067
+    expect(capped.isInTransition).toBe(true);
+    expect(capped.transitionProgress).toBeCloseTo(0.067, 2);
+  });
 });
