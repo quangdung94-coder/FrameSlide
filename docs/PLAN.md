@@ -73,5 +73,5 @@
 - [x] 4. **Bấm scene / vị trí trên timeline:** playhead nhảy tới đó, khung giữa hiện scene đó. (Bấm thẻ scene → đầu scene; bấm/kéo thanh thời gian dưới mỗi thẻ → đúng vị trí trong scene, có vạch playhead.)
 - [ ] 5. **Chỉnh ảnh trực tiếp trên khung giữa:** kéo đổi position, scale, rotation; tay nắm + ô số; nút đặt lại.
 - [ ] 6. **Nền sau scene 2–4 ảnh:** nền trơn, gradient (nhiều mẫu, chỉnh màu và góc), ảnh mờ, họa tiết; áp cho một scene hoặc cả dự án.
-- [ ] 7. **Thẻ scene nhiều ảnh:** ô nhỏ đúng kiểu chia khung (2 ảnh cạnh nhau, 4 ảnh lưới 2x2), số thứ tự, kéo thả đổi chỗ.
+- [x] 7. **Thẻ scene nhiều ảnh:** ô nhỏ đúng kiểu chia khung (2 ảnh cạnh nhau, 4 ảnh lưới 2x2), số thứ tự, kéo thả đổi chỗ. (Khung mini theo đúng tỉ lệ xuất và vị trí ô thật trong shader — `src/engine/layoutGeometry.ts`.)
 - [x] 8. **Nhập thư mục:** không tự thêm tất cả ảnh vào timeline; ảnh chỉ vào khay; thêm nút "Thêm ảnh đã chọn" và "Thêm cả thư mục". (Ảnh mẫu vẫn tự dựng timeline để thử nhanh; "Thêm cả thư mục" = mọi ảnh chưa dùng trong khay, sẽ tách theo từng thư mục ở mục 1.)
