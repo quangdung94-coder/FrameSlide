@@ -134,6 +134,17 @@ export interface FocalPoint {
   y: number; // 0..1 (top -> bottom in UI coords)
 }
 
+/**
+ * Offsets are fractions of the photo's frame (x right, y down; 0.1 = 10% of the frame),
+ * scale 1 = fills the frame, rotation in degrees clockwise.
+ */
+export interface PhotoTransform {
+  x: number;
+  y: number;
+  scale: number;
+  rotationDeg: number;
+}
+
 export interface SlideAsset {
   id: string;
   name: string;
@@ -147,6 +158,8 @@ export interface SlideAsset {
   focalPoint: FocalPoint;
   rotationDeg?: 0 | 90 | 180 | 270;
   exposure?: number; // -1..+1 stops
+  /** Move / scale / free rotation of the photo inside its frame (edited on the preview). */
+  transform?: PhotoTransform;
   durationSec?: number;
   transitionType?: TransitionType;
 }

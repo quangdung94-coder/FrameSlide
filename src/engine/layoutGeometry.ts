@@ -54,3 +54,58 @@ export function getLayoutRects(layout: SceneLayoutId, canvasAspect: number): Lay
       return [{ x: 0, y: 0, w: 1, h: 1 }];
   }
 }
+
+export interface SlotRectOptions {
+  /** Shader motion style code (MOTION_STYLE_CODE_MAP): 1 parallax, 2 polaroid, 5/6 3D. */
+  motionStyle?: number;
+  /** Width / height of the photo after its 90° rotation. */
+  photoAspect?: number;
+  portraitMode?: 'smart-pairing' | 'safe-top-third' | string;
+}
+
+/**
+ * Frame of one slot (where the photo is drawn) for any motion style, at rest.
+ * Mirrors the sizes in `sampleScene()`; used to place the on-preview photo editor.
+ */
+export function getSlotFrameRect(
+  layout: SceneLayoutId,
+  slotIdx: number,
+  canvasAspect: number,
+  opts: SlotRectOptions = {}
+): LayoutRect {
+  const style = opts.motionStyle ?? 0;
+  const polaroid = style === 2;
+  const parallax = style === 1;
+  const is3d = style === 5 || style === 6;
+  const centered = (w: number, h: number): LayoutRect => ({ x: 0.5 - w / 2, y: 0.5 - h / 2, w, h });
+
+  if (layout === 'single') {
+    const asp0 = opts.photoAspect ?? canvasAspect;
+    const isPortrait = asp0 < 0.95;
+    const framed =
+      polaroid ||
+      parallax ||
+      is3d ||
+      (isPortrait && opts.portraitMode !== 'safe-top-third' && canvasAspect > 1.05);
+    if (!framed) return { x: 0, y: 0, w: 1, h: 1 };
+    const frameH = polaroid ? 0.74 : is3d ? 0.78 : parallax ? 0.8 : 0.86;
+    const targetAsp = isPortrait ? asp0 : Math.min(asp0, 1.65);
+    const frameW = Math.min(0.84, (frameH * targetAsp) / canvasAspect);
+    return centered(frameW, frameH);
+  }
+  if (layout === 'diptych') {
+    const frameH = polaroid ? 0.72 : is3d ? 0.76 : 0.8;
+    const frameW = Math.min(0.41, (frameH * (canvasAspect < 1 ? 0.52 : 0.72)) / canvasAspect);
+    const gap = canvasAspect < 1 ? 0.022 : 0.032;
+    const side = slotIdx === 0 ? -1 : 1;
+    const cx = 0.5 + side * (frameW / 2 + gap);
+    return { x: cx - frameW / 2, y: 0.5 - frameH / 2, w: frameW, h: frameH };
+  }
+  if (layout === 'triptych') {
+    const w = 0.275;
+    const h = polaroid ? 0.64 : 0.72;
+    const cx = 0.5 + (Math.max(0, Math.min(2, slotIdx)) - 1) * 0.305;
+    return { x: cx - w / 2, y: 0.5 - h / 2, w, h };
+  }
+  return getLayoutRects(layout, canvasAspect)[Math.max(0, Math.min(3, slotIdx))];
+}

@@ -18,6 +18,7 @@ import {
 } from '@shared/types';
 import { BG_PATTERN_CODE, BG_STYLE_CODE, hexToLinearRgb, resolveSceneBackground } from './background';
 import { classifyGpuRenderer } from './capabilities';
+import { normalizePhotoTransform } from './photoTransform';
 import { createLutStripTexture, parseCubeLut } from './cubeLutParser';
 import { MOTION_STYLE_CODE_MAP } from './presets/motionTemplates';
 import { TRANSITION_CODE_MAP } from './presets/transitions';
@@ -236,6 +237,10 @@ export class FrameSlideEngine {
         uExpA1: { value: 1 },
         uExpA2: { value: 1 },
         uExpA3: { value: 1 },
+        uXfA0: { value: new THREE.Vector4(0, 0, 1, 0) },
+        uXfA1: { value: new THREE.Vector4(0, 0, 1, 0) },
+        uXfA2: { value: new THREE.Vector4(0, 0, 1, 0) },
+        uXfA3: { value: new THREE.Vector4(0, 0, 1, 0) },
         uLayoutA: { value: 0 },
         uMotionDirA: { value: 0 },
 
@@ -259,6 +264,10 @@ export class FrameSlideEngine {
         uExpB1: { value: 1 },
         uExpB2: { value: 1 },
         uExpB3: { value: 1 },
+        uXfB0: { value: new THREE.Vector4(0, 0, 1, 0) },
+        uXfB1: { value: new THREE.Vector4(0, 0, 1, 0) },
+        uXfB2: { value: new THREE.Vector4(0, 0, 1, 0) },
+        uXfB3: { value: new THREE.Vector4(0, 0, 1, 0) },
         uLayoutB: { value: 0 },
         uMotionDirB: { value: 0 },
 
@@ -646,6 +655,14 @@ export class FrameSlideEngine {
       this.pass1Mat.uniforms[`uRot${prefix}${k}`].value = Math.round(rotDeg / 90) % 4;
       const expStops = asset?.exposure ?? 0;
       this.pass1Mat.uniforms[`uExp${prefix}${k}`].value = Math.pow(2, expStops);
+      const xf = normalizePhotoTransform(asset?.transform);
+      // UI stores y down; the shader works with y up.
+      (this.pass1Mat.uniforms[`uXf${prefix}${k}`].value as THREE.Vector4).set(
+        xf.x,
+        -xf.y,
+        xf.scale,
+        (-xf.rotationDeg * Math.PI) / 180
+      );
     }
     return missingTex;
   }

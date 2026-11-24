@@ -15,6 +15,7 @@ import { TRANSITION_PRESETS } from '@engine/presets/transitions';
 import { computeEffectiveTotalDurationSec, getTotalFrames } from '@engine/timeline';
 import { BackgroundPanel } from './components/BackgroundPanel';
 import { PhotoBin } from './components/PhotoBin';
+import { PhotoTransformOverlay } from './components/PhotoTransformOverlay';
 import { Splitter } from './components/Splitter';
 import { DEFAULT_LAYOUT, useLayoutStore } from './store/useLayoutStore';
 import { PlaybackBar } from './components/PlaybackBar';
@@ -167,6 +168,7 @@ export default function App() {
   const [liveFps, setLiveFps] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<InspectorTab>('template');
   const [focalPickMode, setFocalPickMode] = useState(false);
+  const [transformEditMode, setTransformEditMode] = useState(false);
   const [isFullscreenPreview, setIsFullscreenPreview] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [presetNameDraft, setPresetNameDraft] = useState('');
@@ -248,6 +250,11 @@ export default function App() {
   const redo = useAppStore((s) => s.redo);
   const setEngineCapabilities = useAppStore((s) => s.setEngineCapabilities);
 
+  // Starting playback leaves the photo editor (handles would not follow the motion).
+  useEffect(() => {
+    if (isPlaying) setTransformEditMode(false);
+  }, [isPlaying]);
+
   const activeScene = useMemo(
     () => scenes.find((sc) => sc.id === activeSceneId) ?? scenes[0] ?? null,
     [scenes, activeSceneId]
@@ -325,6 +332,7 @@ export default function App() {
         if (isFullscreenPreview) setIsFullscreenPreview(false);
         if (showShortcutsModal) setShowShortcutsModal(false);
         if (focalPickMode) setFocalPickMode(false);
+        if (transformEditMode && !inInput) setTransformEditMode(false);
         return;
       }
 
@@ -390,7 +398,7 @@ export default function App() {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [isExporting, isFullscreenPreview, showShortcutsModal, focalPickMode, totalFrames]);
+  }, [isExporting, isFullscreenPreview, showShortcutsModal, focalPickMode, transformEditMode, totalFrames]);
 
   useEffect(() => {
     let active = true;
@@ -1165,6 +1173,29 @@ export default function App() {
                   </span>
                 )}
               </div>
+
+              {transformEditMode && !isExporting && scenes.length > 0 && (
+                <PhotoTransformOverlay
+                  canvasRef={canvasRef}
+                  onClose={() => setTransformEditMode(false)}
+                />
+              )}
+
+              {!isFullscreenPreview && scenes.length > 0 && !transformEditMode && (
+                <button
+                  type="button"
+                  disabled={isExporting}
+                  onClick={() => {
+                    setIsPlaying(false);
+                    setFocalPickMode(false);
+                    setTransformEditMode(true);
+                  }}
+                  title="Kéo trực tiếp trên khung xem để di chuyển, phóng to, xoay ảnh đang chọn"
+                  className="absolute top-2.5 right-2.5 z-20 rounded border border-zinc-700 bg-black/75 px-2 py-1 text-[11px] font-medium text-zinc-200 hover:border-amber-400 hover:text-amber-300 disabled:opacity-40"
+                >
+                  ✥ Chỉnh ảnh
+                </button>
+              )}
 
               {isFullscreenPreview && (
                 <button

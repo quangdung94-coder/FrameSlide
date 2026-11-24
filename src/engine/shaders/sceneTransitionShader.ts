@@ -63,6 +63,16 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
   uniform float uExpB1;
   uniform float uExpB2;
   uniform float uExpB3;
+  // User transform per slot (move / scale / free rotation inside its frame):
+  // xy = offset in frame units (y up), z = scale, w = rotation (radians).
+  uniform vec4 uXfA0;
+  uniform vec4 uXfA1;
+  uniform vec4 uXfA2;
+  uniform vec4 uXfA3;
+  uniform vec4 uXfB0;
+  uniform vec4 uXfB1;
+  uniform vec4 uXfB2;
+  uniform vec4 uXfB3;
   uniform int uLayoutB;
   uniform int uMotionDirB;
 
@@ -192,6 +202,35 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     if (slot == 5) return uExpB1;
     if (slot == 6) return uExpB2;
     return uExpB3;
+  }
+
+  vec4 slotXf(int slot) {
+    if (slot == 0) return uXfA0;
+    if (slot == 1) return uXfA1;
+    if (slot == 2) return uXfA2;
+    if (slot == 3) return uXfA3;
+    if (slot == 4) return uXfB0;
+    if (slot == 5) return uXfB1;
+    if (slot == 6) return uXfB2;
+    return uXfB3;
+  }
+
+  // Applies the user's move/scale/rotate to a 0..1 frame uv (inverse mapping:
+  // where in the untransformed photo frame does this screen point come from).
+  vec2 applyUserXf(int slot, vec2 uv, float boxAspect) {
+    vec4 xf = slotXf(slot);
+    vec2 p = (uv - 0.5 - xf.xy) * vec2(boxAspect, 1.0);
+    float c = cos(-xf.w);
+    float s = sin(-xf.w);
+    p = vec2(c * p.x - s * p.y, s * p.x + c * p.y) / max(0.05, xf.z);
+    return p / vec2(boxAspect, 1.0) + 0.5;
+  }
+
+  // 1 inside the photo, 0 outside (soft edge), for photos moved/shrunk/rotated by the user.
+  float photoCoverage(vec2 imgUv, vec2 aaUv) {
+    vec2 d = abs(imgUv - 0.5);
+    vec2 m = smoothstep(vec2(0.5) + aaUv, vec2(0.5) - aaUv, d);
+    return m.x * m.y;
   }
 
   vec3 samplePhotoSlot(int slot, vec2 uv) {
@@ -437,8 +476,10 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
       vec2 effSz = effectiveSize(slotSize(slot), slotRot(slot));
       float imgAspect = effSz.x / max(1.0, effSz.y);
       float boxAspect = (halfExt.x * canvasAspect) / max(0.0001, halfExt.y);
-      vec2 sampleUv = coverUvWithFocal(boxUv, imgAspect, boxAspect, slotFocal(slot));
-      vec3 photoCol = samplePhotoSlot(slot, sampleUv);
+      vec2 xfUv = applyUserXf(slot, boxUv, boxAspect);
+      vec2 sampleUv = coverUvWithFocal(xfUv, imgAspect, boxAspect, slotFocal(slot));
+      vec3 photoCol = samplePhotoSlot(slot, sampleUv)
+        * photoCoverage(xfUv, aa / max(2.0 * halfExt, vec2(0.0001)));
 
       vec3 borderCol = (uMotionStyle == 3 && uBorderStyle == 0)
         ? vec3(0.03, 0.03, 0.035)
@@ -486,8 +527,9 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     if (!multi && !framedSingle) {
       // Plain full-frame Ken Burns: no background, no card.
       vec2 kbUv = applyKenBurns(screenUv, progress, slideIdx, motionDir);
-      vec2 uv = coverUvWithFocal(kbUv, asp0, canvasAspect, slotFocal(base));
-      return samplePhotoSlot(base, uv);
+      vec2 xfUv = applyUserXf(base, kbUv, canvasAspect);
+      vec2 uv = coverUvWithFocal(xfUv, asp0, canvasAspect, slotFocal(base));
+      return samplePhotoSlot(base, uv) * photoCoverage(xfUv, aa);
     }
 
     vec3 col = computeBackground(scene, base, screenUv, easeP, canvasAspect, parallax || is3d, filmstrip);

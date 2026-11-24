@@ -38,3 +38,15 @@ describe('getLayoutRects', () => {
     expect(m[0].x).toBeLessThan(m[1].x);
   });
 });
+
+describe('getSlotFrameRect', () => {
+  it('uses the full frame for a landscape single photo and a matte frame for portraits', async () => {
+    const { getSlotFrameRect } = await import('./layoutGeometry');
+    expect(getSlotFrameRect('single', 0, 16 / 9, { photoAspect: 1.5 })).toEqual({ x: 0, y: 0, w: 1, h: 1 });
+    const portrait = getSlotFrameRect('single', 0, 16 / 9, { photoAspect: 2 / 3 });
+    expect(portrait.h).toBeCloseTo(0.86);
+    expect(portrait.w).toBeLessThan(0.5);
+    expect(getSlotFrameRect('single', 0, 16 / 9, { photoAspect: 2 / 3, portraitMode: 'safe-top-third' }).w).toBe(1);
+    expect(getSlotFrameRect('diptych', 1, 16 / 9)).toEqual(getLayoutRects('diptych', 16 / 9)[1]);
+  });
+});

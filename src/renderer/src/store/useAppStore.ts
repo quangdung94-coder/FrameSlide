@@ -9,12 +9,14 @@ import {
   resizeSceneSlots,
 } from '@engine/sceneBuilder';
 import { DEFAULT_BACKGROUND_OPTIONS } from '@engine/background';
+import { isIdentityTransform, normalizePhotoTransform } from '@engine/photoTransform';
 import { resolveSlideDurations } from '@engine/timeline';
 import {
   DEFAULT_SUPER8_PARAMS,
   DEFAULT_TEXT_OVERLAY,
   type BackgroundOptions,
   type BackgroundStyle,
+  type PhotoTransform,
   type SceneBackground,
   type CompareMode,
   type CustomLutInfo,
@@ -113,6 +115,16 @@ interface AppState {
   updatePhotoFocalPoint: (photoId: string, focalPoint: FocalPoint) => void;
   rotatePhoto90: (photoId: string) => void;
   setPhotoExposure: (photoId: string, exposure: number) => void;
+  /**
+   * Move / scale / rotate a photo inside its frame. `null` resets it.
+   * Pass recordHistory=false while dragging (call pushUndoPoint once at drag start).
+   */
+  setPhotoTransform: (
+    photoId: string,
+    transform: Partial<PhotoTransform> | null,
+    recordHistory?: boolean
+  ) => void;
+  pushUndoPoint: () => void;
 
   // Scene Track & Photo Slots actions
   setActiveSceneSilent: (sceneId: string) => void;
@@ -384,6 +396,28 @@ export const useAppStore = create<AppState>((set, get) => ({
           : item
       ),
     })),
+
+  setPhotoTransform: (photoId, transform, recordHistory = true) =>
+    set((s) => ({
+      ...(recordHistory ? pushPast(s) : {}),
+      slides: s.slides.map((item) => {
+        if (item.id !== photoId) return item;
+        if (!transform) {
+          const { transform: _drop, ...rest } = item;
+          void _drop;
+          return rest;
+        }
+        const next = normalizePhotoTransform({ ...item.transform, ...transform });
+        if (isIdentityTransform(next)) {
+          const { transform: _drop, ...rest } = item;
+          void _drop;
+          return rest;
+        }
+        return { ...item, transform: next };
+      }),
+    })),
+
+  pushUndoPoint: () => set((s) => pushPast(s)),
 
   setActiveSceneSilent: (sceneId) =>
     set((s) =>

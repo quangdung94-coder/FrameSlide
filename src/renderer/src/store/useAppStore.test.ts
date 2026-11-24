@@ -281,3 +281,19 @@ describe('scene backgrounds', () => {
     expect(opts?.color1).toMatch(/^#/);
   });
 });
+
+describe('photo transform editing', () => {
+  it('stores a normalized transform, drops identity, and undoes a whole drag as one step', () => {
+    useAppStore.setState({ scenes: [], slides: [], past: [], future: [], renderParams: INITIAL_RENDER_PARAMS });
+    useAppStore.getState().setSlides([makePhoto('A')], false);
+    useAppStore.getState().pushUndoPoint();
+    useAppStore.getState().setPhotoTransform('A', { x: 0.1 }, false);
+    useAppStore.getState().setPhotoTransform('A', { x: 0.2, scale: 1.5 }, false);
+    expect(useAppStore.getState().slides[0].transform).toEqual({ x: 0.2, y: 0, scale: 1.5, rotationDeg: 0 });
+    expect(useAppStore.getState().past).toHaveLength(1);
+    useAppStore.getState().undo();
+    expect(useAppStore.getState().slides[0].transform).toBeUndefined();
+    useAppStore.getState().setPhotoTransform('A', { x: 0, y: 0, scale: 1, rotationDeg: 0 });
+    expect('transform' in useAppStore.getState().slides[0]).toBe(false);
+  });
+});
