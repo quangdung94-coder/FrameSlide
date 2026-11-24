@@ -202,7 +202,7 @@ export default function App() {
   const setCompareMode = useAppStore((s) => s.setCompareMode);
   const setIsPlaying = useAppStore((s) => s.setIsPlaying);
   const setSlides = useAppStore((s) => s.setSlides);
-  const appendSlides = useAppStore((s) => s.appendSlides);
+  const addPhotosToBin = useAppStore((s) => s.addPhotosToBin);
   const updatePhotoFocalPoint = useAppStore((s) => s.updatePhotoFocalPoint);
   const rotatePhoto90 = useAppStore((s) => s.rotatePhoto90);
   const setPhotoExposure = useAppStore((s) => s.setPhotoExposure);
@@ -573,6 +573,11 @@ export default function App() {
     setTimeout(() => setStatusNotice((curr) => (curr === msg ? null : curr)), 3500);
   };
 
+  const binImportNotice = (total: number, added: number) =>
+    added === 0
+      ? `${total} ảnh này đã có sẵn trong khay.`
+      : `Đã thêm ${added} ảnh vào khay. Chọn ảnh rồi bấm "Thêm ảnh đã chọn" hoặc "Thêm cả thư mục" để đưa lên timeline.`;
+
   const handleLoadSamples = async () => {
     setIsPlaying(false);
     setLoadingSlides(true);
@@ -593,8 +598,8 @@ export default function App() {
     try {
       const picked = await window.frameSlideAPI.pickImages();
       if (picked.length > 0) {
-        setSlides(picked, true);
-        flashNotice(`Đã nạp ${picked.length} ảnh.`);
+        const added = addPhotosToBin(picked);
+        flashNotice(binImportNotice(picked.length, added));
       }
     } finally {
       setLoadingSlides(false);
@@ -608,8 +613,8 @@ export default function App() {
     try {
       const picked = await window.frameSlideAPI.pickFolderImages();
       if (picked.length > 0) {
-        setSlides(picked, true);
-        flashNotice(`Đã nạp ${picked.length} ảnh từ thư mục.`);
+        const added = addPhotosToBin(picked);
+        flashNotice(binImportNotice(picked.length, added));
       }
     } finally {
       setLoadingSlides(false);
@@ -633,8 +638,8 @@ export default function App() {
     try {
       const imported = await window.frameSlideAPI.importPaths(paths);
       if (imported.length > 0) {
-        appendSlides(imported);
-        flashNotice(`Đã thêm ${imported.length} ảnh vào khay & Scene.`);
+        const added = addPhotosToBin(imported);
+        flashNotice(binImportNotice(imported.length, added));
       }
     } finally {
       setLoadingSlides(false);
@@ -1092,6 +1097,19 @@ export default function App() {
                       Mở ảnh mẫu thử ngay
                     </button>
                   </div>
+                </div>
+              )}
+
+              {/* Photos are in the tray but nothing is on the timeline yet */}
+              {slides.length > 0 && scenes.length === 0 && !loadingSlides && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-zinc-950/85 p-6 text-center">
+                  <div className="mb-2 text-base font-semibold text-amber-400">
+                    Ảnh đã vào khay, timeline đang trống
+                  </div>
+                  <p className="max-w-md text-xs text-zinc-400">
+                    Chọn ảnh ở khay bên trái (giữ Ctrl để chọn nhiều, Shift để chọn một dãy) rồi bấm
+                    “Thêm ảnh đã chọn”, hoặc bấm “Thêm cả thư mục” để đưa tất cả ảnh chưa dùng lên timeline.
+                  </p>
                 </div>
               )}
 
