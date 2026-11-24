@@ -405,3 +405,22 @@ describe('photo Start/End keyframes', () => {
     expect(useAppStore.getState().chainPhotoKeyframeFromPrevious(s1, 0)).toBe(false); // first scene
   });
 });
+
+describe('per-scene transition duration', () => {
+  it('sets, clamps, clears, duplicates and pastes with the transition part', () => {
+    useAppStore.setState({ scenes: [], slides: [], past: [], future: [], renderParams: INITIAL_RENDER_PARAMS });
+    useAppStore.getState().addScene('single');
+    useAppStore.getState().addScene('single');
+    const [a, b] = useAppStore.getState().scenes.map((s) => s.id);
+    useAppStore.getState().setSceneTransitionDuration(a, 99);
+    expect(useAppStore.getState().scenes[0].transitionDurationSec).toBe(2.5);
+    useAppStore.getState().setSceneTransitionDuration(a, 1.4);
+    useAppStore.getState().copySceneSettings(a);
+    useAppStore.getState().pasteSceneSettings(b, ['transition']);
+    expect(useAppStore.getState().scenes[1].transitionDurationSec).toBe(1.4);
+    useAppStore.getState().duplicateScene(a);
+    expect(useAppStore.getState().scenes[1].transitionDurationSec).toBe(1.4);
+    useAppStore.getState().setSceneTransitionDuration(a, null);
+    expect('transitionDurationSec' in useAppStore.getState().scenes[0]).toBe(false);
+  });
+});

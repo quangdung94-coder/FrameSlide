@@ -77,6 +77,8 @@ export function evaluateTimeline(opts: {
   slideCount: number;
   totalDurationSec: number;
   transitionDurationSec: number;
+  /** Per scene i: own length of the transition from scene i into scene i+1 (undefined = use the project's). */
+  transitionDurations?: (number | undefined)[];
   simulate18fps: boolean;
   durationMode?: DurationMode;
   defaultSlideDurationSec?: number;
@@ -113,9 +115,11 @@ export function evaluateTimeline(opts: {
     };
   }
 
-  const transitionDurationSec = opts.transitionDurationSec;
-  const clampTransition = (slot: number): number =>
-    Math.max(0, Math.min(transitionDurationSec, slot * 0.45));
+  const clampTransition = (slot: number, sceneIdx: number): number => {
+    const own = opts.transitionDurations?.[sceneIdx];
+    const wanted = own !== undefined && Number.isFinite(own) ? own : opts.transitionDurationSec;
+    return Math.max(0, Math.min(wanted, slot * 0.45));
+  };
 
   // Locate current slide slot from cumulative durations
   let acc = 0;
@@ -136,12 +140,12 @@ export function evaluateTimeline(opts: {
 
   const slideAProgress = Math.max(0, Math.min(1, localTime / slotDuration));
   // Motion window of slide A starts when the incoming transition (from previous slide) begins
-  const incomingTrans = slideIdx > 0 ? clampTransition(durations[slideIdx - 1]) : 0;
+  const incomingTrans = slideIdx > 0 ? clampTransition(durations[slideIdx - 1], slideIdx - 1) : 0;
   const motionProgressA = Math.max(
     0,
     Math.min(1, (localTime + incomingTrans) / (slotDuration + incomingTrans))
   );
-  const clampedTrans = clampTransition(slotDuration);
+  const clampedTrans = clampTransition(slotDuration, slideIdx);
   const transitionStart = slotDuration - clampedTrans;
   const hasNextSlide = slideIdx < safeCount - 1;
 
