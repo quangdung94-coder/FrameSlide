@@ -417,6 +417,10 @@ export default function App() {
       width: initialSize.width,
       height: initialSize.height,
       onContextLost: () => setContextLost(true),
+      onShadersReady: () => {
+        const s = useAppStore.getState();
+        engineRef.current?.renderFrame(s.frameIndex, s.fps, s.renderParams, s.compareMode);
+      },
       onContextRestored: () => {
         setContextLost(false);
         const s = useAppStore.getState();

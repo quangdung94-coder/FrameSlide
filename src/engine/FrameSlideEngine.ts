@@ -38,6 +38,8 @@ export interface EngineOptions {
   preserveDrawingBuffer?: boolean;
   onContextLost?: () => void;
   onContextRestored?: () => void;
+  /** Called once all shader programs finished compiling (first frame can be drawn). */
+  onShadersReady?: () => void;
 }
 
 export interface AutoSceneBuildOptions {
@@ -147,6 +149,8 @@ export class FrameSlideEngine {
   private height: number;
   private contextLost = false;
   private disposed = false;
+  private shadersReady = false;
+  private readonly shadersReadyPromise: Promise<void>;
 
   private readonly handleContextLost = (event: Event): void => {
     event.preventDefault();
@@ -351,6 +355,43 @@ export class FrameSlideEngine {
 
     this.canvas.addEventListener('webglcontextlost', this.handleContextLost, false);
     this.canvas.addEventListener('webglcontextrestored', this.handleContextRestored, false);
+
+    this.shadersReadyPromise = this.compileShadersAsync().then(() => {
+      if (this.disposed) return;
+      this.shadersReady = true;
+      options.onShadersReady?.();
+    });
+  }
+
+  /**
+   * Compiles all passes in the background (KHR_parallel_shader_compile) so the first
+   * cold compile on Windows/D3D (can take 10–20 s) does not freeze the whole UI.
+   * Each pass is compiled with the same render target it will draw into, so Three.js
+   * reuses exactly these programs at render time.
+   */
+  private async compileShadersAsync(): Promise<void> {
+    try {
+      const prevTarget = this.renderer.getRenderTarget();
+      this.renderer.setRenderTarget(this.targetA);
+      const p1 = this.renderer.compileAsync(this.pass1Scene, this.orthoCam);
+      this.renderer.setRenderTarget(this.targetB);
+      const p2 = this.renderer.compileAsync(this.pass2Scene, this.orthoCam);
+      this.renderer.setRenderTarget(null);
+      const p3 = this.renderer.compileAsync(this.pass3Scene, this.orthoCam);
+      this.renderer.setRenderTarget(prevTarget);
+      await Promise.all([p1, p2, p3]);
+    } catch {
+      // Fall back to the normal (synchronous) compile on first render
+    }
+  }
+
+  /** Resolves once shader programs are compiled; await before exporting frames. */
+  public whenReady(): Promise<void> {
+    return this.shadersReadyPromise;
+  }
+
+  public isReady(): boolean {
+    return this.shadersReady;
   }
 
   private detectCapabilities(): EngineCapabilities {
@@ -604,6 +645,8 @@ export class FrameSlideEngine {
     compareMode: CompareMode = 'normal'
   ): number {
     if (this.disposed || this.contextLost) return this.lastSceneIndex;
+    // Shaders still compiling in the background: skip instead of forcing a blocking compile
+    if (!this.shadersReady) return this.lastSceneIndex;
 
     const look = params?.super8 ?? DEFAULT_SUPER8_PARAMS;
     const portraitMode = params?.portraitMode ?? 'smart-pairing';
