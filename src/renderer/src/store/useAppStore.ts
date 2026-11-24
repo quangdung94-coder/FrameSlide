@@ -157,6 +157,8 @@ interface AppState {
   setSceneDuration: (sceneId: string, durationSec: number) => void;
   setSceneTransition: (sceneId: string, transitionType: TransitionType) => void;
   setSceneMotionDirection: (sceneId: string, motionDirection: MotionDirection) => void;
+  /** Own Motion Template for one scene; `null` = follow the project's template. */
+  setSceneMotionTemplate: (sceneId: string, template: MotionTemplateId | null) => void;
   setSceneCaption: (sceneId: string, caption: string) => void;
   assignPhotoToSlot: (sceneId: string, slotIndex: number, photoId: string | null) => void;
   swapSceneSlots: (srcSceneId: string, srcIdx: number, dstSceneId: string, dstIdx: number) => void;
@@ -539,6 +541,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         ...createEmptyScene(src.layout, src.durationSec, src.transitionType),
         slots: [...src.slots],
         motionDirection: src.motionDirection,
+        motionTemplate: src.motionTemplate,
         caption: src.caption,
         background: src.background ? { ...src.background } : undefined,
       };
@@ -635,6 +638,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({
       ...pushPast(s),
       scenes: s.scenes.map((sc) => (sc.id === sceneId ? { ...sc, motionDirection } : sc)),
+    })),
+
+  setSceneMotionTemplate: (sceneId, template) =>
+    set((s) => ({
+      ...pushPast(s),
+      scenes: s.scenes.map((sc) => {
+        if (sc.id !== sceneId) return sc;
+        const { motionTemplate: _drop, ...rest } = sc;
+        return template ? { ...rest, motionTemplate: template } : rest;
+      }),
     })),
 
   setSceneCaption: (sceneId, caption) =>

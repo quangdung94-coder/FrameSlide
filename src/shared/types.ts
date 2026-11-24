@@ -170,6 +170,8 @@ export interface SceneItem {
   durationSec: number;
   transitionType: TransitionType;
   motionDirection?: MotionDirection;
+  /** Own Motion Template for this scene (undefined = follow the project's template). */
+  motionTemplate?: MotionTemplateId;
   caption?: string;
   /** Own background for this scene (otherwise the project background is used). */
   background?: SceneBackground;

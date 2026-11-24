@@ -270,6 +270,7 @@ export class FrameSlideEngine {
         uXfB3: { value: new THREE.Vector4(0, 0, 1, 0) },
         uLayoutB: { value: 0 },
         uMotionDirB: { value: 0 },
+        uMotionStyleB: { value: 0 },
 
         uResolution: { value: new THREE.Vector2(this.width, this.height) },
         uProgressA: { value: 0 },
@@ -706,7 +707,9 @@ export class FrameSlideEngine {
 
     const activeTrans = sceneA?.transitionType ?? params?.transitionType ?? 'light-leak';
     const transCode = TRANSITION_CODE_MAP[activeTrans] ?? 0;
-    const motionCode = MOTION_STYLE_CODE_MAP[params?.motionTemplate ?? 'ken-burns-classic'] ?? 0;
+    const projectTemplate = params?.motionTemplate ?? 'ken-burns-classic';
+    const motionCode = MOTION_STYLE_CODE_MAP[sceneA?.motionTemplate ?? projectTemplate] ?? 0;
+    const motionCodeB = MOTION_STYLE_CODE_MAP[sceneB?.motionTemplate ?? projectTemplate] ?? 0;
     const timeSec = frameIndex / Math.max(1, fps);
 
     this.pass1Mat.uniforms['uProgressA'].value = state.motionProgressA;
@@ -714,6 +717,7 @@ export class FrameSlideEngine {
     this.pass1Mat.uniforms['uTransProgress'].value = state.transitionProgress;
     this.pass1Mat.uniforms['uTransType'].value = transCode;
     this.pass1Mat.uniforms['uMotionStyle'].value = motionCode;
+    this.pass1Mat.uniforms['uMotionStyleB'].value = motionCodeB;
     this.pass1Mat.uniforms['uMotionIntensity'].value = params?.motionIntensity ?? 1.0;
     this.applyBackgroundUniforms('A', resolveSceneBackground(params, sceneA));
     this.applyBackgroundUniforms('B', resolveSceneBackground(params, sceneB));

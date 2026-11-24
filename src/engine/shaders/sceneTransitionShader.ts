@@ -81,7 +81,8 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
   uniform float uProgressB;
   uniform float uTransProgress;
   uniform int uTransType;      // 0..19
-  uniform int uMotionStyle;    // 0..6
+  uniform int uMotionStyle;    // 0..6 (scene A = current)
+  uniform int uMotionStyleB;   // 0..6 (scene B = next; a scene may have its own template)
   uniform float uMotionIntensity; // 0..1.5
   // Background per scene (A = current, B = next): 0=blur, 1=black, 2=paper, 3=studio,
   // 4=solid, 5=gradient, 6=pattern. Colours are linear RGB.
@@ -406,7 +407,8 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     float kbScale,
     float canvasAspect,
     vec2 aa,
-    bool defaultPolaroid
+    bool defaultPolaroid,
+    int motionStyle
   ) {
     // Resolve border style override
     bool isNone = (uBorderStyle == 1);
@@ -481,7 +483,7 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
       vec3 photoCol = samplePhotoSlot(slot, sampleUv)
         * photoCoverage(xfUv, aa / max(2.0 * halfExt, vec2(0.0001)));
 
-      vec3 borderCol = (uMotionStyle == 3 && uBorderStyle == 0)
+      vec3 borderCol = (motionStyle == 3 && uBorderStyle == 0)
         ? vec3(0.03, 0.03, 0.035)
         : vec3(0.86, 0.83, 0.78);
 
@@ -504,11 +506,12 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     float canvasAspect = uResolution.x / max(1.0, uResolution.y);
     vec2 aa = 1.25 / max(uResolution, vec2(1.0));
     float easeP = easeInOutSine(progress);
-    bool polaroid = (uMotionStyle == 2);
-    bool parallax = (uMotionStyle == 1);
-    bool filmstrip = (uMotionStyle == 3);
-    bool gallery3d = (uMotionStyle == 5);
-    bool wall3d = (uMotionStyle == 6);
+    int motionStyle = scene == 0 ? uMotionStyle : uMotionStyleB;
+    bool polaroid = (motionStyle == 2);
+    bool parallax = (motionStyle == 1);
+    bool filmstrip = (motionStyle == 3);
+    bool gallery3d = (motionStyle == 5);
+    bool wall3d = (motionStyle == 6);
     bool forceTilt3d = (motionDir == 5);
     bool is3d = gallery3d || wall3d || forceTilt3d;
 
@@ -622,7 +625,7 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
         kb = mix(1.0, 1.07, easeP);
       }
 
-      col = compositeCard(col, base + c, screenUv, center, halfExt, tilt, yaw, pitch, z, kb, canvasAspect, aa, cardPolaroid);
+      col = compositeCard(col, base + c, screenUv, center, halfExt, tilt, yaw, pitch, z, kb, canvasAspect, aa, cardPolaroid, motionStyle);
     }
     return col;
   }

@@ -1,7 +1,8 @@
+import { getMotionTemplate, MOTION_TEMPLATE_PRESETS } from '@engine/presets/motionTemplates';
 import { TRANSITION_PRESETS } from '@engine/presets/transitions';
 import { LAYOUT_LABELS } from '@engine/sceneBuilder';
 import { SCENE_SETTING_PARTS } from '@engine/sceneSettings';
-import type { MotionDirection, SceneLayoutId } from '@shared/types';
+import type { MotionDirection, MotionTemplateId, SceneLayoutId } from '@shared/types';
 import { useAppStore } from '../store/useAppStore';
 import { BackgroundPanel } from './BackgroundPanel';
 import { Group, SliderRow } from './ui';
@@ -20,6 +21,7 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
   const setSceneLayout = useAppStore((s) => s.setSceneLayout);
   const setSceneDuration = useAppStore((s) => s.setSceneDuration);
   const setSceneMotionDirection = useAppStore((s) => s.setSceneMotionDirection);
+  const setSceneMotionTemplate = useAppStore((s) => s.setSceneMotionTemplate);
   const setSceneTransition = useAppStore((s) => s.setSceneTransition);
   const setSceneCaption = useAppStore((s) => s.setSceneCaption);
   const setSceneBackground = useAppStore((s) => s.setSceneBackground);
@@ -72,9 +74,30 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
         id="scene-motion"
         title="Chuyển động"
         disabled={disabled}
-        onReset={() => setSceneMotionDirection(scene.id, 'auto')}
-        resetTitle="Về Tự động"
+        onReset={() => {
+          setSceneMotionDirection(scene.id, 'auto');
+          setSceneMotionTemplate(scene.id, null);
+        }}
+        resetTitle="Về Tự động và theo template của dự án"
       >
+        <label className="flex flex-col gap-1 text-xs text-zinc-400">
+          Motion Template của scene
+          <select
+            value={scene.motionTemplate ?? ''}
+            disabled={disabled}
+            onChange={(e) =>
+              setSceneMotionTemplate(scene.id, (e.target.value || null) as MotionTemplateId | null)
+            }
+            className={FIELD}
+          >
+            <option value="">Theo dự án ({getMotionTemplate(renderParams.motionTemplate).name})</option>
+            {MOTION_TEMPLATE_PRESETS.map((tpl) => (
+              <option key={tpl.id} value={tpl.id}>
+                {tpl.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="flex flex-col gap-1 text-xs text-zinc-400">
           Hướng chuyển động riêng
           <select

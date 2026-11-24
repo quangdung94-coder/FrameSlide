@@ -57,4 +57,9 @@ describe('GLSL ES 3.00 shader sources', () => {
     const engineSrc = readFileSync(new URL('../FrameSlideEngine.ts', import.meta.url), 'utf8');
     expect(engineSrc).toMatch(/uBlurTaps:\s*\{\s*value:\s*9\s*\}/);
   });
+
+  it('scene shader reads the motion style per scene (A and B can use different templates)', () => {
+    expect(SCENE_TRANSITION_FRAGMENT_SHADER).toContain('uniform int uMotionStyleB;');
+    expect(SCENE_TRANSITION_FRAGMENT_SHADER).toContain('scene == 0 ? uMotionStyle : uMotionStyleB');
+  });
 });
