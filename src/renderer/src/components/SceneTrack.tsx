@@ -5,6 +5,8 @@ import {
   type TransitionPreset,
 } from '@engine/presets/transitions';
 import { LAYOUT_LABELS } from '@engine/sceneBuilder';
+import { getExportResolution } from '@engine/capabilities';
+import { getLayoutRects } from '@engine/layoutGeometry';
 import { resolveSlideDurations } from '@engine/timeline';
 import { useAppStore } from '../store/useAppStore';
 import type { SceneLayoutId } from '@shared/types';
@@ -13,12 +15,6 @@ interface SceneTrackProps {
   disabled: boolean;
 }
 
-const LAYOUT_GRID_CLASS: Record<SceneLayoutId, string> = {
-  single: 'grid-cols-1 grid-rows-1',
-  diptych: 'grid-cols-2 grid-rows-1',
-  triptych: 'grid-cols-3 grid-rows-1',
-  mosaic4: 'grid-cols-2 grid-rows-2',
-};
 
 const TRANSITION_GROUPS: TransitionPreset['group'][] = [
   'Mềm & Cổ điển',
@@ -124,6 +120,22 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
   const autoFillScenes = useAppStore((s) => s.autoFillScenes);
   const clearAllSceneSlots = useAppStore((s) => s.clearAllSceneSlots);
 
+  const [compactMode, setCompactMode] = useState(false);
+  const outRes = getExportResolution(renderParams.outputAspect);
+  const canvasAspect = outRes.width / outRes.height;
+  const layoutRects = useMemo(
+    () => ({
+      single: getLayoutRects('single', canvasAspect),
+      diptych: getLayoutRects('diptych', canvasAspect),
+      triptych: getLayoutRects('triptych', canvasAspect),
+      mosaic4: getLayoutRects('mosaic4', canvasAspect),
+    }),
+    [canvasAspect]
+  );
+  // Mini frame keeps the real output shape and slot positions.
+  const miniH = compactMode ? 56 : 96;
+  const miniW = Math.min(compactMode ? 160 : 192, Math.round(miniH * canvasAspect));
+
   const sceneFrameRanges = useMemo(() => {
     const durations = resolveSlideDurations(scenes.length, {
       durationMode: renderParams.durationMode,
@@ -145,7 +157,6 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
 
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
   const [dropSceneId, setDropSceneId] = useState<string | null>(null);
-  const [compactMode, setCompactMode] = useState(false);
   const [openTransMenuSceneId, setOpenTransMenuSceneId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -397,17 +408,19 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                   </select>
                 )}
 
-                {/* Photo Slots Grid */}
+                {/* Mini frame: each slot drawn where it really sits in the video */}
                 <div
-                  className={`grid w-full gap-1 rounded border border-zinc-800 bg-zinc-950 p-1 ${
-                    compactMode ? 'h-12' : 'h-20'
-                  } ${LAYOUT_GRID_CLASS[sc.layout]}`}
+                  className="relative mx-auto overflow-hidden rounded border border-zinc-800 bg-zinc-950"
+                  style={{ width: miniW, height: Math.round(miniW / canvasAspect) }}
+                  title={`${LAYOUT_LABELS[sc.layout]}: kéo ô này sang ô khác để đổi chỗ ảnh`}
                 >
                   {sc.slots.map((pid, slotIdx) => {
                     const photo = pid ? photoMap.get(pid) : undefined;
                     const slotKey = `${sc.id}:${slotIdx}`;
                     const isDropHot = dropTargetKey === slotKey;
                     const isFocusedSlot = isActive && activeSlotIndex === slotIdx && Boolean(photo);
+                    const rect = layoutRects[sc.layout][slotIdx] ?? layoutRects.single[0];
+                    const isMulti = sc.slots.length > 1;
 
                     return (
                       <div
@@ -466,7 +479,15 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                             // ignore malformed drop
                           }
                         }}
-                        className={`group relative flex h-full w-full items-center justify-center overflow-hidden rounded border transition ${
+                        style={{
+                          left: `${rect.x * 100}%`,
+                          top: `${rect.y * 100}%`,
+                          width: `${rect.w * 100}%`,
+                          height: `${rect.h * 100}%`,
+                        }}
+                        className={`group absolute flex items-center justify-center overflow-hidden border transition ${
+                          isMulti ? 'rounded-sm' : ''
+                        } ${
                           isDropHot
                             ? 'border-amber-400 bg-amber-500/20'
                             : isFocusedSlot
@@ -490,13 +511,13 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                               className="h-full w-full object-cover"
                             />
                             <span
-                              className={`absolute bottom-0.5 left-0.5 rounded px-1 text-[9px] ${
+                              className={`absolute top-0.5 left-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none ${
                                 isFocusedSlot
-                                  ? 'bg-amber-400 font-bold text-zinc-950'
-                                  : 'bg-black/75 text-zinc-200'
+                                  ? 'bg-amber-400 text-zinc-950'
+                                  : 'bg-black/80 text-zinc-100'
                               }`}
                             >
-                              Ô {slotIdx + 1}
+                              {slotIdx + 1}
                             </span>
                             {!disabled && (
                               <button
@@ -513,7 +534,7 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                             )}
                           </>
                         ) : (
-                          <span>+ Ô {slotIdx + 1}</span>
+                          <span className="text-[10px] font-semibold">+{slotIdx + 1}</span>
                         )}
                       </div>
                     );
