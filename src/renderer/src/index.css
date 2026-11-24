@@ -1,1 +1,26 @@
 @import "tailwindcss";
+
+/* Thicker, easier-to-grab range sliders (6px track, 14px thumb). */
+.slider-thick {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.slider-thick::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #3f3f46;
+}
+.slider-thick::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -4px;
+  border: 0;
+  border-radius: 9999px;
+  background: #fbbf24;
+}
+.slider-thick:disabled::-webkit-slider-thumb {
+  background: #71717a;
+}

@@ -17,6 +17,7 @@ import { BackgroundPanel } from './components/BackgroundPanel';
 import { PhotoBin } from './components/PhotoBin';
 import { PhotoTransformOverlay } from './components/PhotoTransformOverlay';
 import { Splitter } from './components/Splitter';
+import { Group, SliderRow } from './components/ui';
 import { DEFAULT_LAYOUT, useLayoutStore } from './store/useLayoutStore';
 import { PlaybackBar } from './components/PlaybackBar';
 import { SceneTrack } from './components/SceneTrack';
@@ -123,37 +124,6 @@ function createBrowserFallbackSamples(): SlideAsset[] {
       focalPoint: { x: 0.5, y: 0.5 },
     },
   ];
-}
-
-interface SliderRowProps {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  disabled?: boolean;
-  onChange: (v: number) => void;
-}
-
-function SliderRow({ label, value, min, max, step, disabled, onChange }: SliderRowProps) {
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between text-[11px]">
-        <span className={disabled ? 'text-zinc-600' : 'text-zinc-300'}>{label}</span>
-        <span className="font-mono text-zinc-400">{value.toFixed(2)}</span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="h-1.5 w-full cursor-pointer accent-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
-      />
-    </div>
-  );
 }
 
 export default function App() {
@@ -937,7 +907,7 @@ export default function App() {
           <button
             onClick={handleLoadSamples}
             disabled={loadingSlides || isExporting}
-            className="rounded border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 disabled:opacity-40"
+            className="rounded border border-zinc-800 bg-zinc-900 px-2 h-8 text-xs text-zinc-400 hover:text-zinc-200 disabled:opacity-40"
           >
             Ảnh mẫu
           </button>
@@ -948,7 +918,7 @@ export default function App() {
             onClick={undo}
             disabled={!canUndo || isExporting}
             title="Hoàn tác (Ctrl+Z)"
-            className="rounded border border-zinc-800 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-30"
+            className="rounded border border-zinc-800 px-2 h-8 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-30"
           >
             ↶
           </button>
@@ -956,14 +926,14 @@ export default function App() {
             onClick={redo}
             disabled={!canRedo || isExporting}
             title="Làm lại (Ctrl+Y)"
-            className="rounded border border-zinc-800 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-30"
+            className="rounded border border-zinc-800 px-2 h-8 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-30"
           >
             ↷
           </button>
           <button
             onClick={handleOpenProject}
             disabled={!window.frameSlideAPI || isExporting}
-            className="rounded border border-zinc-800 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
+            className="rounded border border-zinc-800 px-2 h-8 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
           >
             Mở
           </button>
@@ -971,7 +941,7 @@ export default function App() {
             onClick={handleSaveProject}
             disabled={!window.frameSlideAPI || isExporting}
             title={projectFilePath ?? 'Lưu dự án (Ctrl+S)'}
-            className="rounded border border-zinc-800 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
+            className="rounded border border-zinc-800 px-2 h-8 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
           >
             Lưu
           </button>
@@ -984,7 +954,7 @@ export default function App() {
               value={fps}
               disabled={isExporting}
               onChange={(e) => setFps(Number(e.target.value) as SupportedFps)}
-              className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-100"
+              className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
             >
               {FPS_OPTIONS.map((v) => (
                 <option key={v} value={v}>
@@ -1000,7 +970,7 @@ export default function App() {
               value={previewQuality}
               disabled={isExporting}
               onChange={(e) => setPreviewQuality(e.target.value as PreviewQuality)}
-              className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-100"
+              className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
             >
               {QUALITY_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -1014,7 +984,7 @@ export default function App() {
             type="button"
             onClick={resetLayout}
             title="Đặt lại kích thước khay ảnh, timeline, bảng bên phải và zoom thẻ scene về mặc định"
-            className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-300 hover:border-amber-400 hover:text-amber-300"
+            className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-xs text-zinc-300 hover:border-amber-400 hover:text-amber-300"
           >
             ⟲ Bố cục
           </button>
@@ -1023,7 +993,7 @@ export default function App() {
             type="button"
             onClick={() => setShowShortcutsModal(true)}
             title="Bảng phím tắt dựng phim"
-            className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs font-semibold text-zinc-300 hover:border-amber-400 hover:text-amber-300"
+            className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-xs font-semibold text-zinc-300 hover:border-amber-400 hover:text-amber-300"
           >
             ?
           </button>
@@ -1158,17 +1128,17 @@ export default function App() {
 
               <div className="pointer-events-none absolute top-2.5 left-2.5 flex flex-wrap items-center gap-2">
                 {compareMode === 'before' && (
-                  <span className="rounded bg-amber-500/90 px-2 py-0.5 text-[11px] font-semibold text-zinc-950">
+                  <span className="rounded bg-amber-500/90 px-2 py-0.5 text-xs font-semibold text-zinc-950">
                     Đang xem: Ảnh gốc (Clean)
                   </span>
                 )}
                 {compareMode === 'split' && (
-                  <span className="rounded bg-amber-500/90 px-2 py-0.5 text-[11px] font-semibold text-zinc-950">
+                  <span className="rounded bg-amber-500/90 px-2 py-0.5 text-xs font-semibold text-zinc-950">
                     Chia đôi: Trái Gốc | Phải Film Look
                   </span>
                 )}
                 {focalPickMode && (
-                  <span className="rounded bg-amber-500/90 px-2 py-0.5 text-[11px] font-semibold text-zinc-950">
+                  <span className="rounded bg-amber-500/90 px-2 py-0.5 text-xs font-semibold text-zinc-950">
                     Click lên ảnh để đặt Focal Point
                   </span>
                 )}
@@ -1191,7 +1161,7 @@ export default function App() {
                     setTransformEditMode(true);
                   }}
                   title="Kéo trực tiếp trên khung xem để di chuyển, phóng to, xoay ảnh đang chọn"
-                  className="absolute top-2.5 right-2.5 z-20 rounded border border-zinc-700 bg-black/75 px-2 py-1 text-[11px] font-medium text-zinc-200 hover:border-amber-400 hover:text-amber-300 disabled:opacity-40"
+                  className="absolute top-2.5 right-2.5 z-20 rounded border border-zinc-700 bg-black/75 px-2 h-8 text-xs font-medium text-zinc-200 hover:border-amber-400 hover:text-amber-300 disabled:opacity-40"
                 >
                   ✥ Chỉnh ảnh
                 </button>
@@ -1267,7 +1237,7 @@ export default function App() {
             className="flex shrink-0 flex-col border-zinc-800 bg-[#141419] text-xs"
             style={{ width: inspectorWidth }}
           >
-          <div className="grid grid-cols-4 border-b border-zinc-800 bg-[#16161b] text-[11px] font-medium">
+          <div className="grid grid-cols-4 border-b border-zinc-800 bg-[#16161b] text-xs font-medium">
             {(
               [
                 ['template', 'Template'],
@@ -1294,10 +1264,7 @@ export default function App() {
             {/* TAB 1: 7 MOTION TEMPLATES (2D/2.5D/3D), MY PRESETS, TIMELINE & PER-PHOTO/SCENE CONTROLS */}
             {activeTab === 'template' && (
               <>
-                <section className="space-y-2">
-                  <h2 className="text-[11px] font-semibold uppercase tracking-wider text-amber-400">
-                    7 Motion Templates (2D / 2.5D / 3D)
-                  </h2>
+                <Group id="tpl-templates" title="7 Motion Templates (2D / 2.5D / 3D)" accent>
                   <div className="space-y-1.5">
                     {MOTION_TEMPLATE_PRESETS.map((tpl) => {
                       const active = renderParams.motionTemplate === tpl.id;
@@ -1320,50 +1287,46 @@ export default function App() {
                             <span className="font-medium text-zinc-100">{tpl.name}</span>
                             <div className="flex items-center gap-1">
                               {is3d && (
-                                <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold text-amber-300">
+                                <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-xs font-bold text-amber-300">
                                   3D
                                 </span>
                               )}
-                              <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-400">
+                              <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-400">
                                 {tpl.heavyLevel === 'light' ? 'Nhẹ' : 'Vừa'}
                               </span>
                             </div>
                           </div>
-                          <div className="mt-0.5 text-[10px] text-zinc-400">{tpl.desc}</div>
+                          <div className="mt-0.5 text-xs text-zinc-400">{tpl.desc}</div>
                         </button>
                       );
                     })}
                   </div>
-                </section>
+                </Group>
 
-                <hr className="border-zinc-800" />
-
-                <section className="space-y-2.5">
-                  <h2 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                    Chuyển động, Nền, Viền & Tỷ lệ
-                  </h2>
+                
+                <Group id="tpl-motion" title="Chuyển động, Nền, Viền & Tỷ lệ">
 
                   <div className="grid grid-cols-2 gap-1.5">
-                    <label className="flex flex-col gap-1 text-[10px] text-zinc-400">
+                    <label className="flex flex-col gap-1 text-xs text-zinc-400">
                       Tỷ lệ xuất
                       <select
                         value={renderParams.outputAspect}
                         disabled={isExporting}
                         onChange={(e) => setOutputAspect(e.target.value as OutputAspectId)}
-                        className="rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-[11px] text-zinc-100"
+                        className="rounded border border-zinc-700 bg-zinc-900 px-1.5 h-8 text-xs text-zinc-100"
                       >
                         <option value="16:9">16:9 FHD</option>
                         <option value="9:16">9:16 Reels</option>
                         <option value="1:1">1:1 Vuông</option>
                       </select>
                     </label>
-                    <label className="flex flex-col gap-1 text-[10px] text-zinc-400">
+                    <label className="flex flex-col gap-1 text-xs text-zinc-400">
                       Viền khung
                       <select
                         value={renderParams.frameBorderStyle}
                         disabled={isExporting}
                         onChange={(e) => setFrameBorderStyle(e.target.value as FrameBorderStyle)}
-                        className="rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-[11px] text-zinc-100"
+                        className="rounded border border-zinc-700 bg-zinc-900 px-1.5 h-8 text-xs text-zinc-100"
                       >
                         <option value="auto">Tự động</option>
                         <option value="none">Không viền</option>
@@ -1396,7 +1359,7 @@ export default function App() {
                   />
 
                   {activeScene && (
-                    <label className="flex flex-col gap-1 text-[11px] text-zinc-400">
+                    <label className="flex flex-col gap-1 text-xs text-zinc-400">
                       Hướng chuyển động riêng (Scene đang chọn)
                       <select
                         value={activeScene.motionDirection ?? 'auto'}
@@ -1404,7 +1367,7 @@ export default function App() {
                         onChange={(e) =>
                           setSceneMotionDirection(activeScene.id, e.target.value as MotionDirection)
                         }
-                        className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-100"
+                        className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
                       >
                         <option value="auto">Tự động (Auto)</option>
                         <option value="zoom-in">Zoom In (Tiến gần)</option>
@@ -1418,13 +1381,13 @@ export default function App() {
                   )}
 
                   <div className="grid grid-cols-2 gap-2">
-                    <label className="flex flex-col gap-1 text-[11px] text-zinc-400">
+                    <label className="flex flex-col gap-1 text-xs text-zinc-400">
                       Chế độ thời lượng
                       <select
                         value={renderParams.durationMode}
                         disabled={isExporting}
                         onChange={(e) => setDurationMode(e.target.value as DurationMode)}
-                        className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-100"
+                        className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
                       >
                         <option value="per-slide">Theo từng Scene</option>
                         <option value="fixed-total">Cố định tổng</option>
@@ -1432,13 +1395,13 @@ export default function App() {
                     </label>
 
                     {renderParams.durationMode === 'fixed-total' ? (
-                      <label className="flex flex-col gap-1 text-[11px] text-zinc-400">
+                      <label className="flex flex-col gap-1 text-xs text-zinc-400">
                         Tổng thời lượng
                         <select
                           value={renderParams.totalDurationSec}
                           disabled={isExporting}
                           onChange={(e) => setTotalDurationSec(Number(e.target.value))}
-                          className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-100"
+                          className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
                         >
                           {DURATION_OPTIONS.map((d) => (
                             <option key={d} value={d}>
@@ -1448,7 +1411,7 @@ export default function App() {
                         </select>
                       </label>
                     ) : (
-                      <label className="flex flex-col gap-1 text-[11px] text-zinc-400">
+                      <label className="flex flex-col gap-1 text-xs text-zinc-400">
                         Mặc định/Scene (s)
                         <input
                           type="number"
@@ -1458,20 +1421,20 @@ export default function App() {
                           value={renderParams.defaultSlideDurationSec}
                           disabled={isExporting}
                           onChange={(e) => setDefaultSlideDurationSec(Number(e.target.value))}
-                          className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-100"
+                          className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
                         />
                       </label>
                     )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    <label className="flex flex-col gap-1 text-[11px] text-zinc-400">
+                    <label className="flex flex-col gap-1 text-xs text-zinc-400">
                       Handles (đầu/cuối)
                       <select
                         value={renderParams.handlesSec}
                         disabled={isExporting}
                         onChange={(e) => setHandlesSec(Number(e.target.value))}
-                        className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-100"
+                        className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
                       >
                         {HANDLES_OPTIONS.map((h) => (
                           <option key={h} value={h}>
@@ -1481,13 +1444,13 @@ export default function App() {
                       </select>
                     </label>
 
-                    <label className="flex flex-col gap-1 text-[11px] text-zinc-400">
+                    <label className="flex flex-col gap-1 text-xs text-zinc-400">
                       Ảnh dọc (1 ảnh)
                       <select
                         value={renderParams.portraitMode}
                         disabled={isExporting}
                         onChange={(e) => setPortraitMode(e.target.value as PortraitMode)}
-                        className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-100"
+                        className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
                       >
                         <option value="smart-pairing">Smart Pairing</option>
                         <option value="matte-framed">Matte / Framed</option>
@@ -1496,13 +1459,13 @@ export default function App() {
                     </label>
                   </div>
 
-                  <label className="flex flex-col gap-1 text-[11px] text-zinc-400">
+                  <label className="flex flex-col gap-1 text-xs text-zinc-400">
                     Áp Transition cho tất cả Scene (20 kiểu)
                     <select
                       value={renderParams.transitionType}
                       disabled={isExporting}
                       onChange={(e) => setTransitionType(e.target.value as TransitionType)}
-                      className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-100"
+                      className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
                     >
                       {TRANSITION_PRESETS.map((tr) => (
                         <option key={tr.id} value={tr.id}>
@@ -1511,23 +1474,19 @@ export default function App() {
                       ))}
                     </select>
                   </label>
-                </section>
+                </Group>
 
                 {/* Per-Photo Quick Fix: Focal Point, Rotate 90, Exposure */}
                 {focalTargetPhoto && (
                   <>
-                    <hr className="border-zinc-800" />
-                    <section className="space-y-2 rounded border border-zinc-800 bg-zinc-900/60 p-2.5">
-                      <div className="flex items-center justify-between">
-                        <h3 className="truncate text-[11px] font-semibold text-amber-300">
-                          Cứu ảnh nhanh: {focalTargetPhoto.name}
-                        </h3>
+                                        <Group id="photo-rescue" title={<>Cứu ảnh nhanh: {focalTargetPhoto.name}</>} onReset={() => setPhotoExposure(focalTargetPhoto.id, 0)} resetTitle="Đặt độ sáng ảnh về 0">
+                      <div className="flex items-center justify-end">
                         <button
                           type="button"
                           disabled={isExporting}
                           onClick={() => rotatePhoto90(focalTargetPhoto.id)}
                           title="Xoay ảnh 90° theo chiều kim đồng hồ"
-                          className="shrink-0 rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-200 hover:border-amber-400"
+                          className="shrink-0 rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-xs text-zinc-200 hover:border-amber-400"
                         >
                           ↻ Xoay 90° ({focalTargetPhoto.rotationDeg ?? 0}°)
                         </button>
@@ -1556,17 +1515,13 @@ export default function App() {
                           ? `Đang chọn tâm${!selectedPhotoId && activeScene && activeScene.slots.length > 1 ? ` (Ô ${activeSlotIndex + 1})` : ''}: Click preview...`
                           : `Focal Point${!selectedPhotoId && activeScene && activeScene.slots.length > 1 ? ` [Ô ${activeSlotIndex + 1}]` : ''} (${Math.round(focalTargetPhoto.focalPoint.x * 100)}%, ${Math.round(focalTargetPhoto.focalPoint.y * 100)}%)`}
                       </button>
-                    </section>
+                    </Group>
                   </>
                 )}
 
-                <hr className="border-zinc-800" />
-
+                
                 {/* User Presets (Save & Recall) */}
-                <section className="space-y-2">
-                  <h2 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                    Preset cá nhân (My Presets)
-                  </h2>
+                <Group id="tpl-presets" title="Preset cá nhân (My Presets)">
                   <div className="flex gap-1.5">
                     <input
                       type="text"
@@ -1574,7 +1529,7 @@ export default function App() {
                       disabled={isExporting}
                       onChange={(e) => setPresetNameDraft(e.target.value)}
                       placeholder="Tên preset (VD: Tiệc cưới ấm)"
-                      className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-100"
+                      className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-xs text-zinc-100"
                     />
                     <button
                       type="button"
@@ -1584,7 +1539,7 @@ export default function App() {
                         flashNotice(`Đã lưu preset: ${presetNameDraft.trim()}`);
                         setPresetNameDraft('');
                       }}
-                      className="rounded bg-amber-500 px-2.5 py-1 text-[11px] font-semibold text-zinc-950 hover:bg-amber-400 disabled:opacity-40"
+                      className="rounded bg-amber-500 px-2.5 py-1 text-xs font-semibold text-zinc-950 hover:bg-amber-400 disabled:opacity-40"
                     >
                       Lưu
                     </button>
@@ -1594,7 +1549,7 @@ export default function App() {
                       {userPresets.map((up) => (
                         <div
                           key={up.id}
-                          className="flex items-center justify-between gap-1 rounded border border-zinc-800 bg-zinc-900/90 px-2 py-1 text-[11px]"
+                          className="flex items-center justify-between gap-1 rounded border border-zinc-800 bg-zinc-900/90 px-2 h-8 text-xs"
                         >
                           <button
                             type="button"
@@ -1620,17 +1575,14 @@ export default function App() {
                       ))}
                     </div>
                   )}
-                </section>
+                </Group>
               </>
             )}
 
             {/* TAB 2: 12 FILM LOOK PRESETS + CLEAN + .CUBE 3D LUT */}
             {activeTab === 'look' && (
               <>
-                <section className="space-y-2">
-                  <h2 className="text-[11px] font-semibold uppercase tracking-wider text-amber-400">
-                    12 Film Look Presets + Clean
-                  </h2>
+                <Group id="look-presets" title="12 Film Look Presets + Clean" accent>
                   <div className="grid grid-cols-2 gap-1.5">
                     {FILM_LOOK_PRESETS.map((preset) => {
                       const active = look.presetId === preset.id;
@@ -1643,74 +1595,65 @@ export default function App() {
                             flashNotice(`Film Look: ${preset.name}`);
                           }}
                           title={preset.desc}
-                          className={`rounded border px-2 py-1.5 text-left transition ${
+                          className={`rounded border px-2 h-8 text-left transition ${
                             active
                               ? 'border-amber-400 bg-amber-500/15 text-amber-200'
                               : 'border-zinc-800 bg-zinc-900/90 text-zinc-300 hover:border-zinc-600'
                           }`}
                         >
-                          <div className="truncate text-[11px] font-medium">{preset.name}</div>
+                          <div className="truncate text-xs font-medium">{preset.name}</div>
                         </button>
                       );
                     })}
                   </div>
-                </section>
+                </Group>
 
-                <hr className="border-zinc-800" />
-
-                <section className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                      Tinh chỉnh thành phần
-                    </h2>
-                    <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-zinc-300">
-                      <input
-                        type="checkbox"
-                        checked={look.enabled}
-                        disabled={isExporting}
-                        onChange={(e) => updateSuper8({ enabled: e.target.checked })}
-                        className="accent-amber-400"
-                      />
-                      {look.enabled ? 'Bật' : 'Clean'}
-                    </label>
-                  </div>
+                
+                <Group
+                  id="look-tune"
+                  title="Tinh chỉnh Film Look"
+                  accent
+                  enabled={look.enabled}
+                  disabled={isExporting}
+                  onToggle={(v) => updateSuper8({ enabled: v })}
+                  onReset={() => applyFilmLookPreset(look.presetId)}
+                  resetTitle="Đặt các thanh về đúng mẫu Film Look đang chọn"
+                >
+                  <Group id="look-color" title="Màu" disabled={!look.enabled || isExporting}>
 
                   <SliderRow label="Cường độ tổng" value={look.intensity} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ intensity: v })} />
-                  <SliderRow label="Halation (Đỏ cam)" value={look.halation} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ halation: v })} />
-                  <SliderRow label="Bloom (Tỏa sáng)" value={look.bloom} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ bloom: v })} />
-                  <SliderRow label="Film Grain (Hạt)" value={look.grain} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ grain: v })} />
+
                   <SliderRow label="Contrast (Tương phản)" value={look.contrast} min={0.75} max={1.45} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ contrast: v })} />
+
                   <SliderRow label="Saturation (Bão hòa)" value={look.saturation} min={0} max={1.4} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ saturation: v })} />
-                  <SliderRow label="Gate Weave (Rung)" value={look.gateWeave} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ gateWeave: v })} />
-                  <SliderRow label="Flicker (Nhấp nháy)" value={look.flicker} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ flicker: v })} />
+
                   <SliderRow label="Fade (Bạc màu tối)" value={look.fade} min={0} max={0.25} step={0.01} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ fade: v })} />
+
+                  </Group>
+                  <Group id="look-light" title="Ánh sáng" disabled={!look.enabled || isExporting}>
+                  <SliderRow label="Halation (Đỏ cam)" value={look.halation} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ halation: v })} />
+
+                  <SliderRow label="Bloom (Tỏa sáng)" value={look.bloom} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ bloom: v })} />
+
                   <SliderRow label="Vignette (Viền tối)" value={look.vignette} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ vignette: v })} />
 
-                  <hr className="border-zinc-800/70" />
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-400">
-                    Khí quyển & Khung phim
-                  </div>
-                  <SliderRow label="Bokeh / Bụi sáng bay" value={look.bokeh ?? 0} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ bokeh: v })} />
-                  <SliderRow label="Bụi & Xước phim nhựa" value={look.dustScratches ?? 0} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ dustScratches: v })} />
                   <SliderRow label="Lóe sáng nền (Ambient Leak)" value={look.ambientLeak ?? 0} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ ambientLeak: v })} />
 
-                  <label className="flex flex-col gap-1 text-[11px] text-zinc-400">
-                    Khung điện ảnh (Letterbox)
-                    <select
-                      value={look.aspectMask ?? 'none'}
-                      disabled={isExporting}
-                      onChange={(e) => updateSuper8({ aspectMask: e.target.value as AspectMaskId })}
-                      className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-100"
-                    >
-                      <option value="none">Không (Đầy khung)</option>
-                      <option value="2.39">2.39:1 Cinemascope</option>
-                      <option value="2.00">2.00:1 Univisium</option>
-                      <option value="4:3">4:3 Cổ điển</option>
-                    </select>
-                  </label>
+                  </Group>
+                  <Group id="look-grain" title="Hạt & Bụi" disabled={!look.enabled || isExporting}>
+                  <SliderRow label="Film Grain (Hạt)" value={look.grain} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ grain: v })} />
 
-                  <div className="flex flex-col gap-1.5 pt-1 text-[11px] text-zinc-300">
-                    <label className="flex cursor-pointer items-center gap-2">
+                  <SliderRow label="Bokeh / Bụi sáng bay" value={look.bokeh ?? 0} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ bokeh: v })} />
+
+                  <SliderRow label="Bụi & Xước phim nhựa" value={look.dustScratches ?? 0} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ dustScratches: v })} />
+
+                  </Group>
+                  <Group id="look-weave" title="Rung & Nháy" disabled={!look.enabled || isExporting}>
+                  <SliderRow label="Gate Weave (Rung)" value={look.gateWeave} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ gateWeave: v })} />
+
+                  <SliderRow label="Flicker (Nhấp nháy)" value={look.flicker} min={0} max={1} step={0.02} disabled={!look.enabled || isExporting} onChange={(v) => updateSuper8({ flicker: v })} />
+
+                    <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-300">
                       <input
                         type="checkbox"
                         checked={look.simulate18fps}
@@ -1720,7 +1663,24 @@ export default function App() {
                       />
                       Giả lập nhịp 18fps Super 8
                     </label>
-                    <label className="flex cursor-pointer items-center gap-2">
+                  </Group>
+                  <Group id="look-frame" title="Khung phim" disabled={!look.enabled || isExporting}>
+
+                  <label className="flex flex-col gap-1 text-xs text-zinc-400">
+                    Khung điện ảnh (Letterbox)
+                    <select
+                      value={look.aspectMask ?? 'none'}
+                      disabled={isExporting}
+                      onChange={(e) => updateSuper8({ aspectMask: e.target.value as AspectMaskId })}
+                      className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
+                    >
+                      <option value="none">Không (Đầy khung)</option>
+                      <option value="2.39">2.39:1 Cinemascope</option>
+                      <option value="2.00">2.00:1 Univisium</option>
+                      <option value="4:3">4:3 Cổ điển</option>
+                    </select>
+                  </label>
+                    <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-300">
                       <input
                         type="checkbox"
                         checked={look.sprockets}
@@ -1730,15 +1690,11 @@ export default function App() {
                       />
                       Viền lỗ răng cưa (Sprocket)
                     </label>
-                  </div>
-                </section>
+                  </Group>
+                </Group>
 
-                <hr className="border-zinc-800" />
-
-                <section className="space-y-2">
-                  <h2 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                    3D LUT (.cube từ DaVinci Resolve)
-                  </h2>
+                
+                <Group id="look-lut" title="3D LUT (.cube từ DaVinci Resolve)">
                   <div className="flex gap-2">
                     <button
                       onClick={handlePickCubeLut}
@@ -1758,7 +1714,7 @@ export default function App() {
                     )}
                   </div>
                   {customLut && (
-                    <div className="rounded border border-zinc-800 bg-zinc-900 p-2 text-[11px] text-emerald-300">
+                    <div className="rounded border border-zinc-800 bg-zinc-900 p-2 text-xs text-emerald-300">
                       {customLut.name} ({customLut.size}³)
                     </div>
                   )}
@@ -1771,23 +1727,20 @@ export default function App() {
                     disabled={!customLut || isExporting}
                     onChange={setLutIntensity}
                   />
-                </section>
+                </Group>
               </>
             )}
 
             {/* TAB 3: VIETNAMESE TEXT & DATE STAMP */}
             {activeTab === 'text' && (
-              <section className="space-y-3">
-                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                  Chữ & Date Stamp (Tiếng Việt)
-                </h2>
-                <label className="flex flex-col gap-1 text-[11px] text-zinc-400">
+              <Group id="text-main" title="Chữ & Date Stamp (Tiếng Việt)" accent>
+                <label className="flex flex-col gap-1 text-xs text-zinc-400">
                   Kiểu hiển thị
                   <select
                     value={textOverlay.style}
                     disabled={isExporting}
                     onChange={(e) => updateTextOverlay({ style: e.target.value as TextStyleId })}
-                    className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-zinc-100"
+                    className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
                   >
                     <option value="none">Tắt chữ</option>
                     <option value="date-stamp-90s">Date Stamp 90s (Cam điện tử)</option>
@@ -1798,13 +1751,13 @@ export default function App() {
                   </select>
                 </label>
 
-                <label className="flex flex-col gap-1 text-[11px] text-zinc-400">
+                <label className="flex flex-col gap-1 text-xs text-zinc-400">
                   Thời điểm hiện chữ (có Fade mượt)
                   <select
                     value={textOverlay.timing ?? 'always'}
                     disabled={textOverlay.style === 'none' || isExporting}
                     onChange={(e) => updateTextOverlay({ timing: e.target.value as TextTimingMode })}
-                    className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-zinc-100 disabled:opacity-40"
+                    className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100 disabled:opacity-40"
                   >
                     <option value="always">Suốt clip (Hợp Date Stamp)</option>
                     <option value="intro">Chỉ Scene đầu (Intro + Fade)</option>
@@ -1814,7 +1767,7 @@ export default function App() {
                 </label>
 
                 {textOverlay.timing === 'per-scene' && activeScene ? (
-                  <label className="flex flex-col gap-1 text-[11px] text-amber-300">
+                  <label className="flex flex-col gap-1 text-xs text-amber-300">
                     Chú thích riêng cho Scene đang chọn
                     <input
                       type="text"
@@ -1822,34 +1775,34 @@ export default function App() {
                       disabled={textOverlay.style === 'none' || isExporting}
                       onChange={(e) => setSceneCaption(activeScene.id, e.target.value)}
                       placeholder="Nhập chữ riêng cho Scene này..."
-                      className="rounded border border-amber-500/50 bg-zinc-900 px-2 py-1.5 text-zinc-100 disabled:opacity-40"
+                      className="rounded border border-amber-500/50 bg-zinc-900 px-2 h-8 text-zinc-100 disabled:opacity-40"
                     />
                   </label>
                 ) : (
-                  <label className="flex flex-col gap-1 text-[11px] text-zinc-400">
+                  <label className="flex flex-col gap-1 text-xs text-zinc-400">
                     Tiêu đề chính
                     <input
                       type="text"
                       value={textOverlay.title}
                       disabled={textOverlay.style === 'none' || isExporting}
                       onChange={(e) => updateTextOverlay({ title: e.target.value })}
-                      className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-zinc-100 disabled:opacity-40"
+                      className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100 disabled:opacity-40"
                     />
                   </label>
                 )}
 
-                <label className="flex flex-col gap-1 text-[11px] text-zinc-400">
+                <label className="flex flex-col gap-1 text-xs text-zinc-400">
                   Phụ đề / Địa điểm
                   <input
                     type="text"
                     value={textOverlay.subtitle}
                     disabled={textOverlay.style === 'none' || isExporting}
                     onChange={(e) => updateTextOverlay({ subtitle: e.target.value })}
-                    className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-zinc-100 disabled:opacity-40"
+                    className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100 disabled:opacity-40"
                   />
                 </label>
 
-                <label className="flex cursor-pointer items-center gap-2 text-[11px] text-zinc-300">
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-300">
                   <input
                     type="checkbox"
                     checked={Boolean(textOverlay.autoExifDate)}
@@ -1860,14 +1813,14 @@ export default function App() {
                   Tự lấy ngày chụp EXIF theo từng Scene
                 </label>
 
-                <label className="flex flex-col gap-1 text-[11px] text-zinc-400">
+                <label className="flex flex-col gap-1 text-xs text-zinc-400">
                   Ngày tháng thủ công (Date Stamp)
                   <input
                     type="text"
                     value={textOverlay.dateText}
                     disabled={textOverlay.style === 'none' || Boolean(textOverlay.autoExifDate) || isExporting}
                     onChange={(e) => updateTextOverlay({ dateText: e.target.value })}
-                    className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 font-mono text-zinc-100 disabled:opacity-40"
+                    className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 font-mono text-zinc-100 disabled:opacity-40"
                   />
                 </label>
 
@@ -1880,16 +1833,13 @@ export default function App() {
                   disabled={textOverlay.style === 'none' || isExporting}
                   onChange={(v) => updateTextOverlay({ opacity: v })}
                 />
-              </section>
+              </Group>
             )}
 
             {/* TAB 4: SINGLE & BATCH EXPORT */}
             {activeTab === 'export' && (
               <>
-                <section className="space-y-2.5">
-                  <h2 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                    Xuất 1 clip ({exportRes.width}×{exportRes.height} • {scenes.length} Scene • {effectiveDurationSec.toFixed(1)}s)
-                  </h2>
+                <Group id="export-single" title={<>Xuất 1 clip ({exportRes.width}×{exportRes.height} • {scenes.length} Scene • {effectiveDurationSec.toFixed(1)}s)</>}>
                   <div className="grid grid-cols-2 gap-2">
                     <SliderRow
                       label="Fade In đầu (s)"
@@ -1933,16 +1883,12 @@ export default function App() {
                       Xuất ProRes 422 (.mov • bt709)
                     </button>
                   </div>
-                </section>
+                </Group>
 
-                <hr className="border-zinc-800" />
-
-                <section className="space-y-2.5">
-                  <h2 className="text-[11px] font-semibold uppercase tracking-wider text-amber-400">
-                    Batch Export (Chia nhiều clip B-roll)
-                  </h2>
+                
+                <Group id="export-batch" title="Batch Export (Chia nhiều clip B-roll)" accent>
                   <div className="grid grid-cols-2 gap-2">
-                    <label className="flex flex-col gap-1 text-[11px] text-zinc-400">
+                    <label className="flex flex-col gap-1 text-xs text-zinc-400">
                       Số ảnh / clip
                       <input
                         type="number"
@@ -1951,16 +1897,16 @@ export default function App() {
                         value={batchSlidesPerClip}
                         disabled={isExporting}
                         onChange={(e) => setBatchSlidesPerClip(Math.max(1, Number(e.target.value)))}
-                        className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-100"
+                        className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
                       />
                     </label>
-                    <label className="flex flex-col gap-1 text-[11px] text-zinc-400">
+                    <label className="flex flex-col gap-1 text-xs text-zinc-400">
                       Định dạng
                       <select
                         value={batchCodec}
                         disabled={isExporting}
                         onChange={(e) => setBatchCodec(e.target.value as ExportCodec)}
-                        className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-100"
+                        className="rounded border border-zinc-700 bg-zinc-900 px-2 h-8 text-zinc-100"
                       >
                         <option value="h264">MP4 H.264</option>
                         <option value="dnxhr_hq">DNxHR HQ (.mov)</option>
@@ -1968,7 +1914,7 @@ export default function App() {
                       </select>
                     </label>
                   </div>
-                  <div className="text-[11px] text-zinc-500">
+                  <div className="text-xs text-zinc-500">
                     Dự kiến xuất:{' '}
                     <strong className="text-zinc-300">
                       {Math.ceil(slides.length / Math.max(1, batchSlidesPerClip))}
@@ -1982,11 +1928,11 @@ export default function App() {
                   >
                     Chọn thư mục & Xuất hàng loạt
                   </button>
-                </section>
+                </Group>
 
                 {exportProgress && (
                   <div className="space-y-1.5 rounded border border-zinc-700 bg-zinc-900 p-2.5">
-                    <div className="flex justify-between text-[11px]">
+                    <div className="flex justify-between text-xs">
                       <span>
                         {exportProgress.clipCount
                           ? `Clip ${exportProgress.clipIndex}/${exportProgress.clipCount}`
@@ -2000,7 +1946,7 @@ export default function App() {
                         style={{ width: `${exportProgress.percent}%` }}
                       />
                     </div>
-                    <div className="flex items-center justify-between text-[10px] text-zinc-400">
+                    <div className="flex items-center justify-between text-xs text-zinc-400">
                       <span>
                         Frame {exportProgress.currentFrame}/{exportProgress.totalFrames}
                       </span>
@@ -2015,25 +1961,25 @@ export default function App() {
                 )}
 
                 {exportSummary && (
-                  <div className="rounded border border-emerald-500/40 bg-emerald-950/30 p-2.5 text-[11px] text-emerald-200">
+                  <div className="rounded border border-emerald-500/40 bg-emerald-950/30 p-2.5 text-xs text-emerald-200">
                     <div className="font-semibold">
                       Xuất xong {exportSummary.clipCount ? `${exportSummary.clipCount} clip ` : ''}
                       ({exportSummary.codec.toUpperCase()})
                     </div>
-                    <div className="mt-0.5 font-mono text-[10px] text-emerald-300">
+                    <div className="mt-0.5 font-mono text-xs text-emerald-300">
                       {exportSummary.totalFrames} frames trong {(exportSummary.durationMs / 1000).toFixed(2)}s •{' '}
                       {exportSummary.speedFactor.toFixed(2)}x realtime
                     </div>
                     {exportSummary.filePath && (
                       <div className="mt-1.5 flex items-center justify-between gap-2">
-                        <div className="truncate text-[10px] text-zinc-400" title={exportSummary.filePath}>
+                        <div className="truncate text-xs text-zinc-400" title={exportSummary.filePath}>
                           {exportSummary.filePath}
                         </div>
                         {window.frameSlideAPI && (
                           <button
                             type="button"
                             onClick={() => void window.frameSlideAPI?.revealInFolder(exportSummary.filePath!)}
-                            className="shrink-0 rounded bg-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-300 hover:bg-emerald-500/30"
+                            className="shrink-0 rounded bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/30"
                           >
                             Mở thư mục
                           </button>
@@ -2044,13 +1990,13 @@ export default function App() {
                 )}
 
                 {exportStatusMsg && (
-                  <div className="rounded border border-zinc-700 bg-zinc-900 p-2 text-[11px] text-zinc-300">
+                  <div className="rounded border border-zinc-700 bg-zinc-900 p-2 text-xs text-zinc-300">
                     {exportStatusMsg}
                   </div>
                 )}
 
                 {exportError && (
-                  <div className="rounded border border-red-500/40 bg-red-950/40 p-2 text-[11px] text-red-300">
+                  <div className="rounded border border-red-500/40 bg-red-950/40 p-2 text-xs text-red-300">
                     {exportError}
                   </div>
                 )}
@@ -2093,7 +2039,7 @@ export default function App() {
                 ['Ctrl + S', 'Lưu dự án (.frameslide)'],
               ].map(([key, desc]) => (
                 <div key={key} className="flex items-center justify-between py-0.5">
-                  <kbd className="rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 font-mono text-[11px] text-amber-300">
+                  <kbd className="rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 font-mono text-xs text-amber-300">
                     {key}
                   </kbd>
                   <span className="text-zinc-400">{desc}</span>
@@ -2105,7 +2051,7 @@ export default function App() {
       )}
 
       {/* Status Footer */}
-      <footer className="flex items-center justify-between border-t border-zinc-800 bg-[#16161b] px-4 py-1.5 text-[11px] text-zinc-400">
+      <footer className="flex items-center justify-between border-t border-zinc-800 bg-[#16161b] px-4 py-1.5 text-xs text-zinc-400">
         <div className="flex items-center gap-3 overflow-hidden">
           <span>
             WebGL2:{' '}

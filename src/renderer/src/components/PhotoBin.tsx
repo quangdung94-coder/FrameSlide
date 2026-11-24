@@ -71,7 +71,7 @@ const PhotoCard = memo(function PhotoCard({
           className="h-full w-full object-cover"
         />
       </div>
-      <div className="flex items-center justify-between px-1.5 py-1 text-[10px]">
+      <div className="flex items-center justify-between px-1.5 py-1 text-xs">
         <span className="truncate text-zinc-300">{p.name}</span>
         <span className="ml-1 shrink-0 text-zinc-500">
           {p.orientation === 'portrait' ? 'Dọc' : 'Ngang'}
@@ -79,11 +79,11 @@ const PhotoCard = memo(function PhotoCard({
       </div>
 
       {used.length > 0 ? (
-        <span className="absolute top-1 left-1 max-w-[80%] truncate rounded bg-emerald-500 px-1 text-[9px] font-bold text-zinc-950">
+        <span className="absolute top-1 left-1 max-w-[80%] truncate rounded bg-emerald-500 px-1 text-xs font-bold text-zinc-950">
           {used.join(',')}
         </span>
       ) : (
-        <span className="absolute top-1 left-1 rounded bg-black/75 px-1 text-[9px] text-zinc-300">
+        <span className="absolute top-1 left-1 rounded bg-black/75 px-1 text-xs text-zinc-300">
           Chưa dùng
         </span>
       )}
@@ -104,7 +104,7 @@ const PhotoCard = memo(function PhotoCard({
             e.stopPropagation();
             onRemove(p.id);
           }}
-          className="absolute top-1 right-1 hidden h-4 w-4 items-center justify-center rounded bg-black/80 text-[10px] text-zinc-300 hover:bg-red-500 hover:text-white group-hover:flex"
+          className="absolute top-1 right-1 hidden h-4 w-4 items-center justify-center rounded bg-black/80 text-xs text-zinc-300 hover:bg-red-500 hover:text-white group-hover:flex"
         >
           ×
         </button>
@@ -270,12 +270,12 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
           type="button"
           onClick={() => setCollapsed(false)}
           title="Mở rộng Khay ảnh"
-          className="rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-[11px] text-zinc-300 hover:border-amber-400 hover:text-amber-300"
+          className="rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-300 hover:border-amber-400 hover:text-amber-300"
         >
           ▶
         </button>
         <div
-          className="mt-4 text-[10px] font-semibold tracking-wider text-zinc-400 uppercase"
+          className="mt-4 text-xs font-semibold tracking-wider text-zinc-400 uppercase"
           style={{ writingMode: 'vertical-rl' }}
         >
           Khay ảnh ({slides.length})
@@ -297,11 +297,11 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
               type="button"
               onClick={() => setCollapsed(true)}
               title="Thu gọn Khay ảnh để rộng màn hình Preview"
-              className="rounded border border-zinc-800 px-1 py-0.5 text-[10px] text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
+              className="rounded border border-zinc-800 px-1 py-0.5 text-xs text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
             >
               ◀
             </button>
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-300">
+            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-300">
               Khay ảnh ({slides.length})
             </span>
           </div>
@@ -312,7 +312,7 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
               sortSlides(e.target.value as SortOrder);
               e.target.value = 'manual';
             }}
-            className="rounded border border-zinc-700 bg-zinc-900 px-1 py-0.5 text-[10px] text-zinc-300"
+            className="rounded border border-zinc-700 bg-zinc-900 px-1 py-0.5 text-xs text-zinc-300"
           >
             <option value="manual" disabled>
               Sắp xếp
@@ -325,7 +325,7 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
         </div>
 
         {/* Filter Pills */}
-        <div className="mt-1.5 flex flex-wrap gap-1 text-[10px]">
+        <div className="mt-1.5 flex flex-wrap gap-1 text-xs">
           {(
             [
               ['all', `Tất cả (${slides.length})`],
@@ -356,7 +356,7 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
         className="relative flex-1 overflow-y-auto"
       >
         {filteredSlides.length === 0 ? (
-          <div className="py-6 text-center text-[11px] text-zinc-500">
+          <div className="py-6 text-center text-xs text-zinc-500">
             {slides.length === 0 ? 'Chưa có ảnh nào.' : 'Không có ảnh khớp bộ lọc.'}
           </div>
         ) : (
@@ -378,7 +378,7 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
                       left: GRID_PAD + Math.min(n.depth, 5) * 10,
                       right: GRID_PAD,
                     }}
-                    className="group absolute flex items-center gap-1 rounded bg-zinc-900/80 pr-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                    className="group absolute flex items-center gap-1 rounded bg-zinc-900/80 pr-1 text-xs text-zinc-300 hover:bg-zinc-800"
                   >
                     <button
                       type="button"
@@ -386,14 +386,14 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
                       title={row.collapsed ? 'Mở thư mục' : 'Thu thư mục'}
                       className="flex min-w-0 flex-1 items-center gap-1 px-1 py-0.5 text-left"
                     >
-                      <span className="w-3 shrink-0 text-[9px] text-zinc-500">
+                      <span className="w-3 shrink-0 text-xs text-zinc-500">
                         {row.collapsed ? '▶' : '▼'}
                       </span>
                       <span className="shrink-0">📁</span>
                       <span className="truncate font-medium" title={n.label}>
                         {n.label}
                       </span>
-                      <span className="shrink-0 text-[10px] text-zinc-500">
+                      <span className="shrink-0 text-xs text-zinc-500">
                         ({n.allPhotoIds.length})
                       </span>
                     </button>
@@ -406,7 +406,7 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
                           ? 'Mọi ảnh trong thư mục này đã có trên timeline'
                           : `Đưa ${unusedInFolder.length} ảnh chưa dùng của thư mục này lên cuối timeline`
                       }
-                      className="shrink-0 rounded border border-zinc-700 px-1 text-[10px] text-zinc-300 hover:border-amber-400 hover:text-amber-300 disabled:opacity-30"
+                      className="shrink-0 rounded border border-zinc-700 px-1 text-xs text-zinc-300 hover:border-amber-400 hover:text-amber-300 disabled:opacity-30"
                     >
                       + Thêm
                     </button>
@@ -444,7 +444,7 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
           disabled={disabled || selectedPhotoIds.length === 0}
           onClick={() => addToTimeline(selectedPhotoIds)}
           title="Đưa các ảnh đang chọn lên cuối timeline (giữ Ctrl để chọn nhiều, Shift để chọn một dãy)"
-          className="rounded bg-amber-500 px-2 py-1.5 text-[11px] font-semibold text-zinc-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded bg-amber-500 px-2 py-1.5 text-xs font-semibold text-zinc-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Thêm ảnh đã chọn{selectedPhotoIds.length > 0 ? ` (${selectedPhotoIds.length})` : ''}
         </button>
@@ -457,7 +457,7 @@ export function PhotoBin({ disabled, width = 224, resizeHandle }: PhotoBinProps)
               ? 'Mọi ảnh trong khay đều đã có trên timeline'
               : 'Đưa tất cả ảnh chưa dùng trong khay lên cuối timeline'
           }
-          className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-[11px] font-medium text-zinc-200 hover:border-amber-400 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs font-medium text-zinc-200 hover:border-amber-400 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Thêm cả thư mục{unusedIds.length > 0 ? ` (${unusedIds.length})` : ''}
         </button>

@@ -93,7 +93,7 @@ export const PlaybackBar = memo(function PlaybackBar({
           disabled={disabled}
           onClick={() => stepFrame(-1)}
           title="Lùi 1 frame (←)"
-          className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-[10px] text-zinc-300 hover:border-zinc-600 disabled:opacity-30"
+          className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-300 hover:border-zinc-600 disabled:opacity-30"
         >
           ◀|
         </button>
@@ -102,7 +102,7 @@ export const PlaybackBar = memo(function PlaybackBar({
           disabled={disabled}
           onClick={() => stepFrame(1)}
           title="Tiến 1 frame (→)"
-          className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-[10px] text-zinc-300 hover:border-zinc-600 disabled:opacity-30"
+          className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-300 hover:border-zinc-600 disabled:opacity-30"
         >
           |▶
         </button>
@@ -145,7 +145,7 @@ export const PlaybackBar = memo(function PlaybackBar({
         />
       </div>
 
-      <span className="w-28 text-right font-mono text-[11px] text-zinc-300">
+      <span className="w-28 text-right font-mono text-xs text-zinc-300">
         {formatTime(frameIndex / fps)} / {formatTime(effectiveDurationSec)}
       </span>
 
@@ -154,7 +154,7 @@ export const PlaybackBar = memo(function PlaybackBar({
         disabled={disabled}
         onClick={cycleCompare}
         title="So sánh Gốc / Chia đôi / Film Look (hoặc giữ phím \)"
-        className={`rounded border px-2 py-1 text-[10px] font-medium transition disabled:opacity-30 ${
+        className={`rounded border px-2 py-1 text-xs font-medium transition disabled:opacity-30 ${
           compareMode === 'normal'
             ? 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-600'
             : 'border-amber-400 bg-amber-500/20 text-amber-300'
@@ -168,7 +168,7 @@ export const PlaybackBar = memo(function PlaybackBar({
         disabled={disabled}
         onClick={onToggleFullscreen}
         title="Phóng to xem trước (Phím F)"
-        className="rounded border border-zinc-800 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-300 hover:border-amber-400 hover:text-amber-300 disabled:opacity-30"
+        className="rounded border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-zinc-300 hover:border-amber-400 hover:text-amber-300 disabled:opacity-30"
       >
         ⛶
       </button>
