@@ -23,6 +23,7 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
   const setSceneMotionDirection = useAppStore((s) => s.setSceneMotionDirection);
   const setSceneMotionTemplate = useAppStore((s) => s.setSceneMotionTemplate);
   const setSceneTransition = useAppStore((s) => s.setSceneTransition);
+  const setSceneFilmLookOff = useAppStore((s) => s.setSceneFilmLookOff);
   const setSceneTransitionDuration = useAppStore((s) => s.setSceneTransitionDuration);
   const setSceneCaption = useAppStore((s) => s.setSceneCaption);
   const setSceneBackground = useAppStore((s) => s.setSceneBackground);
@@ -116,6 +117,20 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
             <option value="static">Đứng yên (Tĩnh)</option>
           </select>
         </label>
+      </Group>
+
+      <Group
+        id="scene-look"
+        title="Film Look cho scene này"
+        defaultOpen={false}
+        disabled={disabled}
+        enabled={!scene.filmLookOff}
+        onToggle={(on) => setSceneFilmLookOff(scene.id, !on)}
+      >
+        <p className="text-xs text-zinc-500">
+          Tắt công tắc để scene này hiện màu sạch (không Film Look, không LUT). Chuyển cảnh sang scene khác vẫn mượt.
+          {renderParams.super8.enabled ? '' : ' Hiện Film Look của cả dự án đang tắt.'}
+        </p>
       </Group>
 
       <Group

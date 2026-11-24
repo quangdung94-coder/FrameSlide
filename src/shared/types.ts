@@ -148,6 +148,14 @@ export interface PhotoTransform {
 /** How the move/zoom/rotate eases between a photo's Start and End keyframe. */
 export type PhotoKeyframeEase = 'linear' | 'smooth' | 'ease-in' | 'ease-out';
 
+/** Per-photo colour tweaks (all optional; missing = neutral). */
+export interface PhotoAdjust {
+  contrast?: number;   // 0.5..1.6, 1 = unchanged
+  saturation?: number; // 0..2, 1 = unchanged
+  warmth?: number;     // -1 (cool) .. +1 (warm), 0 = unchanged
+  opacity?: number;    // 0..1, 1 = fully visible
+}
+
 export interface SlideAsset {
   id: string;
   name: string;
@@ -161,6 +169,8 @@ export interface SlideAsset {
   focalPoint: FocalPoint;
   rotationDeg?: 0 | 90 | 180 | 270;
   exposure?: number; // -1..+1 stops
+  /** Own contrast / saturation / warmth / opacity for this photo. */
+  adjust?: PhotoAdjust;
   /** Move / scale / free rotation of the photo inside its frame (edited on the preview). */
   transform?: PhotoTransform;
   /** End keyframe: when set, the photo animates from `transform` (Start) to this over its scene. */
@@ -175,6 +185,8 @@ export interface SceneItem {
   layout: SceneLayoutId;
   durationSec: number;
   transitionType: TransitionType;
+  /** True = this scene is shown without the Film Look and LUT (clean colours). */
+  filmLookOff?: boolean;
   /** Own length (seconds) of the transition into the next scene (undefined = project setting). */
   transitionDurationSec?: number;
   motionDirection?: MotionDirection;

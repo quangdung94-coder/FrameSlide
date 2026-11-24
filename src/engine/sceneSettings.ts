@@ -8,7 +8,8 @@ export type SceneSettingPart =
   | 'motion'
   | 'background'
   | 'transition'
-  | 'caption';
+  | 'caption'
+  | 'look';
 
 export const SCENE_SETTING_PARTS: { id: SceneSettingPart; label: string }[] = [
   { id: 'layout', label: 'Bố cục' },
@@ -17,6 +18,7 @@ export const SCENE_SETTING_PARTS: { id: SceneSettingPart; label: string }[] = [
   { id: 'background', label: 'Nền' },
   { id: 'transition', label: 'Chuyển cảnh' },
   { id: 'caption', label: 'Chữ' },
+  { id: 'look', label: 'Film Look' },
 ];
 
 /** Snapshot of everything copyable about a scene. */
@@ -29,6 +31,7 @@ export interface SceneSettings {
   motionTemplate?: MotionTemplateId;
   background?: SceneBackground;
   caption?: string;
+  filmLookOff?: boolean;
 }
 
 export function copySceneSettings(scene: SceneItem): SceneSettings {
@@ -41,6 +44,7 @@ export function copySceneSettings(scene: SceneItem): SceneSettings {
     motionTemplate: scene.motionTemplate,
     background: scene.background ? { ...scene.background } : undefined,
     caption: scene.caption,
+    filmLookOff: scene.filmLookOff,
   };
 }
 
@@ -72,6 +76,9 @@ export function applySceneSettings(
         break;
       case 'caption':
         next.caption = settings.caption;
+        break;
+      case 'look':
+        next.filmLookOff = settings.filmLookOff;
         break;
     }
   }

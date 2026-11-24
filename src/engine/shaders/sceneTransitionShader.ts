@@ -65,6 +65,15 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
   uniform float uExpB3;
   // User transform per slot (move / scale / free rotation inside its frame):
   // xy = offset in frame units (y up), z = scale, w = rotation (radians).
+  // Per-photo colour tweaks per slot: x = contrast, y = saturation, z = warmth, w = opacity.
+  uniform vec4 uAdjA0;
+  uniform vec4 uAdjA1;
+  uniform vec4 uAdjA2;
+  uniform vec4 uAdjA3;
+  uniform vec4 uAdjB0;
+  uniform vec4 uAdjB1;
+  uniform vec4 uAdjB2;
+  uniform vec4 uAdjB3;
   uniform vec4 uXfA0;
   uniform vec4 uXfA1;
   uniform vec4 uXfA2;
@@ -205,6 +214,17 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     return uExpB3;
   }
 
+  vec4 slotAdj(int slot) {
+    if (slot == 0) return uAdjA0;
+    if (slot == 1) return uAdjA1;
+    if (slot == 2) return uAdjA2;
+    if (slot == 3) return uAdjA3;
+    if (slot == 4) return uAdjB0;
+    if (slot == 5) return uAdjB1;
+    if (slot == 6) return uAdjB2;
+    return uAdjB3;
+  }
+
   vec4 slotXf(int slot) {
     if (slot == 0) return uXfA0;
     if (slot == 1) return uXfA1;
@@ -236,7 +256,14 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
 
   vec3 samplePhotoSlot(int slot, vec2 uv) {
     vec2 ruv = rotateUv90(clamp(uv, 0.001, 0.999), slotRot(slot));
-    return fetchSlot(slot, clamp(ruv, 0.001, 0.999)) * slotExp(slot);
+    vec3 c = fetchSlot(slot, clamp(ruv, 0.001, 0.999)) * slotExp(slot);
+    vec4 adj = slotAdj(slot);
+    // Per-photo grade in linear light: contrast around mid grey, saturation, warm/cool shift.
+    c = max((c - 0.18) * adj.x + 0.18, vec3(0.0));
+    float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    c = mix(vec3(luma), c, adj.y);
+    c *= vec3(1.0 + 0.14 * adj.z, 1.0, 1.0 - 0.14 * adj.z);
+    return c;
   }
 
   vec2 applyKenBurns(vec2 uv, float progress, int slideIdx, int motionDir) {
@@ -488,7 +515,7 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
         : vec3(0.86, 0.83, 0.78);
 
       vec3 cardCol = mix(borderCol, photoCol, innerMask) * lightShade;
-      outCol = mix(outCol, cardCol, outerMask);
+      outCol = mix(outCol, cardCol, outerMask * slotAdj(slot).w);
     }
 
     return outCol;
@@ -532,7 +559,7 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
       vec2 kbUv = applyKenBurns(screenUv, progress, slideIdx, motionDir);
       vec2 xfUv = applyUserXf(base, kbUv, canvasAspect);
       vec2 uv = coverUvWithFocal(xfUv, asp0, canvasAspect, slotFocal(base));
-      return samplePhotoSlot(base, uv) * photoCoverage(xfUv, aa);
+      return samplePhotoSlot(base, uv) * photoCoverage(xfUv, aa) * slotAdj(base).w;
     }
 
     vec3 col = computeBackground(scene, base, screenUv, easeP, canvasAspect, parallax || is3d, filmstrip);
