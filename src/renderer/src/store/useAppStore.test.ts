@@ -424,3 +424,34 @@ describe('per-scene transition duration', () => {
     expect('transitionDurationSec' in useAppStore.getState().scenes[0]).toBe(false);
   });
 });
+
+describe('per-photo colour and per-scene Film Look bypass', () => {
+  it('merges adjust fields, drops the identity, and resets with null', () => {
+    useAppStore.setState({ scenes: [], slides: [], past: [], future: [], renderParams: INITIAL_RENDER_PARAMS });
+    useAppStore.getState().setSlides([makePhoto('A')], false);
+    useAppStore.getState().setPhotoAdjust('A', { contrast: 1.2 });
+    useAppStore.getState().setPhotoAdjust('A', { warmth: 0.3 });
+    expect(useAppStore.getState().slides[0].adjust).toEqual({ contrast: 1.2, saturation: 1, warmth: 0.3, opacity: 1 });
+    useAppStore.getState().setPhotoAdjust('A', { contrast: 1, warmth: 0 });
+    expect('adjust' in useAppStore.getState().slides[0]).toBe(false);
+    useAppStore.getState().setPhotoAdjust('A', { opacity: 0.5 });
+    useAppStore.getState().setPhotoAdjust('A', null);
+    expect('adjust' in useAppStore.getState().slides[0]).toBe(false);
+  });
+
+  it('toggles filmLookOff and carries it through duplicate and the "look" paste part', () => {
+    useAppStore.setState({ scenes: [], slides: [], past: [], future: [], renderParams: INITIAL_RENDER_PARAMS });
+    useAppStore.getState().addScene('single');
+    useAppStore.getState().addScene('single');
+    const [a, b] = useAppStore.getState().scenes.map((s) => s.id);
+    useAppStore.getState().setSceneFilmLookOff(a, true);
+    expect(useAppStore.getState().scenes[0].filmLookOff).toBe(true);
+    useAppStore.getState().copySceneSettings(a);
+    useAppStore.getState().pasteSceneSettings(b, ['look']);
+    expect(useAppStore.getState().scenes[1].filmLookOff).toBe(true);
+    useAppStore.getState().duplicateScene(a);
+    expect(useAppStore.getState().scenes[1].filmLookOff).toBe(true);
+    useAppStore.getState().setSceneFilmLookOff(a, false);
+    expect('filmLookOff' in useAppStore.getState().scenes[0]).toBe(false);
+  });
+});

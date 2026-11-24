@@ -18,6 +18,7 @@ import {
 } from '@shared/types';
 import { BG_PATTERN_CODE, BG_STYLE_CODE, hexToLinearRgb, resolveSceneBackground } from './background';
 import { classifyGpuRenderer } from './capabilities';
+import { photoAdjustToUniform } from './photoAdjust';
 import { resolvePhotoTransform } from './photoKeyframes';
 import { createLutStripTexture, parseCubeLut } from './cubeLutParser';
 import { MOTION_STYLE_CODE_MAP } from './presets/motionTemplates';
@@ -237,6 +238,14 @@ export class FrameSlideEngine {
         uExpA1: { value: 1 },
         uExpA2: { value: 1 },
         uExpA3: { value: 1 },
+        uAdjA0: { value: new THREE.Vector4(1, 1, 0, 1) },
+        uAdjA1: { value: new THREE.Vector4(1, 1, 0, 1) },
+        uAdjA2: { value: new THREE.Vector4(1, 1, 0, 1) },
+        uAdjA3: { value: new THREE.Vector4(1, 1, 0, 1) },
+        uAdjB0: { value: new THREE.Vector4(1, 1, 0, 1) },
+        uAdjB1: { value: new THREE.Vector4(1, 1, 0, 1) },
+        uAdjB2: { value: new THREE.Vector4(1, 1, 0, 1) },
+        uAdjB3: { value: new THREE.Vector4(1, 1, 0, 1) },
         uXfA0: { value: new THREE.Vector4(0, 0, 1, 0) },
         uXfA1: { value: new THREE.Vector4(0, 0, 1, 0) },
         uXfA2: { value: new THREE.Vector4(0, 0, 1, 0) },
@@ -669,6 +678,9 @@ export class FrameSlideEngine {
       this.pass1Mat.uniforms[`uRot${prefix}${k}`].value = Math.round(rotDeg / 90) % 4;
       const expStops = asset?.exposure ?? 0;
       this.pass1Mat.uniforms[`uExp${prefix}${k}`].value = Math.pow(2, expStops);
+      (this.pass1Mat.uniforms[`uAdj${prefix}${k}`].value as THREE.Vector4).set(
+        ...photoAdjustToUniform(asset?.adjust)
+      );
       const xf = resolvePhotoTransform(asset, motionProgress, keyframePreview);
       // UI stores y down; the shader works with y up.
       (this.pass1Mat.uniforms[`uXf${prefix}${k}`].value as THREE.Vector4).set(
@@ -742,14 +754,18 @@ export class FrameSlideEngine {
     this.pass1Mat.uniforms['uPortraitMode'].value = portraitMode === 'safe-top-third' ? 1 : 0;
     this.pass1Mat.uniforms['uSlideIndexA'].value = state.slideAIndex;
     this.pass1Mat.uniforms['uSlideIndexB'].value = state.slideBIndex;
+    // Scenes marked "no Film Look" fade the look out (and back in across a transition).
+    const lookOffA = sceneA?.filmLookOff ? 1 : 0;
+    const lookOffB = sceneB?.filmLookOff ? 1 : 0;
+    const lookMix = 1 - (lookOffA + (lookOffB - lookOffA) * (state.isInTransition ? state.transitionProgress : 0));
     this.pass1Mat.uniforms['uBokeh'].value =
-      compareMode === 'before' ? 0 : look.enabled ? (look.bokeh ?? 0) : 0;
+      compareMode === 'before' ? 0 : look.enabled ? (look.bokeh ?? 0) * lookMix : 0;
     this.pass1Mat.uniforms['uTimeSec'].value = timeSec;
 
     const lookActive = compareMode === 'before' ? 0 : look.enabled && look.intensity > 0.001 ? 1 : 0;
     this.pass2Mat.uniforms['uEnabled'].value = lookActive;
-    this.pass2Mat.uniforms['uHalation'].value = look.halation * look.intensity;
-    this.pass2Mat.uniforms['uBloom'].value = look.bloom * look.intensity;
+    this.pass2Mat.uniforms['uHalation'].value = look.halation * look.intensity * lookMix;
+    this.pass2Mat.uniforms['uBloom'].value = look.bloom * look.intensity * lookMix;
 
     // Text Timing (always / intro / outro / per-scene) + smooth fade + EXIF Auto Date Stamp
     const textCfg = params?.textOverlay ?? DEFAULT_TEXT_OVERLAY;
@@ -822,7 +838,7 @@ export class FrameSlideEngine {
     this.pass3Mat.uniforms['uDitherFrame'].value = frameIndex;
     this.pass3Mat.uniforms['uTimeSec'].value = timeSec;
     this.pass3Mat.uniforms['uEnabled'].value = look.enabled && look.intensity > 0.001 ? 1 : 0;
-    this.pass3Mat.uniforms['uIntensity'].value = look.intensity;
+    this.pass3Mat.uniforms['uIntensity'].value = look.intensity * lookMix;
     this.pass3Mat.uniforms['uGrain'].value = look.grain;
     this.pass3Mat.uniforms['uGrainSize'].value = look.grainSize;
     this.pass3Mat.uniforms['uGateWeave'].value = look.gateWeave;
@@ -840,7 +856,7 @@ export class FrameSlideEngine {
     this.pass3Mat.uniforms['uAmbientLeak'].value = look.ambientLeak ?? 0;
     this.pass3Mat.uniforms['uAspectMask'].value = ASPECT_MASK_CODE[look.aspectMask ?? 'none'] ?? 0;
     this.pass3Mat.uniforms['uSprockets'].value = look.sprockets ? 1 : 0;
-    this.pass3Mat.uniforms['uLutIntensity'].value = params?.lutIntensity ?? 1;
+    this.pass3Mat.uniforms['uLutIntensity'].value = (params?.lutIntensity ?? 1) * lookMix;
     this.pass3Mat.uniforms['uHasLut'].value = this.customLutTex ? 1 : 0;
     this.pass3Mat.uniforms['uLutSize'].value = this.customLutSize;
     this.pass3Mat.uniforms['uHasText'].value = hasText ? 1 : 0;

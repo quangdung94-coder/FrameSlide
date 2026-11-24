@@ -62,4 +62,9 @@ describe('GLSL ES 3.00 shader sources', () => {
     expect(SCENE_TRANSITION_FRAGMENT_SHADER).toContain('uniform int uMotionStyleB;');
     expect(SCENE_TRANSITION_FRAGMENT_SHADER).toContain('scene == 0 ? uMotionStyle : uMotionStyleB');
   });
+
+  it('scene shader applies the per-photo colour tweaks inside the single photo read', () => {
+    expect(SCENE_TRANSITION_FRAGMENT_SHADER).toContain('uniform vec4 uAdjB3;');
+    expect(SCENE_TRANSITION_FRAGMENT_SHADER).toContain('vec4 slotAdj(int slot)');
+  });
 });

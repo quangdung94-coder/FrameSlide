@@ -1,5 +1,6 @@
 import { getExportResolution } from '@engine/capabilities';
 import { KEYFRAME_EASE_LABELS, KEYFRAME_EASES } from '@engine/photoKeyframes';
+import { normalizePhotoAdjust } from '@engine/photoAdjust';
 import { IDENTITY_PHOTO_TRANSFORM, normalizePhotoTransform } from '@engine/photoTransform';
 import type { PhotoKeyframeEase, PhotoTransform, SlideAsset } from '@shared/types';
 import { useAppStore } from '../store/useAppStore';
@@ -72,6 +73,7 @@ export function PhotoPanel({
 }: PhotoPanelProps) {
   const rotatePhoto90 = useAppStore((s) => s.rotatePhoto90);
   const setPhotoExposure = useAppStore((s) => s.setPhotoExposure);
+  const setPhotoAdjust = useAppStore((s) => s.setPhotoAdjust);
   const setPhotoTransform = useAppStore((s) => s.setPhotoTransform);
   const activeSceneId = useAppStore((s) => s.activeSceneId);
   const activeSlotIndex = useAppStore((s) => s.activeSlotIndex);
@@ -145,6 +147,27 @@ export function PhotoPanel({
             ? `Đang chọn tâm${focalSuffix}: bấm lên khung xem…`
             : `Tâm điểm${focalSuffix} (${Math.round(photo.focalPoint.x * 100)}%, ${Math.round(photo.focalPoint.y * 100)}%)`}
         </button>
+      </Group>
+
+      <Group
+        id="photo-color"
+        title="Màu riêng của ảnh"
+        defaultOpen={false}
+        disabled={disabled}
+        onReset={() => setPhotoAdjust(photo.id, null)}
+        resetTitle="Trả màu ảnh về nguyên bản"
+      >
+        {(() => {
+          const adj = normalizePhotoAdjust(photo.adjust);
+          return (
+            <>
+              <SliderRow label="Tương phản" value={adj.contrast} min={0.5} max={1.6} step={0.02} disabled={disabled} onChange={(v) => setPhotoAdjust(photo.id, { contrast: v })} />
+              <SliderRow label="Bão hòa màu" value={adj.saturation} min={0} max={2} step={0.02} disabled={disabled} onChange={(v) => setPhotoAdjust(photo.id, { saturation: v })} />
+              <SliderRow label="Ấm (+) / Lạnh (−)" value={adj.warmth} min={-1} max={1} step={0.02} disabled={disabled} onChange={(v) => setPhotoAdjust(photo.id, { warmth: v })} />
+              <SliderRow label="Độ mờ (Opacity)" value={adj.opacity} min={0} max={1} step={0.02} disabled={disabled} onChange={(v) => setPhotoAdjust(photo.id, { opacity: v })} />
+            </>
+          );
+        })()}
       </Group>
 
       <Group

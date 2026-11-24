@@ -96,5 +96,5 @@
 - [x] 3.2 **S3:** Keyframe Đầu/Cuối cho từng ảnh (vị trí, zoom, xoay; làm mượt Đều/Êm/Tăng/Giảm tốc; Đổi chiều, Copy Đầu→Cuối), tính theo `frameIndex`. (`SlideAsset.transformEnd` + `keyframeEase`; logic thuần `src/engine/photoKeyframes.ts` dùng `motionProgress` của timeline nên preview và xuất khớp; bảng Ảnh › "Chuyển động Đầu → Cuối" có 2 khung nhỏ Đầu/Cuối, Đổi chiều, Đầu → Cuối, Nối với scene trước; khi chỉnh trên khung xem có tab Đầu/Cuối, preview ghim đúng tư thế đang chỉnh.)
 - [ ] 3.3 **S4 + S5 + S6** (làm thành 3 PR nhỏ):
   - [x] 3.3a **S6:** thời lượng chuyển cảnh riêng từng scene (`SceneItem.transitionDurationSec`, `evaluateTimeline` nhận `transitionDurations`; chưa làm "hướng" riêng vì các kiểu chuyển cảnh đã có sẵn bản trái/phải).
-  - [ ] 3.3b **S4:** chỉnh màu riêng từng ảnh (tương phản, bão hòa, ấm/lạnh, độ mờ) + công tắc "Bỏ qua Film Look cho scene này".
+  - [x] 3.3b **S4:** chỉnh màu riêng từng ảnh (tương phản, bão hòa, ấm/lạnh, độ mờ) + công tắc "Bỏ qua Film Look cho scene này". (`SlideAsset.adjust` + `src/engine/photoAdjust.ts`, tính trong shader theo từng ô, không thêm điểm gọi hàm nặng; `SceneItem.filmLookOff` làm mờ dần Film Look/LUT, mượt khi chuyển cảnh; dán thiết lập có thêm phần "Film Look".)
   - [ ] 3.3c **S5:** viền, bóng đổ, bo góc, làm mờ cạnh cho ô ảnh trong scene 2–4 ảnh.

@@ -16,12 +16,14 @@ import {
   type SceneSettings,
 } from '@engine/sceneSettings';
 import { isIdentityTransform, normalizePhotoTransform } from '@engine/photoTransform';
+import { isIdentityPhotoAdjust, normalizePhotoAdjust } from '@engine/photoAdjust';
 import { resolveSlideDurations } from '@engine/timeline';
 import {
   DEFAULT_SUPER8_PARAMS,
   DEFAULT_TEXT_OVERLAY,
   type BackgroundOptions,
   type BackgroundStyle,
+  type PhotoAdjust,
   type PhotoKeyframeEase,
   type PhotoTransform,
   type SceneBackground,
@@ -132,6 +134,8 @@ interface AppState {
     recordHistory?: boolean
   ) => void;
   pushUndoPoint: () => void;
+  /** Per-photo contrast / saturation / warmth / opacity; `null` resets to neutral. */
+  setPhotoAdjust: (photoId: string, adjust: PhotoAdjust | null, recordHistory?: boolean) => void;
 
   // Start/End keyframes of a photo's move/zoom/rotate (Start = `transform`, End = `transformEnd`).
   /** Which keyframe the on-preview editor changes (UI only, not saved). */
@@ -177,6 +181,8 @@ interface AppState {
   setSceneTransition: (sceneId: string, transitionType: TransitionType) => void;
   /** Own transition length into the next scene; `null` = follow the project's. */
   setSceneTransitionDuration: (sceneId: string, durationSec: number | null) => void;
+  /** true = show this scene without the Film Look and LUT. */
+  setSceneFilmLookOff: (sceneId: string, off: boolean) => void;
   setSceneMotionDirection: (sceneId: string, motionDirection: MotionDirection) => void;
   /** Own Motion Template for one scene; `null` = follow the project's template. */
   setSceneMotionTemplate: (sceneId: string, template: MotionTemplateId | null) => void;
@@ -460,6 +466,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   pushUndoPoint: () => set((s) => pushPast(s)),
 
+  setPhotoAdjust: (photoId, adjust, recordHistory = true) =>
+    set((s) => ({
+      ...(recordHistory ? pushPast(s) : {}),
+      slides: s.slides.map((item) => {
+        if (item.id !== photoId) return item;
+        const merged = adjust ? { ...item.adjust, ...adjust } : null;
+        if (!merged || isIdentityPhotoAdjust(merged)) {
+          const { adjust: _drop, ...rest } = item;
+          void _drop;
+          return rest;
+        }
+        return { ...item, adjust: normalizePhotoAdjust(merged) };
+      }),
+    })),
+
   keyframeEditPhase: 'start',
   setKeyframeEditPhase: (keyframeEditPhase) => set({ keyframeEditPhase }),
 
@@ -653,6 +674,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         motionDirection: src.motionDirection,
         motionTemplate: src.motionTemplate,
         transitionDurationSec: src.transitionDurationSec,
+        filmLookOff: src.filmLookOff,
         caption: src.caption,
         background: src.background ? { ...src.background } : undefined,
       };
@@ -755,6 +777,17 @@ export const useAppStore = create<AppState>((set, get) => ({
         return durationSec === null
           ? rest
           : { ...rest, transitionDurationSec: Math.max(0.2, Math.min(2.5, durationSec)) };
+      }),
+    })),
+
+  setSceneFilmLookOff: (sceneId, off) =>
+    set((s) => ({
+      ...pushPast(s),
+      scenes: s.scenes.map((sc) => {
+        if (sc.id !== sceneId) return sc;
+        const { filmLookOff: _drop, ...rest } = sc;
+        void _drop;
+        return off ? { ...rest, filmLookOff: true } : rest;
       }),
     })),
 
