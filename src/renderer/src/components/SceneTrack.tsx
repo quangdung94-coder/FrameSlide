@@ -9,6 +9,7 @@ import { getExportResolution } from '@engine/capabilities';
 import { getLayoutRects } from '@engine/layoutGeometry';
 import { resolveSlideDurations } from '@engine/timeline';
 import { useAppStore } from '../store/useAppStore';
+import { LAYOUT_LIMITS, useLayoutStore } from '../store/useLayoutStore';
 import type { SceneLayoutId } from '@shared/types';
 
 interface SceneTrackProps {
@@ -120,7 +121,10 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
   const autoFillScenes = useAppStore((s) => s.autoFillScenes);
   const clearAllSceneSlots = useAppStore((s) => s.clearAllSceneSlots);
 
-  const [compactMode, setCompactMode] = useState(false);
+  const sceneZoom = useLayoutStore((s) => s.sceneZoom);
+  const setLayout = useLayoutStore((s) => s.setLayout);
+  // Small zoom hides the layout dropdown to save height.
+  const compactMode = sceneZoom < 0.8;
   const outRes = getExportResolution(renderParams.outputAspect);
   const canvasAspect = outRes.width / outRes.height;
   const layoutRects = useMemo(
@@ -133,8 +137,11 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
     [canvasAspect]
   );
   // Mini frame keeps the real output shape and slot positions.
-  const miniH = compactMode ? 56 : 96;
-  const miniW = Math.min(compactMode ? 160 : 192, Math.round(miniH * canvasAspect));
+  // Card width grows with the zoom slider; the mini frame keeps the real output shape.
+  const cardW = Math.round(232 * sceneZoom);
+  const miniMaxW = cardW - 14;
+  const miniMaxH = Math.round(120 * sceneZoom);
+  const miniW = Math.min(miniMaxW, Math.round(miniMaxH * canvasAspect));
 
   const sceneFrameRanges = useMemo(() => {
     const durations = resolveSlideDurations(scenes.length, {
@@ -181,7 +188,7 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
   }, [scenes, photoMap]);
 
   return (
-    <div className="mt-2 space-y-2">
+    <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2">
       {/* Scene Track Header */}
       <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
         <div className="flex flex-wrap items-center gap-1.5 text-zinc-300">
@@ -217,18 +224,23 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
           >
             Trống ô
           </button>
-          <button
-            type="button"
-            onClick={() => setCompactMode(!compactMode)}
-            title="Thu gọn / mở rộng chiều cao thẻ Scene"
-            className={`rounded border px-1.5 py-0.5 text-[10px] ${
-              compactMode
-                ? 'border-amber-400 bg-amber-500/15 text-amber-300'
-                : 'border-zinc-800 text-zinc-400 hover:text-zinc-200'
-            }`}
+          <label
+            className="ml-1 flex items-center gap-1 text-[10px] text-zinc-400"
+            title="Phóng to / thu nhỏ thẻ Scene"
           >
-            {compactMode ? 'Mở rộng' : 'Gọn'}
-          </button>
+            <span>🔍</span>
+            <input
+              type="range"
+              aria-label="Zoom thẻ scene"
+              min={LAYOUT_LIMITS.sceneZoom[0]}
+              max={LAYOUT_LIMITS.sceneZoom[1]}
+              step={0.05}
+              value={sceneZoom}
+              onChange={(e) => setLayout('sceneZoom', Number(e.target.value))}
+              className="h-1 w-20 cursor-pointer accent-amber-400"
+            />
+            <span className="w-8 font-mono text-zinc-500">{Math.round(sceneZoom * 100)}%</span>
+          </label>
         </div>
 
         <div className="flex items-center gap-1 text-[10px]">
@@ -248,7 +260,7 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
       </div>
 
       {/* Horizontal Scene Cards */}
-      <div className="flex items-stretch gap-1.5 overflow-x-auto pb-1">
+      <div className="flex min-h-0 flex-1 items-start gap-1.5 overflow-auto pb-1">
         {scenes.map((sc, idx) => {
           const isActive = sc.id === activeSceneId;
           const isSceneDropHot = dropSceneId === sc.id;
@@ -300,9 +312,8 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                   setDropSceneId(null);
                   setDropTargetKey(null);
                 }}
+                style={{ width: cardW }}
                 className={`flex shrink-0 cursor-pointer flex-col justify-between rounded-md border p-1.5 transition-colors ${
-                  compactMode ? 'w-44' : 'w-52'
-                } ${
                   isSceneDropHot
                     ? 'border-amber-400 bg-amber-500/15 ring-2 ring-amber-400'
                     : isActive

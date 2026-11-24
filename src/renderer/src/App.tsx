@@ -14,6 +14,8 @@ import { MOTION_TEMPLATE_PRESETS } from '@engine/presets/motionTemplates';
 import { TRANSITION_PRESETS } from '@engine/presets/transitions';
 import { computeEffectiveTotalDurationSec, getTotalFrames } from '@engine/timeline';
 import { PhotoBin } from './components/PhotoBin';
+import { Splitter } from './components/Splitter';
+import { DEFAULT_LAYOUT, useLayoutStore } from './store/useLayoutStore';
 import { PlaybackBar } from './components/PlaybackBar';
 import { SceneTrack } from './components/SceneTrack';
 import { useAppStore } from './store/useAppStore';
@@ -186,6 +188,17 @@ export default function App() {
   const isPlaying = useAppStore((s) => s.isPlaying);
   const slides = useAppStore((s) => s.slides);
   const scenes = useAppStore((s) => s.scenes);
+  const binWidth = useLayoutStore((s) => s.binWidth);
+  const inspectorWidth = useLayoutStore((s) => s.inspectorWidth);
+  const timelineHeight = useLayoutStore((s) => s.timelineHeight);
+  const setLayout = useLayoutStore((s) => s.setLayout);
+  const resetLayout = useLayoutStore((s) => s.resetLayout);
+  const layoutDragBase = useRef(0);
+  // Never let the timeline squeeze the preview below ~220px on small windows.
+  const effectiveTimelineHeight = Math.max(
+    170,
+    Math.min(timelineHeight, typeof window !== 'undefined' ? window.innerHeight - 330 : timelineHeight)
+  );
   const activeSceneId = useAppStore((s) => s.activeSceneId);
   const activeSlotIndex = useAppStore((s) => s.activeSlotIndex);
   const selectedPhotoId = useAppStore((s) => s.selectedPhotoId);
@@ -992,6 +1005,15 @@ export default function App() {
 
           <button
             type="button"
+            onClick={resetLayout}
+            title="Đặt lại kích thước khay ảnh, timeline, bảng bên phải và zoom thẻ scene về mặc định"
+            className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-300 hover:border-amber-400 hover:text-amber-300"
+          >
+            ⟲ Bố cục
+          </button>
+
+          <button
+            type="button"
             onClick={() => setShowShortcutsModal(true)}
             title="Bảng phím tắt dựng phim"
             className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs font-semibold text-zinc-300 hover:border-amber-400 hover:text-amber-300"
@@ -1040,10 +1062,24 @@ export default function App() {
         )}
 
         {/* Left: Photo Bin */}
-        {!isFullscreenPreview && <PhotoBin disabled={isExporting} />}
+        {!isFullscreenPreview && (
+          <PhotoBin
+            disabled={isExporting}
+            width={binWidth}
+            resizeHandle={
+              <Splitter
+                direction="col"
+                title="Kéo để đổi độ rộng khay ảnh • Bấm đúp để về mặc định"
+                onDragStart={() => (layoutDragBase.current = binWidth)}
+                onDrag={(d) => setLayout('binWidth', layoutDragBase.current + d)}
+                onDoubleClick={() => setLayout('binWidth', DEFAULT_LAYOUT.binWidth)}
+              />
+            }
+          />
+        )}
 
         {/* Center: Preview Canvas + Playback + Scene Track */}
-        <main className="flex flex-1 flex-col justify-between overflow-hidden p-3">
+        <main className="flex min-w-0 flex-1 flex-col justify-between overflow-hidden p-3">
           <div className="flex min-h-0 flex-1 items-center justify-center">
             <div
               className={`relative max-h-full overflow-hidden rounded-lg border border-zinc-800 bg-black shadow-2xl ${
@@ -1159,8 +1195,23 @@ export default function App() {
             </div>
           </div>
 
+          {!isFullscreenPreview && (
+            <Splitter
+              direction="row"
+              title="Kéo để đổi chiều cao timeline • Bấm đúp để về mặc định"
+              onDragStart={() => (layoutDragBase.current = effectiveTimelineHeight)}
+              onDrag={(d) => setLayout('timelineHeight', layoutDragBase.current - d)}
+              onDoubleClick={() => setLayout('timelineHeight', DEFAULT_LAYOUT.timelineHeight)}
+            />
+          )}
+
           {/* Bottom: Playback Bar + Scene Track (Dải Scene & Ô chứa hình) */}
-          <div className="mt-2.5 rounded-lg border border-zinc-800 bg-[#16161b] px-3 py-2">
+          <div
+            className={`flex shrink-0 flex-col rounded-lg border border-zinc-800 bg-[#16161b] px-3 py-2 ${
+              isFullscreenPreview ? 'mt-2.5' : 'mt-1'
+            }`}
+            style={isFullscreenPreview ? undefined : { height: effectiveTimelineHeight }}
+          >
             <PlaybackBar
               totalFrames={totalFrames}
               effectiveDurationSec={effectiveDurationSec}
@@ -1173,7 +1224,19 @@ export default function App() {
 
         {/* Right: Inspector (Templates, 12 Film Looks + LUT, Text, Export) */}
         {!isFullscreenPreview && (
-          <aside className="flex w-80 shrink-0 flex-col border-l border-zinc-800 bg-[#141419] text-xs">
+          <Splitter
+            direction="col"
+            title="Kéo để đổi độ rộng bảng bên phải • Bấm đúp để về mặc định"
+            onDragStart={() => (layoutDragBase.current = inspectorWidth)}
+            onDrag={(d) => setLayout('inspectorWidth', layoutDragBase.current - d)}
+            onDoubleClick={() => setLayout('inspectorWidth', DEFAULT_LAYOUT.inspectorWidth)}
+          />
+        )}
+        {!isFullscreenPreview && (
+          <aside
+            className="flex shrink-0 flex-col border-zinc-800 bg-[#141419] text-xs"
+            style={{ width: inspectorWidth }}
+          >
           <div className="grid grid-cols-4 border-b border-zinc-800 bg-[#16161b] text-[11px] font-medium">
             {(
               [
