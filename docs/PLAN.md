@@ -75,3 +75,23 @@
 - [x] 6. **Nền sau scene 2–4 ảnh:** nền trơn, gradient (nhiều mẫu, chỉnh màu và góc), ảnh mờ, họa tiết; áp cho một scene hoặc cả dự án. (8 mẫu gradient; 4 họa tiết chấm bi/sọc chéo/kẻ ô/quả trám; họa tiết tĩnh nên preview và export khớp nhau; cấu hình trong `src/engine/background.ts`.)
 - [x] 7. **Thẻ scene nhiều ảnh:** ô nhỏ đúng kiểu chia khung (2 ảnh cạnh nhau, 4 ảnh lưới 2x2), số thứ tự, kéo thả đổi chỗ. (Khung mini theo đúng tỉ lệ xuất và vị trí ô thật trong shader — `src/engine/layoutGeometry.ts`.)
 - [x] 8. **Nhập thư mục:** không tự thêm tất cả ảnh vào timeline; ảnh chỉ vào khay; thêm nút "Thêm ảnh đã chọn" và "Thêm cả thư mục". (Ảnh mẫu vẫn tự dựng timeline để thử nhanh; "Thêm cả thư mục" = mọi ảnh chưa dùng trong khay, sẽ tách theo từng thư mục ở mục 1.)
+
+---
+
+## Bước 5c: Nâng cấp UX/UI và Scene (căn cứ `research/bao-cao-ux-ui-va-scene.md`, 24/11/2026)
+> Làm theo thứ tự. Mỗi mục một PR nhỏ: tự rà diff → sửa lỗi → typecheck + test + build + CI Windows đạt → gộp vào main. Mỗi tính năng mới là công tắc tùy chọn, film look bật sẵn, Full HD 30fps. Không làm Đợt 4 và không đóng gói .exe. Nếu bị ngắt giữa chừng, tiếp tục từ mục `[ ]` đầu tiên.
+
+### Đợt 1: Dễ bấm, dễ hiểu
+- [ ] 1.1 **U3 + U2:** cỡ chữ/nút tối thiểu (chữ ≥12px, nút ≥28px, thanh trượt dày hơn, ô số gõ trực tiếp); nhóm thu gọn (accordion) có công tắc bật/tắt và nút ⟲ đặt lại, nhớ nhóm đang mở.
+- [ ] 1.2 **U4 + U5:** thẻ scene gọn (nút ◀ ▶ ⧉ ✕ chuyển vào nút "⋯") và menu chuột phải cho thẻ scene, ô ảnh, khay ảnh.
+- [ ] 1.3 **U8:** phím tắt mới (Ctrl+D, Ctrl+Shift+C/V, Home/End, Ctrl+N, 1–4, T, Ctrl+E) + cập nhật bảng phím `?`.
+- [ ] 1.4 **S1:** sao chép / dán thiết lập scene (chọn phần: bố cục, chuyển động, nền, chuyển cảnh, chữ).
+
+### Đợt 2: Bảng theo ngữ cảnh
+- [ ] 2.1 **U1:** bảng phải đổi theo lựa chọn (Dự án / Scene / Ảnh) + breadcrumb `Dự án › Scene 2 › Ảnh 1`.
+- [ ] 2.2 **U7 + U6:** thanh nổi trên khung xem khi chọn ảnh; thanh trên cùng chia 3 cụm, nút "Nhập" thả xuống, nút "Xuất" nổi bật mở hộp thoại Xuất.
+
+### Đợt 3: Scene mạnh hơn (học ProShow)
+- [ ] 3.1 **S2:** Motion Template riêng từng scene ("Theo dự án" là mặc định).
+- [ ] 3.2 **S3:** Keyframe Đầu/Cuối cho từng ảnh (vị trí, zoom, xoay; làm mượt Đều/Êm/Tăng/Giảm tốc; Đổi chiều, Copy Đầu→Cuối), tính theo `frameIndex`.
+- [ ] 3.3 **S4 + S5 + S6:** chỉnh màu riêng ảnh/scene (có công tắc bỏ qua Film Look), viền/bóng/bo góc/làm mờ cạnh ô ảnh, thời lượng chuyển cảnh riêng từng scene.
