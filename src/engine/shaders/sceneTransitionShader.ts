@@ -119,7 +119,9 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
 
   vec3 samplePhoto(sampler2D tex, vec2 uv, float rotQ, float expMult) {
     vec2 ruv = rotateUv90(clamp(uv, 0.001, 0.999), rotQ);
-    return texture2D(tex, clamp(ruv, 0.001, 0.999)).rgb * expMult;
+    // textureLod (no mipmaps anyway): no implicit derivatives, so the tap loop in main()
+    // can stay a real loop on Windows/D3D instead of being force-unrolled.
+    return textureLod(tex, clamp(ruv, 0.001, 0.999), 0.0).rgb * expMult;
   }
 
   vec2 applyKenBurns(vec2 uv, float progress, int slideIdx, int motionDir) {
@@ -530,107 +532,139 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     return true;
   }
 
+  // ---------------------------------------------------------------------------
+  // Tap list: every transition only *describes* which scene samples it needs
+  // (scene A or B, uv, weight) plus an additive colour. main() then evaluates all
+  // taps in ONE loop, so sampleScene is inlined only twice in the compiled shader.
+  // Calling evalA/evalB directly in each transition (~50 call sites) made the
+  // Windows D3D shader compiler inline sampleScene ~50 times and freeze the app.
+  // ---------------------------------------------------------------------------
+  const int MAX_TAPS = 10;
+  vec2 gTapUv[MAX_TAPS];
+  float gTapW[MAX_TAPS];
+  int gTapSrc[MAX_TAPS];
+  int gTapCount = 0;
+
+  void tapA(vec2 uv, float w) {
+    if (gTapCount < MAX_TAPS) {
+      gTapUv[gTapCount] = uv;
+      gTapW[gTapCount] = w;
+      gTapSrc[gTapCount] = 0;
+      gTapCount++;
+    }
+  }
+
+  void tapB(vec2 uv, float w) {
+    if (gTapCount < MAX_TAPS) {
+      gTapUv[gTapCount] = uv;
+      gTapW[gTapCount] = w;
+      gTapSrc[gTapCount] = 1;
+      gTapCount++;
+    }
+  }
+
   void main() {
     float canvasAspect = uResolution.x / max(1.0, uResolution.y);
-    vec3 outCol = vec3(0.0);
+    vec3 addCol = vec3(0.0);
+    gTapCount = 0;
 
     if (uTransProgress <= 0.0001) {
-      outCol = evalA(vUv);
+      tapA(vUv, 1.0);
     } else {
       float p = clamp(uTransProgress, 0.0, 1.0);
       float t = easeInOutSine(p);
       float bell = sin(p * 3.14159265);
 
       if (uTransType == 0) {
-        outCol = mix(evalA(vUv), evalB(vUv), t);
+        tapA(vUv, 1.0 - t);
+        tapB(vUv, t);
       } else if (uTransType == 1) {
-        outCol = mix(evalA(vUv), evalB(vUv), t) + computeLightLeak(vUv, p, false);
+        tapA(vUv, 1.0 - t);
+        tapB(vUv, t);
+        addCol = computeLightLeak(vUv, p, false);
       } else if (uTransType == 2) {
-        outCol = p < 0.5 ? evalA(vUv) * (1.0 - p * 2.0) : evalB(vUv) * ((p - 0.5) * 2.0);
+        if (p < 0.5) tapA(vUv, 1.0 - p * 2.0);
+        else tapB(vUv, (p - 0.5) * 2.0);
       } else if (uTransType == 3) {
-        vec3 c = p < 0.5 ? evalA(vUv) : evalB(vUv);
-        float w = 1.0 - abs(p * 2.0 - 1.0);
-        outCol = mix(c, vec3(1.15), pow(w, 1.3));
+        float w = pow(1.0 - abs(p * 2.0 - 1.0), 1.3);
+        if (p < 0.5) tapA(vUv, 1.0 - w);
+        else tapB(vUv, 1.0 - w);
+        addCol = vec3(1.15) * w;
       } else if (uTransType == 4) {
         float r = bell * 0.012;
-        vec3 cA = (evalA(vUv) + evalA(vUv + vec2(r, 0.0)) + evalA(vUv - vec2(r, 0.0)) + evalA(vUv + vec2(0.0, r)) + evalA(vUv - vec2(0.0, r))) * 0.2;
-        vec3 cB = (evalB(vUv) + evalB(vUv + vec2(r, 0.0)) + evalB(vUv - vec2(r, 0.0)) + evalB(vUv + vec2(0.0, r)) + evalB(vUv - vec2(0.0, r))) * 0.2;
-        outCol = mix(cA, cB, t);
+        float wA = (1.0 - t) * 0.2;
+        float wB = t * 0.2;
+        tapA(vUv, wA);
+        tapA(vUv + vec2(r, 0.0), wA);
+        tapA(vUv - vec2(r, 0.0), wA);
+        tapA(vUv + vec2(0.0, r), wA);
+        tapA(vUv - vec2(0.0, r), wA);
+        tapB(vUv, wB);
+        tapB(vUv + vec2(r, 0.0), wB);
+        tapB(vUv - vec2(r, 0.0), wB);
+        tapB(vUv + vec2(0.0, r), wB);
+        tapB(vUv - vec2(0.0, r), wB);
       } else if (uTransType == 5) {
-        outCol = mix(evalA(vUv), evalB(vUv), t) * (1.0 + bell * 1.15);
+        float g = 1.0 + bell * 1.15;
+        tapA(vUv, (1.0 - t) * g);
+        tapB(vUv, t * g);
       } else if (uTransType == 6) {
-        outCol = mix(evalA(vUv), evalB(vUv), smoothstep(0.25, 0.75, p)) + computeLightLeak(vUv, p, true);
+        float m = smoothstep(0.25, 0.75, p);
+        tapA(vUv, 1.0 - m);
+        tapB(vUv, m);
+        addCol = computeLightLeak(vUv, p, true);
       } else if (uTransType == 7) {
-        vec3 c = p < 0.5 ? evalA(vUv) : evalB(vUv);
-        outCol = c + vec3(1.9, 1.75, 1.45) * pow(bell, 2.2);
+        if (p < 0.5) tapA(vUv, 1.0);
+        else tapB(vUv, 1.0);
+        addCol = vec3(1.9, 1.75, 1.45) * pow(bell, 2.2);
       } else if (uTransType == 8) {
         float x = vUv.x + t;
         float seam = abs(x - 1.0);
         if (seam < 0.018) {
-          outCol = vec3(0.01);
+          addCol = vec3(0.01);
         } else if (x < 1.0) {
-          outCol = evalA(vec2(x, vUv.y));
+          tapA(vec2(x, vUv.y), 1.0);
         } else {
-          outCol = evalB(vec2(x - 1.0, vUv.y));
+          tapB(vec2(x - 1.0, vUv.y), 1.0);
         }
       } else if (uTransType == 9) {
-        vec2 uvA = (vUv - 0.5) / (1.0 + t * 0.75) + 0.5;
-        vec2 uvB = (vUv - 0.5) / mix(0.65, 1.0, easeOutCubic(p)) + 0.5;
-        outCol = mix(evalA(uvA), evalB(uvB), t);
+        tapA((vUv - 0.5) / (1.0 + t * 0.75) + 0.5, 1.0 - t);
+        tapB((vUv - 0.5) / mix(0.65, 1.0, easeOutCubic(p)) + 0.5, t);
       } else if (uTransType == 10) {
-        vec2 uvA = (vUv - 0.5) / mix(1.0, 0.65, t) + 0.5;
-        vec2 uvB = (vUv - 0.5) / mix(1.65, 1.0, easeOutCubic(p)) + 0.5;
-        outCol = mix(evalA(uvA), evalB(uvB), t);
-      } else if (uTransType == 11) {
-        float baseX = vUv.x + t;
+        tapA((vUv - 0.5) / mix(1.0, 0.65, t) + 0.5, 1.0 - t);
+        tapB((vUv - 0.5) / mix(1.65, 1.0, easeOutCubic(p)) + 0.5, t);
+      } else if (uTransType == 11 || uTransType == 12) {
+        // 11: whip pan left, 12: whip pan right (3-tap motion blur)
+        float baseX = uTransType == 11 ? vUv.x + t : vUv.x - t;
         float blur = bell * 0.022;
-        vec3 acc = vec3(0.0);
-        if (baseX < 1.0) {
-          for (int k = -1; k <= 1; k++) {
-            acc += evalA(vec2(clamp(baseX + float(k) * blur, 0.001, 0.999), vUv.y));
-          }
-        } else {
-          float bx = baseX - 1.0;
-          for (int k = -1; k <= 1; k++) {
-            acc += evalB(vec2(clamp(bx + float(k) * blur, 0.001, 0.999), vUv.y));
-          }
+        bool onA = uTransType == 11 ? baseX < 1.0 : baseX >= 0.0;
+        float bx = onA ? baseX : (uTransType == 11 ? baseX - 1.0 : baseX + 1.0);
+        for (int k = -1; k <= 1; k++) {
+          vec2 uvK = vec2(clamp(bx + float(k) * blur, 0.001, 0.999), vUv.y);
+          if (onA) tapA(uvK, 1.0 / 3.0);
+          else tapB(uvK, 1.0 / 3.0);
         }
-        outCol = acc / 3.0;
-      } else if (uTransType == 12) {
-        float baseX = vUv.x - t;
-        float blur = bell * 0.022;
-        vec3 acc = vec3(0.0);
-        if (baseX >= 0.0) {
-          for (int k = -1; k <= 1; k++) {
-            acc += evalA(vec2(clamp(baseX + float(k) * blur, 0.001, 0.999), vUv.y));
-          }
-        } else {
-          float bx = baseX + 1.0;
-          for (int k = -1; k <= 1; k++) {
-            acc += evalB(vec2(clamp(bx + float(k) * blur, 0.001, 0.999), vUv.y));
-          }
-        }
-        outCol = acc / 3.0;
       } else if (uTransType == 13) {
         vec2 shake = vec2(sin(p * 48.0), cos(p * 37.0)) * (bell * 0.028);
-        outCol = p < 0.5 ? evalA(vUv + shake) : evalB(vUv + shake);
+        if (p < 0.5) tapA(vUv + shake, 1.0);
+        else tapB(vUv + shake, 1.0);
       } else if (uTransType == 14) {
         float edge = 1.0 - easeOutCubic(p);
         if (vUv.x >= edge) {
-          outCol = evalB(vec2(vUv.x - edge, vUv.y));
+          tapB(vec2(vUv.x - edge, vUv.y), 1.0);
         } else {
           float sh = exp(-(edge - vUv.x) * 28.0) * 0.55;
-          outCol = evalA(vUv) * (1.0 - sh);
+          tapA(vUv, 1.0 - sh);
         }
       } else if (uTransType == 15) {
         float diag = (vUv.x * 0.78 + (1.0 - vUv.y) * 0.22);
         float fold = mix(1.05, -0.05, t);
         if (diag > fold) {
           float crease = exp(-(diag - fold) * 18.0) * 0.45;
-          outCol = evalB(vUv) * (1.0 - crease);
+          tapB(vUv, 1.0 - crease);
         } else {
-          float highlight = exp(-(fold - diag) * 24.0) * 0.22;
-          outCol = evalA(vUv) + vec3(highlight);
+          tapA(vUv, 1.0);
+          addCol = vec3(exp(-(fold - diag) * 24.0) * 0.22);
         }
       } else if (uTransType == 16) {
         // 16: 3D Card Flip (180-deg perspective Y rotation)
@@ -638,17 +672,11 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
         vec2 pUv;
         float sh;
         if (t < 0.5) {
-          if (projectFullscreenPlane(vUv, angle, -0.25 * bell, pUv, sh)) {
-            outCol = evalA(pUv) * sh;
-          } else {
-            outCol = vec3(0.015, 0.015, 0.02);
-          }
+          if (projectFullscreenPlane(vUv, angle, -0.25 * bell, pUv, sh)) tapA(pUv, sh);
+          else addCol = vec3(0.015, 0.015, 0.02);
         } else {
-          if (projectFullscreenPlane(vUv, angle - 3.14159265, -0.25 * bell, pUv, sh)) {
-            outCol = evalB(pUv) * sh;
-          } else {
-            outCol = vec3(0.015, 0.015, 0.02);
-          }
+          if (projectFullscreenPlane(vUv, angle - 3.14159265, -0.25 * bell, pUv, sh)) tapB(pUv, sh);
+          else addCol = vec3(0.015, 0.015, 0.02);
         }
       } else if (uTransType == 17) {
         // 17: 3D Cube Turn (perspective 90-deg cube face transition)
@@ -658,31 +686,23 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
           float nx = vUv.x / max(0.0001, splitX);
           float scaleY = mix(1.0 - persp * 0.65, 1.0 + persp * 0.35, nx);
           float ny = (vUv.y - 0.5) / scaleY + 0.5;
-          if (ny >= 0.0 && ny <= 1.0) {
-            float shade = mix(0.55, 1.0, splitX);
-            outCol = evalA(vec2(nx, ny)) * shade;
-          } else {
-            outCol = vec3(0.012, 0.012, 0.016);
-          }
+          if (ny >= 0.0 && ny <= 1.0) tapA(vec2(nx, ny), mix(0.55, 1.0, splitX));
+          else addCol = vec3(0.012, 0.012, 0.016);
         } else {
           float nx = (vUv.x - splitX) / max(0.0001, 1.0 - splitX);
           float scaleY = mix(1.0 + persp * 0.35, 1.0 - persp * 0.65, nx);
           float ny = (vUv.y - 0.5) / scaleY + 0.5;
-          if (ny >= 0.0 && ny <= 1.0) {
-            float shade = mix(0.55, 1.0, 1.0 - splitX);
-            outCol = evalB(vec2(nx, ny)) * shade;
-          } else {
-            outCol = vec3(0.012, 0.012, 0.016);
-          }
+          if (ny >= 0.0 && ny <= 1.0) tapB(vec2(nx, ny), mix(0.55, 1.0, 1.0 - splitX));
+          else addCol = vec3(0.012, 0.012, 0.016);
         }
       } else if (uTransType == 18) {
         // 18: 3D Dolly Fly-Through (camera pushes through tilted Scene A into emerging Scene B)
         float tiltA = t * 0.22;
         vec2 uvA = rotate2d(vUv - 0.5, tiltA * 0.25) / (1.0 + t * 1.15) + 0.5;
         vec2 uvB = rotate2d(vUv - 0.5, -(1.0 - t) * 0.06) / mix(0.58, 1.0, easeOutCubic(p)) + 0.5;
-        vec3 colA = evalA(uvA) * (1.0 - smoothstep(0.35, 0.92, t));
-        vec3 colB = evalB(uvB) * smoothstep(0.18, 0.85, t);
-        outCol = colA + colB + vec3(0.35, 0.28, 0.22) * pow(bell, 2.0);
+        tapA(uvA, 1.0 - smoothstep(0.35, 0.92, t));
+        tapB(uvB, smoothstep(0.18, 0.85, t));
+        addCol = vec3(0.35, 0.28, 0.22) * pow(bell, 2.0);
       } else {
         // 19: 3D Page Turn (perspective hinged page turn with cast shadow & spine sheen)
         float edge = 1.0 - t;
@@ -690,14 +710,28 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
         float curvedEdge = edge + perspSkew;
         if (vUv.x > curvedEdge) {
           float shadow = exp(-(vUv.x - curvedEdge) * 14.0) * 0.58 * bell;
-          outCol = evalB(vUv) * (1.0 - shadow);
+          tapB(vUv, 1.0 - shadow);
         } else {
           float nx = vUv.x / max(0.001, curvedEdge);
           float archY = (vUv.y - 0.5) / (1.0 + 0.14 * bell * nx) + 0.5;
           float spineGlow = exp(-pow((1.0 - nx) * 6.0, 2.0)) * 0.28 * bell;
           float curlShade = mix(1.0, 0.78, nx * bell);
-          outCol = evalA(vec2(nx, clamp(archY, 0.001, 0.999))) * curlShade + vec3(spineGlow);
+          tapA(vec2(nx, clamp(archY, 0.001, 0.999)), curlShade);
+          addCol = vec3(spineGlow);
         }
+      }
+    }
+
+    // Evaluate all taps in a single, non-unrolled loop (dynamic bound).
+    vec3 outCol = addCol;
+    // (if/else, not ?: — HLSL evaluates both sides of a ternary.)
+    for (int i = 0; i < gTapCount; i++) {
+      float w = gTapW[i];
+      if (w <= 0.00001) continue;
+      if (gTapSrc[i] == 0) {
+        outCol += evalA(gTapUv[i]) * w;
+      } else {
+        outCol += evalB(gTapUv[i]) * w;
       }
     }
 
