@@ -841,6 +841,22 @@ export class FrameSlideEngine {
     this.canvas.removeEventListener('webglcontextlost', this.handleContextLost, false);
     this.canvas.removeEventListener('webglcontextrestored', this.handleContextRestored, false);
 
+    // Three.js compileAsync() keeps polling the shader programs until they are ready.
+    // Freeing them mid-compile makes that poll throw "Cannot read properties of
+    // undefined (reading 'isReady')" (happens in dev: React StrictMode mounts the
+    // engine twice). So release GPU resources only once the compile has settled
+    // (or after 30 s, in case it never does, e.g. context lost).
+    if (this.shadersReady) {
+      this.releaseGpuResources();
+    } else {
+      const timeout = new Promise<void>((resolve) => setTimeout(resolve, 30_000));
+      void Promise.race([this.shadersReadyPromise, timeout]).finally(() =>
+        this.releaseGpuResources()
+      );
+    }
+  }
+
+  private releaseGpuResources(): void {
     this.textureCache.dispose();
     this.textRenderer.dispose();
     this.customLutTex?.dispose();
