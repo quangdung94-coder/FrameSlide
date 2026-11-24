@@ -105,6 +105,7 @@ export async function exportMp4WebCodecs(opts: {
     opts.fps,
     opts.params
   );
+  await opts.engine.whenReady();
   const prevSize = opts.engine.getSize();
 
   const encoderConfig = await resolveH264Config(width, height, opts.fps);
@@ -231,6 +232,7 @@ export async function exportViaFfmpeg(opts: {
     opts.fps,
     opts.params
   );
+  await opts.engine.whenReady();
   const prevSize = opts.engine.getSize();
 
   let jobId: string;
