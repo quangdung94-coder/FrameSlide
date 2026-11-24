@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { buildFfmpegArgs, formatFfmpegFps } from './ffmpegExport';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import {
+  buildFfmpegArgs,
+  cancelFfmpegJob,
+  finishFfmpegJob,
+  formatFfmpegFps,
+  isFfmpegAvailable,
+  startFfmpegJob,
+  writeFfmpegFrame,
+} from './ffmpegExport';
 
 describe('FFmpeg export arguments & Rec.709 color conversion', () => {
   it('converts 23.976 fps to exact NTSC fraction 24000/1001', () => {
@@ -36,4 +46,38 @@ describe('FFmpeg export arguments & Rec.709 color conversion', () => {
     expect(args).toContain('dnxhd');
     expect(args).toContain('dnxhr_hq');
   });
+});
+
+describe('FFmpeg job robustness', () => {
+  const hasFfmpeg = isFfmpegAvailable();
+
+  it.skipIf(!hasFfmpeg)(
+    'rejects (instead of crashing the app) when FFmpeg exits while frames are still being written',
+    async () => {
+      // Output into a folder that does not exist: FFmpeg fails and closes its stdin pipe
+      const jobId = startFfmpegJob({
+        width: 64,
+        height: 64,
+        fps: 30,
+        codec: 'h264',
+        filePath: join(tmpdir(), 'frameslide-missing-dir-xyz', 'nested', 'out.mp4'),
+      });
+      const frame = new Uint8Array(64 * 64 * 4);
+      let error: unknown = null;
+      try {
+        for (let i = 0; i < 300; i++) {
+          await writeFfmpegFrame(jobId, frame);
+          // Give FFmpeg time to die between frames, like a slow GPU render would
+          await new Promise((r) => setTimeout(r, 5));
+        }
+        await finishFfmpegJob(jobId);
+      } catch (err) {
+        error = err;
+      } finally {
+        await cancelFfmpegJob(jobId);
+      }
+      expect(error).toBeInstanceOf(Error);
+    },
+    20_000
+  );
 });

@@ -8,6 +8,8 @@ interface ActiveJob {
   startedAt: number;
   stderr: string;
   closed: Promise<number | null>;
+  /** Set when FFmpeg failed to start or its stdin pipe broke (e.g. FFmpeg crashed). */
+  failure: Error | null;
 }
 
 const activeJobs = new Map<string, ActiveJob>();
@@ -102,11 +104,21 @@ export function startFfmpegJob(opts: {
     filePath: opts.filePath,
     startedAt: performance.now(),
     stderr: '',
-    closed: new Promise<number | null>((resolve, reject) => {
-      proc.on('error', reject);
+    failure: null,
+    closed: new Promise<number | null>((resolve) => {
+      proc.on('error', (err) => {
+        job.failure ??= err;
+        resolve(null);
+      });
       proc.on('close', (code) => resolve(code));
     }),
   };
+
+  // Without this listener a broken pipe (EPIPE) when FFmpeg exits early would be an
+  // uncaught exception and crash the whole Electron main process.
+  proc.stdin.on('error', (err) => {
+    job.failure ??= err;
+  });
 
   proc.stderr.on('data', (chunk: Buffer) => {
     job.stderr += chunk.toString('utf-8');
@@ -123,36 +135,56 @@ export async function writeFfmpegFrame(jobId: string, rgbaData: Uint8Array): Pro
   const job = activeJobs.get(jobId);
   if (!job) throw new Error(`Export job not found: ${jobId}`);
 
+  const stdin = job.process.stdin;
+  const throwIfFailed = () => {
+    if (job.failure || stdin.destroyed || stdin.writableEnded) {
+      throw new Error(
+        `FFmpeg đã dừng giữa chừng: ${job.failure?.message ?? 'pipe closed'}\n${job.stderr.slice(-1200)}`
+      );
+    }
+  };
+  throwIfFailed();
+
   const buffer = Buffer.from(rgbaData.buffer, rgbaData.byteOffset, rgbaData.byteLength);
-  const ok = job.process.stdin.write(buffer);
+  const ok = stdin.write(buffer);
   if (!ok) {
     await new Promise<void>((resolve, reject) => {
       const onDrain = () => {
         cleanup();
         resolve();
       };
-      const onError = (err: Error) => {
+      const onStop = () => {
         cleanup();
-        reject(err);
+        reject(
+          new Error(
+            `FFmpeg đã dừng giữa chừng: ${job.failure?.message ?? 'pipe closed'}\n${job.stderr.slice(-1200)}`
+          )
+        );
       };
       const cleanup = () => {
-        job.process.stdin.off('drain', onDrain);
-        job.process.stdin.off('error', onError);
+        stdin.off('drain', onDrain);
+        stdin.off('error', onStop);
+        stdin.off('close', onStop);
       };
-      job.process.stdin.once('drain', onDrain);
-      job.process.stdin.once('error', onError);
+      stdin.once('drain', onDrain);
+      stdin.once('error', onStop);
+      stdin.once('close', onStop);
     });
   }
+  throwIfFailed();
 }
 
 export async function finishFfmpegJob(jobId: string): Promise<FfmpegExportFinishResult> {
   const job = activeJobs.get(jobId);
   if (!job) throw new Error(`Export job not found: ${jobId}`);
 
-  job.process.stdin.end();
+  if (!job.process.stdin.destroyed) job.process.stdin.end();
   const exitCode = await job.closed;
   activeJobs.delete(jobId);
 
+  if (job.failure && exitCode === null) {
+    throw new Error(`Không chạy được FFmpeg: ${job.failure.message}`);
+  }
   if (exitCode !== 0) {
     throw new Error(`FFmpeg exited with code ${exitCode}:\n${job.stderr.slice(-1200)}`);
   }

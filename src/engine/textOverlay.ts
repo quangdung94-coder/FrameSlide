@@ -47,6 +47,10 @@ export class TextOverlayRenderer {
     if (this.canvas.width !== w || this.canvas.height !== h) {
       this.canvas.width = w;
       this.canvas.height = h;
+      // The GPU copy uses immutable storage sized at first upload. Free it so Three.js
+      // re-allocates at the new size, otherwise preview <-> export resizes fail to upload
+      // (GL_INVALID_VALUE: offset overflows texture dimensions) and the text disappears.
+      this.texture.dispose();
     }
 
     const ctx = this.ctx;

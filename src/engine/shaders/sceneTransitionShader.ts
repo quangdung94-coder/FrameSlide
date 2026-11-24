@@ -347,7 +347,7 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     vec2 f0, vec2 f1, vec2 f2, vec2 f3,
     float r0, float r1, float r2, float r3,
     float e0, float e1, float e2, float e3,
-    int layout, int motionDir, vec2 screenUv, float progress, int slideIdx
+    int layoutId, int motionDir, vec2 screenUv, float progress, int slideIdx
   ) {
     float canvasAspect = uResolution.x / max(1.0, uResolution.y);
     vec2 aa = 1.25 / max(uResolution, vec2(1.0));
@@ -367,7 +367,7 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     vec3 bg = computeBackground(t0, s0, r0, e0, screenUv, easeP, canvasAspect, parallax || is3d, filmstrip);
 
     // LAYOUT 1: DIPTYCH (2-up)
-    if (layout == 1) {
+    if (layoutId == 1) {
       float kb1 = mix(1.0, 1.06, easeP);
       float kb2 = mix(1.06, 1.0, easeP);
       float drift = (parallax || is3d) ? mix(-0.018, 0.018, easeP) * uMotionIntensity : 0.0;
@@ -388,7 +388,7 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     }
 
     // LAYOUT 2: TRIPTYCH (3-up Filmstrip / Gallery)
-    if (layout == 2) {
+    if (layoutId == 2) {
       float drift = mix(-0.028, 0.028, easeP) * (filmstrip ? 1.6 : 0.8) * uMotionIntensity;
       float frameH = polaroid ? 0.64 : 0.72;
       float frameW = 0.275;
@@ -410,7 +410,7 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     }
 
     // LAYOUT 3: MOSAIC 4-UP (2x2 Grid / 3D Photo Wall)
-    if (layout == 3) {
+    if (layoutId == 3) {
       vec2 halfExt = vec2(0.215, 0.205);
       float gx = 0.232;
       float gy = 0.228;

@@ -684,21 +684,30 @@ export default function App() {
         : data.slides;
       loadProjectData({ ...data, slides: rehydratedSlides }, filePath);
 
+      let lutRestored = false;
       if (data.customLutPath && window.frameSlideAPI) {
         const content = await window.frameSlideAPI.readTextFile(data.customLutPath);
         if (content && engineRef.current) {
-          const parsed = engineRef.current.setCustomCubeLut(content);
-          if (parsed) {
-            setCustomLut({
-              name: parsed.title,
-              filePath: data.customLutPath,
-              size: parsed.size,
-            });
+          try {
+            const parsed = engineRef.current.setCustomCubeLut(content);
+            if (parsed) {
+              setCustomLut({
+                name: parsed.title,
+                filePath: data.customLutPath,
+                size: parsed.size,
+              });
+              lutRestored = true;
+            }
+          } catch {
+            // Broken / moved .cube file: fall through and clear the LUT below
           }
         }
-      } else {
-        handleClearLut();
+        if (!lutRestored) {
+          flashNotice('Không tìm thấy file LUT của dự án, đã tắt LUT.');
+        }
       }
+      // Never keep the previous project's LUT active when this project has none (or it is missing)
+      if (!lutRestored) handleClearLut();
     } finally {
       setLoadingSlides(false);
     }
@@ -706,10 +715,18 @@ export default function App() {
 
   const handleOpenProject = async () => {
     if (!window.frameSlideAPI) return;
-    const res = await window.frameSlideAPI.openProject();
-    if (res.canceled || !res.data) return;
-    await restoreProjectState(res.data, res.filePath ?? null);
-    flashNotice('Đã mở dự án thành công.');
+    try {
+      const res = await window.frameSlideAPI.openProject();
+      if (res.canceled || !res.data) return;
+      await restoreProjectState(res.data, res.filePath ?? null);
+      flashNotice('Đã mở dự án thành công.');
+    } catch (err) {
+      setExportError(
+        `Không mở được dự án (file .frameslide bị hỏng hoặc sai định dạng): ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
   };
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {

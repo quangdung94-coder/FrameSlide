@@ -80,4 +80,35 @@ describe('timeline evaluator', () => {
       })
     ).toBe(10);
   });
+
+  it('keeps slide motion continuous when the incoming slide becomes the main slide', () => {
+    const base = {
+      fps: 30,
+      slideCount: 3,
+      totalDurationSec: 15,
+      transitionDurationSec: 0.9,
+      simulate18fps: false,
+      durationMode: 'per-slide' as const,
+      defaultSlideDurationSec: 3.5,
+      slideDurations: [3.5, 2, 4],
+    };
+    // Track the motion progress of each slide index across every frame
+    const lastProgress = new Map<number, number>();
+    const totalFrames = getTotalFrames(9.5, 30);
+    for (let f = 0; f < totalFrames; f++) {
+      const st = evaluateTimeline({ ...base, frameIndex: f });
+      const seen: [number, number][] = [[st.slideAIndex, st.motionProgressA]];
+      if (st.isInTransition) seen.push([st.slideBIndex, st.motionProgressB]);
+      for (const [idx, p] of seen) {
+        const prev = lastProgress.get(idx);
+        if (prev !== undefined) {
+          // Never jumps backwards and never leaps more than a few frames' worth
+          expect(p).toBeGreaterThanOrEqual(prev - 1e-9);
+          expect(p - prev).toBeLessThan(0.05);
+        }
+        lastProgress.set(idx, p);
+      }
+    }
+    expect(lastProgress.get(0)).toBeCloseTo(1, 1);
+  });
 });
