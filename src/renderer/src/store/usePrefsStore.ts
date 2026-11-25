@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { OutputAspectId, SupportedFps } from '@shared/types';
+import type { ExportCodec, OutputAspectId, SupportedFps } from '@shared/types';
 
 /**
  * Working preferences of this computer (Đợt 5.3b, "⚙ Cài đặt"): defaults for a new project and
@@ -14,6 +14,10 @@ export interface WorkPrefs {
   filmLookOnStart: boolean;
   /** Autosave every N seconds (0 = off). */
   autosaveSec: 0 | 30 | 60 | 120;
+  /** Đợt 6.1: folder exports go to ('' = the Videos folder) and the last format picked. */
+  exportFolder: string;
+  exportCodec: ExportCodec;
+  openFolderAfterExport: boolean;
 }
 
 export const DEFAULT_PREFS: WorkPrefs = {
@@ -22,7 +26,12 @@ export const DEFAULT_PREFS: WorkPrefs = {
   defaultSceneSec: 3.5,
   filmLookOnStart: true,
   autosaveSec: 30,
+  exportFolder: '',
+  exportCodec: 'h264',
+  openFolderAfterExport: false,
 };
+
+const CODECS: readonly ExportCodec[] = ['h264', 'dnxhr_hq', 'prores422'];
 
 const FPS: readonly SupportedFps[] = [23.976, 24, 25, 30];
 const ASPECTS: readonly OutputAspectId[] = ['16:9', '9:16', '1:1'];
@@ -41,6 +50,10 @@ export function normalizePrefs(raw: unknown): WorkPrefs {
     autosaveSec: AUTOSAVE.includes(r.autosaveSec as WorkPrefs['autosaveSec'])
       ? (r.autosaveSec as WorkPrefs['autosaveSec'])
       : DEFAULT_PREFS.autosaveSec,
+    exportFolder: typeof r.exportFolder === 'string' ? r.exportFolder.slice(0, 1000) : DEFAULT_PREFS.exportFolder,
+    exportCodec: CODECS.includes(r.exportCodec as ExportCodec) ? (r.exportCodec as ExportCodec) : DEFAULT_PREFS.exportCodec,
+    openFolderAfterExport:
+      typeof r.openFolderAfterExport === 'boolean' ? r.openFolderAfterExport : DEFAULT_PREFS.openFolderAfterExport,
   };
 }
 
@@ -73,18 +86,13 @@ export const usePrefsStore = create<PrefsState>()(
         const { setPrefs: _a, resetPrefs: _b, ...current } = get();
         set(normalizePrefs({ ...current, ...patch }));
       },
-      resetPrefs: () => set({ ...DEFAULT_PREFS }),
+      // Export folder / format are not "defaults for a new project": keep them.
+      resetPrefs: () => set((s) => ({ ...DEFAULT_PREFS, exportFolder: s.exportFolder, exportCodec: s.exportCodec, openFolderAfterExport: s.openFolderAfterExport })),
     }),
     {
       name: 'frameslide.prefs.v1',
       storage: safeStorage,
-      partialize: ({ defaultFps, defaultAspect, defaultSceneSec, filmLookOnStart, autosaveSec }) => ({
-        defaultFps,
-        defaultAspect,
-        defaultSceneSec,
-        filmLookOnStart,
-        autosaveSec,
-      }),
+      partialize: ({ setPrefs: _a, resetPrefs: _b, ...prefs }) => prefs,
       merge: (persisted, current) => ({ ...current, ...normalizePrefs(persisted) }),
     }
   )

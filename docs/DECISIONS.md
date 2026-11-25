@@ -81,3 +81,7 @@ File này lưu lại các quyết định quan trọng về sản phẩm và k�
 - **Quyết định:** Nền "Ảnh mờ" không làm mờ mạnh trong shader chính. Mỗi ảnh (theo kiểu mờ + độ mờ) được vẽ một lần ra canvas nhỏ 320px bằng bộ lọc blur của canvas (mờ phóng / chuyển động = cộng nhiều lớp vẽ lệch, kính mờ = thêm hạt với seed cố định), giữ trong bộ nhớ đệm LRU 16 bản, rồi shader chỉ đọc bản này 1 lần (`uBgTexA/B`). Độ tối, phóng nền và tối viền tính trong shader bằng uniform. Khi bản mờ chưa có (ảnh đang tải) thì dùng lại phép mờ 3×3 cũ. Mặc định (độ tối 80, phóng 118%) giữ đúng độ sáng và khung nền như trước.
 - **Lý do:** Mờ mạnh trong shader cần hàng chục lần đọc ảnh mỗi điểm ảnh, vừa nặng vừa làm shader D3D trên Windows nở to (bài học D22). Bản mờ không có thành phần ngẫu nhiên theo frame nên xem trước và xuất khớp (D06).
 
+
+### D30. Xuất video không hỏi chỗ lưu sau khi bấm (Đợt 6.1)
+- **Quyết định:** Hộp Xuất video hiện sẵn thư mục lưu (mặc định thư mục Videos, nhớ thư mục chọn lần trước trên máy) và tên file gợi ý theo tên dự án. Bấm "Xuất" là render thẳng vào đó, không mở hộp Save As nữa. Trùng tên thì tự thêm `_2`, `_3`, không bao giờ ghi đè. Định dạng và "Mở thư mục khi xong" cũng nhớ trên máy (localStorage), không vào file dự án.
+- **Lý do:** Anh Dũng muốn chọn thư mục trước khi bấm xuất; hộp Save As hiện sau khi bấm dễ bị bỏ quên khi xuất nhiều lần.

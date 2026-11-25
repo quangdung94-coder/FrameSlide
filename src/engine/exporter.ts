@@ -330,6 +330,8 @@ export async function exportBatchClips(opts: {
   fps: number;
   params: RenderParams;
   outputDir: string;
+  /** Start of each clip's file name (project name); default "FrameSlide". */
+  namePrefix?: string;
   onProgress?: (info: ExportProgressInfo) => void;
   signal?: AbortSignal;
 }): Promise<ExportSummary> {
@@ -364,7 +366,11 @@ export async function exportBatchClips(opts: {
       grandDurationSec += effectiveDurationSec;
 
       const idxLabel = String(c + 1).padStart(2, '0');
-      const filePath = `${opts.outputDir}${sep}FrameSlide_BRoll_${idxLabel}_1080p_${opts.fps}fps.${ext}`;
+      const fileName = `${opts.namePrefix ?? 'FrameSlide'}_BRoll_${idxLabel}_1080p_${opts.fps}fps.${ext}`;
+      // Never overwrite a clip of an earlier batch: "_2", "_3"… (Đợt 6.1).
+      const filePath = opts.api.freeExportPath
+        ? await opts.api.freeExportPath(opts.outputDir, fileName)
+        : `${opts.outputDir}${sep}${fileName}`;
 
       if (opts.codec === 'h264') {
         const { data, summary } = await exportMp4WebCodecs({

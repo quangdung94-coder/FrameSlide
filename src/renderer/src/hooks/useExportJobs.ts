@@ -1,4 +1,4 @@
-import { useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { FrameSlideEngine } from '@engine/FrameSlideEngine';
 import {
   ExportCanceledError,
@@ -18,6 +18,8 @@ import {
 } from '@engine/frameRange';
 import { computeProjectDurationSec, getTotalFrames, projectDurationInput, resolveSlideDurations } from '@engine/timeline';
 import { useAppStore } from '../store/useAppStore';
+import { usePrefsStore } from '../store/usePrefsStore';
+import { codecExtension, defaultExportStem, pathStem, sanitizeFileStem } from '@shared/exportPath';
 
 /** Frames the export covers for the chosen mode (null = whole clip) and the file-name suffix. */
 export function currentExportRange(mode: ExportRangeMode): { range: FrameRange | null; suffix: string } {
@@ -53,7 +55,18 @@ export function useExportJobs(engineRef: RefObject<FrameSlideEngine | null>) {
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [batchSlidesPerClip, setBatchSlidesPerClip] = useState(4);
-  const [batchCodec, setBatchCodec] = useState<ExportCodec>('h264');
+  /** Folder the dialog shows: the chosen one, else the Videos folder (Đợt 6.1). */
+  const exportFolderPref = usePrefsStore((p) => p.exportFolder);
+  const [defaultFolder, setDefaultFolder] = useState('');
+  useEffect(() => {
+    window.frameSlideAPI
+      ?.getDefaultExportFolder()
+      .then(setDefaultFolder)
+      .catch(() => {});
+  }, []);
+  const outputFolder = exportFolderPref || defaultFolder;
+  /** File name typed by the user (no extension); '' = the suggested name. */
+  const [fileStem, setFileStem] = useState('');
   /** Whole clip, the In/Out part, or the selected scene (single-clip exports only). */
   const [rangeMode, setRangeMode] = useState<ExportRangeMode>('all');
 
@@ -83,72 +96,99 @@ export function useExportJobs(engineRef: RefObject<FrameSlideEngine | null>) {
     }
   };
 
-  const exportMp4 = async () => {
-    const { scenes, fps, renderParams } = useAppStore.getState();
-    if (scenes.length === 0) return;
-    const { range, suffix } = currentExportRange(rangeMode);
-    await runJob(async (engine, signal) => {
-      const { data, summary: done } = await exportMp4WebCodecs({
-        engine,
-        fps,
-        params: renderParams,
-        range,
-        signal,
-        onProgress: setProgress,
-      });
-      const defaultName = `FrameSlide_1080p_${fps}fps${suffix}.mp4`;
-      if (!window.frameSlideAPI) {
-        downloadInBrowser(data, defaultName);
-        return done;
-      }
-      const saved = await window.frameSlideAPI.saveBinaryFile(data, defaultName);
-      return saved.canceled ? null : { ...done, filePath: saved.filePath };
-    });
+  /** The name the clip gets when the user typed none (project name + fps + part). */
+  const suggestedStem = (codec: ExportCodec) => {
+    const { fps, projectFilePath } = useAppStore.getState();
+    return defaultExportStem({ projectFilePath, codec, fps, rangeSuffix: currentExportRange(rangeMode).suffix });
   };
 
-  const exportFfmpeg = async (codec: Exclude<ExportCodec, 'h264'>) => {
+  const pickFolder = async () => {
+    const api = window.frameSlideAPI;
+    if (!api) return;
+    const res = await api.pickOutputFolder(outputFolder || undefined);
+    if (!res.canceled && res.folderPath) usePrefsStore.getState().setPrefs({ exportFolder: res.folderPath });
+  };
+
+  const revealWhenDone = (filePath: string | undefined) => {
+    if (filePath && usePrefsStore.getState().openFolderAfterExport) {
+      void window.frameSlideAPI?.revealInFolder(filePath);
+    }
+  };
+
+  /** One clip in the chosen format, straight into the chosen folder (no save dialog). */
+  const exportSingle = async () => {
     const api = window.frameSlideAPI;
     const { scenes, fps, renderParams } = useAppStore.getState();
-    if (!api || scenes.length === 0) return;
-    const codecName = codec === 'prores422' ? 'ProRes422' : 'DNxHR_HQ';
-    const { range, suffix } = currentExportRange(rangeMode);
-    await runJob((engine, signal) =>
-      exportViaFfmpeg({
-        engine,
-        api,
-        codec,
-        fps,
-        params: renderParams,
-        range,
-        defaultName: `FrameSlide_1080p_${fps}fps_${codecName}${suffix}.mov`,
-        signal,
-        onProgress: setProgress,
-      })
-    );
+    if (scenes.length === 0) return;
+    const codec = usePrefsStore.getState().exportCodec;
+    const { range } = currentExportRange(rangeMode);
+    const fileName = `${sanitizeFileStem(fileStem) ?? suggestedStem(codec)}.${codecExtension(codec)}`;
+    if (!api) {
+      if (codec !== 'h264') return;
+      await runJob(async (engine, signal) => {
+        const { data, summary: done } = await exportMp4WebCodecs({ engine, fps, params: renderParams, range, signal, onProgress: setProgress });
+        downloadInBrowser(data, fileName);
+        return done;
+      });
+      return;
+    }
+    if (!outputFolder) {
+      setError('Chưa chọn thư mục lưu. Bấm "Đổi thư mục…" để chọn.');
+      return;
+    }
+    await runJob(async (engine, signal) => {
+      const filePath = await api.freeExportPath(outputFolder, fileName);
+      let result: ExportSummary | null;
+      if (codec === 'h264') {
+        const { data, summary: done } = await exportMp4WebCodecs({ engine, fps, params: renderParams, range, signal, onProgress: setProgress });
+        await api.saveBinaryToPath(data, filePath);
+        result = { ...done, filePath };
+      } else {
+        result = await exportViaFfmpeg({
+          engine,
+          api,
+          codec,
+          fps,
+          params: renderParams,
+          range,
+          defaultName: fileName,
+          directFilePath: filePath,
+          signal,
+          onProgress: setProgress,
+        });
+      }
+      revealWhenDone(result?.filePath);
+      return result;
+    });
   };
 
   const exportBatch = async () => {
     const api = window.frameSlideAPI;
-    const { slides, scenes, fps, renderParams } = useAppStore.getState();
+    const { slides, scenes, fps, renderParams, projectFilePath } = useAppStore.getState();
     if (!engineRef.current || !api || slides.length === 0) return;
-    const folderRes = await api.pickOutputFolder();
-    if (folderRes.canceled || !folderRes.folderPath) return;
-    const outputDir = folderRes.folderPath;
-    await runJob((engine, signal) =>
-      exportBatchClips({
+    if (!outputFolder) {
+      setError('Chưa chọn thư mục lưu. Bấm "Đổi thư mục…" để chọn.');
+      return;
+    }
+    const outputDir = outputFolder;
+    await runJob(async (engine, signal) => {
+      const result = await exportBatchClips({
         engine,
         api,
         allSlides: slides,
         allScenes: scenes,
         slidesPerClip: batchSlidesPerClip,
-        codec: batchCodec,
+        codec: usePrefsStore.getState().exportCodec,
         fps,
         params: renderParams,
         outputDir,
+        namePrefix: pathStem(projectFilePath) ?? undefined,
         signal,
         onProgress: setProgress,
-      })
-    );
+      });
+      if (usePrefsStore.getState().openFolderAfterExport) void api.openFolder(outputDir);
+      return result;
+    });
   };
 
   return {
@@ -160,13 +200,15 @@ export function useExportJobs(engineRef: RefObject<FrameSlideEngine | null>) {
     setError,
     batchSlidesPerClip,
     setBatchSlidesPerClip,
-    batchCodec,
-    setBatchCodec,
+    outputFolder,
+    pickFolder,
+    fileStem,
+    setFileStem,
+    suggestedStem,
     rangeMode,
     setRangeMode,
     cancel: () => abortRef.current?.abort(),
-    exportMp4,
-    exportFfmpeg,
+    exportSingle,
     exportBatch,
   };
 }
