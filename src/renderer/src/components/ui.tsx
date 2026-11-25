@@ -182,3 +182,138 @@ export function SliderRow({ label, value, min, max, step, disabled, onChange }: 
     </div>
   );
 }
+
+const FIELD_CLASS =
+  'h-8 rounded border border-zinc-700 bg-zinc-900 px-2 text-zinc-100 disabled:opacity-40';
+
+export interface SelectOption<T extends string | number> {
+  value: T;
+  label: ReactNode;
+}
+
+export interface SelectFieldProps<T extends string | number> {
+  label: ReactNode;
+  value: T;
+  options: readonly SelectOption<T>[];
+  disabled?: boolean;
+  onChange: (v: T) => void;
+}
+
+/** Label on top + dropdown. Numeric option values come back as numbers. */
+export function SelectField<T extends string | number>({
+  label,
+  value,
+  options,
+  disabled,
+  onChange,
+}: SelectFieldProps<T>) {
+  return (
+    <label className="flex flex-col gap-1 text-xs text-zinc-400">
+      {label}
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(e) => {
+          const picked = options.find((o) => String(o.value) === e.target.value);
+          if (picked) onChange(picked.value);
+        }}
+        className={FIELD_CLASS}
+      >
+        {options.map((o) => (
+          <option key={String(o.value)} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+export interface TextFieldProps {
+  label: ReactNode;
+  value: string;
+  disabled?: boolean;
+  mono?: boolean;
+  placeholder?: string;
+  onChange: (v: string) => void;
+}
+
+/** Label on top + single-line text box. */
+export function TextField({ label, value, disabled, mono, placeholder, onChange }: TextFieldProps) {
+  return (
+    <label className="flex flex-col gap-1 text-xs text-zinc-400">
+      {label}
+      <input
+        type="text"
+        value={value}
+        disabled={disabled}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className={`${FIELD_CLASS} ${mono ? 'font-mono' : ''}`}
+      />
+    </label>
+  );
+}
+
+export interface CheckFieldProps {
+  label: ReactNode;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (v: boolean) => void;
+}
+
+/** Checkbox with its label to the right. */
+export function CheckField({ label, checked, disabled, onChange }: CheckFieldProps) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-300">
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        className="accent-amber-400"
+      />
+      {label}
+    </label>
+  );
+}
+
+export interface ModalProps {
+  title: ReactNode;
+  onClose: () => void;
+  /** Tailwind max-width class of the dialog box. */
+  widthClass?: string;
+  closeTitle?: string;
+  ariaLabel?: string;
+  children: ReactNode;
+}
+
+/** Dimmed full-screen backdrop + centred dialog with a title bar and ✕ button. Click outside closes. */
+export function Modal({ title, onClose, widthClass = 'max-w-md', closeTitle, ariaLabel, children }: ModalProps) {
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs"
+    >
+      <div
+        role="dialog"
+        aria-label={ariaLabel}
+        onClick={(e) => e.stopPropagation()}
+        className={`flex max-h-[90vh] w-full ${widthClass} flex-col rounded-lg border border-zinc-700 bg-[#18181f] text-xs shadow-2xl`}
+      >
+        <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-2.5">
+          <span className="text-sm font-semibold text-amber-400">{title}</span>
+          <button
+            type="button"
+            onClick={onClose}
+            title={closeTitle ?? 'Đóng (Esc)'}
+            className="h-8 w-8 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="flex-1 space-y-3 overflow-y-auto p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
