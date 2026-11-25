@@ -36,7 +36,7 @@ export function isFfmpegAvailable(): boolean {
 /** Same check without blocking app start (the sync one can take seconds on a cold disk). */
 export function checkFfmpegAvailable(): Promise<boolean> {
   return new Promise((resolve) => {
-    execFile(resolveFfmpegPath(), ['-version'], { windowsHide: true, timeout: 5000 }, (err) => resolve(!err));
+    execFile(resolveFfmpegPath(), ['-version'], { windowsHide: true, timeout: 20000 }, (err) => resolve(!err));
   });
 }
 

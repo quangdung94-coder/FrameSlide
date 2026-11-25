@@ -61,7 +61,12 @@ export async function runSmokeTest(
       )) as number;
       result.rendererLoaded = children > 0;
     }
-    result.samplePhotos = (await checks.samples()).length;
+    // Each check on its own, so one failure does not hide the others.
+    try {
+      result.samplePhotos = (await checks.samples()).length;
+    } catch (err) {
+      result.error = `samples: ${err instanceof Error ? err.message : String(err)}`;
+    }
     result.ffmpeg = await checks.ffmpeg;
     result.ok = result.rendererLoaded && result.samplePhotos > 0 && result.ffmpeg;
   } catch (err) {

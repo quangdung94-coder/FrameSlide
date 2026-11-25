@@ -176,8 +176,17 @@ app.whenReady().then(() => {
     ffmpegAvailable: await ffmpegReady,
   }));
 
+  // One run at a time: two writers of the same sample .jpg fail on Windows ("Invalid argument").
+  let samplesInFlight: Promise<SlideAsset[]> | null = null;
+  const loadSamples = (): Promise<SlideAsset[]> => {
+    samplesInFlight ??= ensureSamplePhotos(cacheDir).finally(() => {
+      samplesInFlight = null;
+    });
+    return samplesInFlight;
+  };
+
   ipcMain.handle('media:loadSamples', async (): Promise<SlideAsset[]> => {
-    return ensureSamplePhotos(cacheDir);
+    return loadSamples();
   });
 
   ipcMain.handle('media:pickImages', async (): Promise<SlideAsset[]> => {
@@ -432,7 +441,7 @@ app.whenReady().then(() => {
   const smokeOut = smokeTestOutput();
   if (smokeOut) {
     void runSmokeTest(mainWindow, smokeOut, {
-      samples: () => ensureSamplePhotos(cacheDir),
+      samples: loadSamples,
       ffmpeg: ffmpegReady,
       ffmpegPath: resolveFfmpegPath(),
     });
