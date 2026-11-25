@@ -118,7 +118,7 @@
 
 ### Đợt 5.1: Phát và thời gian
 - [x] 5.1a **Space phát ngay:** sau khi kéo playhead, Space vẫn phát/dừng. (Nguyên nhân: thanh tua là `<input type="range">`, phím tắt bỏ qua mọi ô INPUT/SELECT. Nay chỉ ô gõ chữ thật mới chặn phím tắt; thanh trượt, ô chọn, nút bấm vẫn cho Space và F; logic trong `hooks/keyTarget.ts`. Thả chuột khỏi thanh tua thì trả bàn phím về app.)
-- [ ] 5.1b **J/K/L, tốc độ, lặp:** J phát lùi, K dừng, L phát tới, bấm lại để tăng 2× → 4×; ô tốc độ 0.25×–4×; nút lặp. Chỉ ảnh hưởng xem trước.
+- [x] 5.1b **J/K/L, tốc độ, lặp:** J phát lùi, K dừng, L phát tới, bấm lại để tăng 2× → 4×; giữ K + J/L đi từng frame; ô tốc độ 0.25×–4×; nút lặp (bật sẵn như cũ; tắt thì phát hết clip sẽ dừng). Chỉ ảnh hưởng xem trước. (Logic thuần `engine/playback.ts`; `playbackRate`/`playDirection`/`loopPlayback` trong store, không lưu vào file dự án; file xuất vẫn render từng frame theo thứ tự.)
 - [ ] 5.1c **Thanh phát và thời gian:** nút ▶ tròn to, nút về đầu/cuối, thời gian một dòng (phút:giây:frame), scene đang phát, thước chia giây.
 
 ### Đợt 5.2: Làm nhanh nhiều scene (chờ duyệt)

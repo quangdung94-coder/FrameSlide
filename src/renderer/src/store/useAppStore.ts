@@ -11,6 +11,7 @@ import {
 } from '@engine/sceneBuilder';
 import { mapById, omitKeys, withOptional } from '@engine/objectUtils';
 import { clamp } from '@engine/num';
+import { MAX_PLAYBACK_RATE, type PlayDirection } from '@engine/playback';
 import { DEFAULT_STAGGER, normalizeStagger } from '@engine/stagger';
 import { clampTextOffset } from '@engine/textAnimation';
 import {
@@ -85,6 +86,10 @@ interface AppState {
   compareMode: CompareMode;
   frameIndex: number;
   isPlaying: boolean;
+  /** Preview transport (Đợt 5.1b). Not saved in the project file and never used by export. */
+  playbackRate: number;
+  playDirection: PlayDirection;
+  loopPlayback: boolean;
   slides: SlideAsset[];
   scenes: SceneItem[];
   activeSceneId: string | null;
@@ -105,6 +110,10 @@ interface AppState {
   setCompareMode: (mode: CompareMode) => void;
   setFrameIndex: (frame: number) => void;
   setIsPlaying: (playing: boolean) => void;
+  setPlaybackRate: (rate: number) => void;
+  setLoopPlayback: (loop: boolean) => void;
+  /** Set playing state, direction and speed together (Space, J/K/L). */
+  setTransport: (transport: { isPlaying: boolean; direction: PlayDirection; rate: number }) => void;
 
   // Photo Bin actions
   setSlides: (slides: SlideAsset[], pushHistory?: boolean) => void;
@@ -288,6 +297,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   compareMode: 'normal',
   frameIndex: 0,
   isPlaying: false,
+  playbackRate: 1,
+  playDirection: 1,
+  loopPlayback: true,
   slides: [],
   scenes: [],
   activeSceneId: null,
@@ -307,6 +319,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   setCompareMode: (compareMode) => set({ compareMode }),
   setFrameIndex: (frameIndex) => set({ frameIndex }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
+  setPlaybackRate: (rate) => set({ playbackRate: Math.min(MAX_PLAYBACK_RATE, Math.max(0.25, rate)) }),
+  setLoopPlayback: (loopPlayback) => set({ loopPlayback }),
+  setTransport: ({ isPlaying, direction, rate }) =>
+    set({
+      isPlaying,
+      playDirection: direction,
+      playbackRate: Math.min(MAX_PLAYBACK_RATE, Math.max(0.25, rate)),
+    }),
 
   setSlides: (slides, recordHistory = false) =>
     set((s) => {

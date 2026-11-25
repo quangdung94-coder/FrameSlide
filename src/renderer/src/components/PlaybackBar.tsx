@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react';
 import { resolveSlideDurations } from '@engine/timeline';
 import { useAppStore } from '../store/useAppStore';
+import { formatPlaybackRate, PLAYBACK_RATES } from '@engine/playback';
 import type { CompareMode } from '@shared/types';
 
 interface PlaybackBarProps {
@@ -35,7 +36,14 @@ export const PlaybackBar = memo(function PlaybackBar({
   const renderParams = useAppStore((s) => s.renderParams);
   const compareMode = useAppStore((s) => s.compareMode);
 
+  const playbackRate = useAppStore((s) => s.playbackRate);
+  const playDirection = useAppStore((s) => s.playDirection);
+  const loopPlayback = useAppStore((s) => s.loopPlayback);
+
   const setIsPlaying = useAppStore((s) => s.setIsPlaying);
+  const setTransport = useAppStore((s) => s.setTransport);
+  const setPlaybackRate = useAppStore((s) => s.setPlaybackRate);
+  const setLoopPlayback = useAppStore((s) => s.setLoopPlayback);
   const setFrameIndex = useAppStore((s) => s.setFrameIndex);
   const setCompareMode = useAppStore((s) => s.setCompareMode);
 
@@ -80,11 +88,41 @@ export const PlaybackBar = memo(function PlaybackBar({
     <div className="flex items-center gap-2">
       <button
         type="button"
-        onClick={() => setIsPlaying(!isPlaying)}
+        onClick={() =>
+          isPlaying ? setIsPlaying(false) : setTransport({ isPlaying: true, direction: 1, rate: playbackRate })
+        }
         disabled={disabled}
         className="w-18 rounded bg-amber-500 px-2.5 py-1 text-xs font-semibold text-zinc-950 hover:bg-amber-400 disabled:opacity-40"
       >
         {isPlaying ? 'Tạm dừng' : 'Phát'}
+      </button>
+
+      <select
+        value={String(playbackRate)}
+        disabled={disabled}
+        onChange={(e) => setPlaybackRate(Number(e.target.value))}
+        title="Tốc độ xem trước (J / L để phát lùi / tới nhanh hơn). Không ảnh hưởng file xuất."
+        aria-label="Tốc độ xem trước"
+        className="rounded border border-zinc-800 bg-zinc-900 px-1 py-1 text-xs text-zinc-300 disabled:opacity-30"
+      >
+        {PLAYBACK_RATES.map((r) => (
+          <option key={r} value={String(r)}>
+            {playDirection === -1 && isPlaying ? '◀ ' : ''}
+            {formatPlaybackRate(r)}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setLoopPlayback(!loopPlayback)}
+        title={loopPlayback ? 'Đang lặp lại khi hết clip (bấm để tắt)' : 'Phát hết clip thì dừng (bấm để lặp lại)'}
+        aria-pressed={loopPlayback}
+        className={`rounded border px-1.5 py-1 text-xs disabled:opacity-30 ${
+          loopPlayback ? 'border-amber-400 text-amber-300' : 'border-zinc-800 bg-zinc-900 text-zinc-400'
+        }`}
+      >
+        ↻
       </button>
 
       <div className="flex items-center gap-0.5">
