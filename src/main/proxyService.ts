@@ -5,7 +5,12 @@ import { basename, extname, join, relative, resolve } from 'path';
 import sharp from 'sharp';
 import type { ImageOrientation, SlideAsset } from '@shared/types';
 
-const PROXY_MAX_EDGE = 2880;
+let proxyMaxEdge = 2880;
+
+/** Long edge of new working proxies (setting "Cỡ ảnh làm việc"). Already-cached photos keep theirs. */
+export function setProxyMaxEdge(px: number): void {
+  if (Number.isFinite(px) && px >= 1280 && px <= 4096) proxyMaxEdge = Math.round(px);
+}
 const THUMB_WIDTH = 320;
 const SUPPORTED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tif', '.tiff']);
 
@@ -143,8 +148,8 @@ export async function createImageProxy(
   const proxyInfo = await base
     .clone()
     .resize({
-      width: PROXY_MAX_EDGE,
-      height: PROXY_MAX_EDGE,
+      width: proxyMaxEdge,
+      height: proxyMaxEdge,
       fit: 'inside',
       withoutEnlargement: true,
     })

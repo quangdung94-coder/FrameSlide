@@ -3,6 +3,7 @@ import type { FrameSlideEngine } from '@engine/FrameSlideEngine';
 import type { ProjectFileData, SlideAsset } from '@shared/types';
 import { createBrowserFallbackSamples } from '../sampleImages';
 import { useAppStore } from '../store/useAppStore';
+import { usePrefsStore } from '../store/usePrefsStore';
 
 interface Options {
   engineRef: { current: FrameSlideEngine | null };
@@ -35,16 +36,18 @@ export function useProjectFiles({ engineRef, isExporting, onNotice, onError }: O
       .catch(() => {});
   }, []);
 
+  const autosaveSec = usePrefsStore((s) => s.autosaveSec);
+
   useEffect(() => {
-    if (!window.frameSlideAPI) return;
+    if (!window.frameSlideAPI || autosaveSec <= 0) return;
     const timer = setInterval(() => {
       const state = useAppStore.getState();
       if (state.slides.length > 0) {
         void window.frameSlideAPI?.writeAutosave(state.toProjectFileData());
       }
-    }, 30_000);
+    }, autosaveSec * 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [autosaveSec]);
 
   useEffect(() => {
     let active = true;

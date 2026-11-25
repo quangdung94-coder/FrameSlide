@@ -13,6 +13,8 @@ import { PlaybackBar } from './components/PlaybackBar';
 import { SceneTrack } from './components/SceneTrack';
 import { ExportDialog } from './components/ExportDialog';
 import { ShortcutsModal } from './components/ShortcutsModal';
+import { SettingsDialog } from './components/SettingsDialog';
+import { usePrefsStore } from './store/usePrefsStore';
 import { StatusFooter } from './components/StatusFooter';
 import { TopToolbar } from './components/TopToolbar';
 import { TextDragOverlay } from './components/TextDragOverlay';
@@ -49,6 +51,18 @@ export default function App() {
   const [textDragMode, setTextDragMode] = useState(false);
   const [isFullscreenPreview, setIsFullscreenPreview] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // ⚙ Cài đặt: defaults for a new project, applied once when the app opens (empty project only).
+  useEffect(() => {
+    const p = usePrefsStore.getState();
+    useAppStore.getState().applyStartDefaults({
+      fps: p.defaultFps,
+      aspect: p.defaultAspect,
+      sceneSec: p.defaultSceneSec,
+      filmLookOn: p.filmLookOnStart,
+    });
+  }, []);
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
 
   const exportJobs = useExportJobs(engineRef);
@@ -177,6 +191,7 @@ export default function App() {
     onEscape: (inInput) => {
       setIsFullscreenPreview(false);
       setShowShortcutsModal(false);
+      setShowSettings(false);
       setShowExportDialog(false);
       setFocalPickMode(false);
       setTextDragMode(false);
@@ -253,6 +268,7 @@ export default function App() {
         onPickFolder={handlePickFolder}
         onLoadSamples={handleLoadSamples}
         onShowShortcuts={() => setShowShortcutsModal(true)}
+        onShowSettings={() => setShowSettings(true)}
         onShowExport={() => setShowExportDialog(true)}
       />
 
@@ -514,6 +530,7 @@ export default function App() {
       )}
 
       {showShortcutsModal && <ShortcutsModal onClose={() => setShowShortcutsModal(false)} />}
+      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
 
       <StatusFooter appInfo={appInfo} previewSize={resolvedSize} liveFps={liveFps} notice={statusNotice} />
     </div>

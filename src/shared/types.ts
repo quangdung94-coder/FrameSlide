@@ -429,8 +429,36 @@ export interface AppInfo {
   ffmpegAvailable: boolean;
 }
 
+/** App settings saved on this computer (Đợt 5.3b). */
+export interface AppSettings {
+  /** Cache folder chosen by the user (null = default inside the app's data folder). Used from the next start. */
+  cacheDir: string | null;
+  /** Long edge of the working proxy made for each imported photo. */
+  proxyMaxEdge: 2560 | 2880 | 3200;
+}
+
+export interface CacheStats {
+  dir: string;
+  bytes: number;
+  files: number;
+}
+
+export interface AppSettingsInfo {
+  settings: AppSettings;
+  /** Cache folder in use right now. */
+  activeCacheDir: string;
+  defaultCacheDir: string;
+}
+
 export interface FrameSlideAPI {
   getAppInfo: () => Promise<AppInfo>;
+  getAppSettings: () => Promise<AppSettingsInfo>;
+  setAppSettings: (patch: Partial<AppSettings>) => Promise<AppSettingsInfo>;
+  getCacheStats: () => Promise<CacheStats>;
+  /** Delete cached proxies except those of `keepUrls` (media URLs the open project uses). */
+  clearCache: (keepUrls: string[]) => Promise<number>;
+  openCacheFolder: () => Promise<void>;
+  pickCacheFolder: () => Promise<string | null>;
   pickImages: () => Promise<SlideAsset[]>;
   pickFolderImages: () => Promise<SlideAsset[]>;
   importPaths: (paths: string[]) => Promise<SlideAsset[]>;
