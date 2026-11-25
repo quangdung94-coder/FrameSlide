@@ -11,6 +11,7 @@ import type {
 import { useAppStore } from '../../store/useAppStore';
 import { BackgroundPanel } from '../BackgroundPanel';
 import { Group, SelectField, SliderRow, type SelectOption } from '../ui';
+import { TemplateThumb } from './PresetThumb';
 
 const DURATION_OPTIONS: SelectOption<number>[] = [10, 15, 20, 30].map((d) => ({ value: d, label: `${d} giây` }));
 const HANDLES_OPTIONS: SelectOption<number>[] = [0, 0.5, 1.0].map((h) => ({
@@ -66,11 +67,12 @@ export function TemplateTab({ disabled, onNotice }: Props) {
   const deleteUserPreset = useAppStore((s) => s.deleteUserPreset);
   const applyUserPreset = useAppStore((s) => s.applyUserPreset);
   const [presetNameDraft, setPresetNameDraft] = useState('');
+  const [hoveredTpl, setHoveredTpl] = useState<string | null>(null);
 
   return (
     <>
       <Group id="tpl-templates" title="7 Motion Templates (2D / 2.5D / 3D)" accent>
-        <div className="space-y-1.5">
+        <div className="grid grid-cols-2 gap-1.5" onMouseLeave={() => setHoveredTpl(null)}>
           {MOTION_TEMPLATE_PRESETS.map((tpl) => {
             const active = renderParams.motionTemplate === tpl.id;
             const is3d = tpl.id === 'gallery-3d' || tpl.id === 'wall-3d';
@@ -78,34 +80,37 @@ export function TemplateTab({ disabled, onNotice }: Props) {
               <button
                 key={tpl.id}
                 disabled={disabled}
+                title={`${tpl.name}: ${tpl.desc}`}
+                onMouseEnter={() => setHoveredTpl(tpl.id)}
+                onFocus={() => setHoveredTpl(tpl.id)}
+                onBlur={() => setHoveredTpl(null)}
                 onClick={() => {
                   applyMotionTemplate(tpl.id, true);
                   onNotice(`Đã áp template: ${tpl.name}`);
                 }}
-                className={`w-full rounded border p-2 text-left transition ${
+                className={`rounded border p-1 text-left transition ${
                   active
                     ? 'border-amber-400 bg-amber-500/10'
                     : 'border-zinc-800 bg-zinc-900/80 hover:border-zinc-600'
                 }`}
               >
-                <div className="flex items-center justify-between gap-1">
-                  <span className="font-medium text-zinc-100">{tpl.name}</span>
-                  <div className="flex items-center gap-1">
+                <TemplateThumb layouts={tpl.layoutPattern} hovered={hoveredTpl === tpl.id} />
+                <div className="mt-1 flex items-center justify-between gap-1 px-0.5">
+                  <span className="truncate text-xs font-medium text-zinc-100">{tpl.name}</span>
+                  <span className="flex shrink-0 items-center gap-1">
                     {is3d && (
-                      <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-xs font-bold text-amber-300">
-                        3D
-                      </span>
+                      <span className="rounded bg-amber-500/20 px-1 text-[10px] font-bold text-amber-300">3D</span>
                     )}
-                    <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-400">
+                    <span className="rounded bg-zinc-800 px-1 text-[10px] text-zinc-400">
                       {tpl.heavyLevel === 'light' ? 'Nhẹ' : 'Vừa'}
                     </span>
-                  </div>
+                  </span>
                 </div>
-                <div className="mt-0.5 text-xs text-zinc-400">{tpl.desc}</div>
               </button>
             );
           })}
         </div>
+        <p className="text-xs text-zinc-500">Rê chuột lên ô để xem bố cục chạy thử; bấm để áp cho cả dự án.</p>
       </Group>
 
       <Group id="tpl-motion" title="Chuyển động, Nền, Viền & Tỷ lệ">

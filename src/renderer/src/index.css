@@ -24,3 +24,31 @@
 .slider-thick:disabled::-webkit-slider-thumb {
   background: #71717a;
 }
+
+/* U9: hover previews of Template & Look tiles (animations run only while hovered). */
+@keyframes fs-kenburns {
+  from { transform: scale(1.02) translate(0, 0); }
+  to { transform: scale(1.14) translate(-3%, -2%); }
+}
+@keyframes fs-grain {
+  0% { background-position: 0 0; }
+  25% { background-position: -17px 9px; }
+  50% { background-position: 11px -13px; }
+  75% { background-position: -7px -5px; }
+  100% { background-position: 0 0; }
+}
+@keyframes fs-flicker {
+  0%, 100% { opacity: 0; }
+  30% { opacity: 0.08; }
+  55% { opacity: 0.02; }
+  80% { opacity: 0.1; }
+}
+@keyframes fs-weave {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(0.6px, -0.8px); }
+  66% { transform: translate(-0.5px, 0.6px); }
+}
+.fs-kenburns { animation: fs-kenburns 2.4s ease-out forwards; }
+.fs-grain { animation: fs-grain 0.4s steps(4) infinite; }
+.fs-flicker { animation: fs-flicker 0.5s steps(3) infinite; }
+.fs-weave { animation: fs-weave 0.33s steps(3) infinite; }
