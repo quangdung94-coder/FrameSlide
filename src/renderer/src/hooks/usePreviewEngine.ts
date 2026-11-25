@@ -4,6 +4,7 @@ import { resolvePreviewResolution } from '@engine/capabilities';
 import { computeProjectDurationSec, getTotalFrames } from '@engine/timeline';
 import { computePlaybackFrame, playbackStartFrame } from '@engine/playback';
 import { marksToRange } from '@engine/frameRange';
+import { loadTextFonts } from '@engine/textOverlay';
 import { useAppStore } from '../store/useAppStore';
 
 interface Options {
@@ -150,6 +151,19 @@ export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSiz
     });
     return unsub;
   }, [isPlaying, isExporting, renderParams, fps, compareMode]);
+
+  // Redraw the still frame once the bundled text fonts are ready (first draw may use a fallback).
+  useEffect(() => {
+    let alive = true;
+    void loadTextFonts().then(() => {
+      if (!alive) return;
+      const s = useAppStore.getState();
+      if (!s.isPlaying) engineRef.current?.renderFrame(s.frameIndex, s.fps, s.renderParams, s.compareMode);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [engineRef]);
 
   useEffect(() => {
     if (!isPlaying || isExporting) {

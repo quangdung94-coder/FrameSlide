@@ -24,6 +24,36 @@ export function revealText(text: string, n: number): string {
   return chars(text).slice(0, Math.max(0, Math.floor(n))).join('');
 }
 
+/** Font faces the text styles draw with (bundled with the app, Đợt 5.3a). */
+export const TEXT_FONT_FACES = [
+  '300 60px "Be Vietnam Pro"',
+  '400 26px "Be Vietnam Pro"',
+  '600 38px "Be Vietnam Pro"',
+  '600 22px "JetBrains Mono"',
+  '700 44px "JetBrains Mono"',
+  'italic 500 72px "Playfair Display"',
+] as const;
+
+/** Bumped once the text fonts finish loading, so text drawn earlier with a fallback font is redrawn. */
+let fontEpoch = 0;
+let fontsPromise: Promise<void> | null = null;
+
+/**
+ * Load the text fonts before drawing (canvas text does not wait for web fonts).
+ * Safe to call many times; resolves even if a font fails or `document.fonts` is missing.
+ */
+export function loadTextFonts(): Promise<void> {
+  if (fontsPromise) return fontsPromise;
+  const fonts = typeof document !== 'undefined' ? document.fonts : undefined;
+  if (!fonts) return (fontsPromise = Promise.resolve());
+  fontsPromise = Promise.all(
+    TEXT_FONT_FACES.map((f) => fonts.load(f, 'Ăâêôơư Kỷ niệm 0123').catch(() => []))
+  ).then(() => {
+    fontEpoch++;
+  });
+  return fontsPromise;
+}
+
 /**
  * Renders Vietnamese-ready minimal titles & 90s film date stamps into a cached CanvasTexture.
  * Supports 16:9, 9:16, 1:1 canvases, per-scene captions, and EXIF auto date stamps.
@@ -36,6 +66,7 @@ export class TextOverlayRenderer {
   private lastKey = '';
 
   constructor() {
+    void loadTextFonts();
     this.canvas = document.createElement('canvas');
     this.canvas.width = 1920;
     this.canvas.height = 1080;
@@ -61,7 +92,7 @@ export class TextOverlayRenderer {
       ? config.subtitle
       : revealText(config.subtitle.trim(), reveal - chars(fullTitle).length);
 
-    const key = `${w}x${h}|${config.style}|${activeTitle}|${subtitle}|${activeDate}|${config.opacity}`;
+    const key = `${fontEpoch}|${w}x${h}|${config.style}|${activeTitle}|${subtitle}|${activeDate}|${config.opacity}`;
     if (key === this.lastKey) {
       return config.style !== 'none';
     }

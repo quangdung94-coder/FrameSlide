@@ -74,7 +74,7 @@ export function Group({
             accent ? 'text-amber-400' : 'text-zinc-300'
           }`}
         >
-          <span className="w-3 shrink-0 text-[10px] text-zinc-500">{open ? '▾' : '▸'}</span>
+          <span className="w-3 shrink-0 text-2xs text-zinc-500">{open ? '▾' : '▸'}</span>
           <span className="truncate">{title}</span>
         </button>
         {onToggle && enabled !== undefined && (
@@ -176,7 +176,7 @@ export function SliderRow({ label, value, min, max, step, disabled, onChange }: 
               e.currentTarget.blur();
             }
           }}
-          className="h-7 w-14 shrink-0 rounded border border-zinc-700 bg-zinc-900 px-1.5 text-right font-mono text-xs text-zinc-200 focus:border-amber-400 focus:outline-none disabled:opacity-40"
+          className="h-7 w-16 shrink-0 rounded border border-zinc-700 bg-zinc-900 px-1.5 text-right font-mono text-xs text-zinc-200 focus:border-amber-400 focus:outline-none disabled:opacity-40"
         />
       </div>
     </div>
@@ -302,7 +302,7 @@ export function Modal({ title, onClose, widthClass = 'max-w-md', closeTitle, ari
         className={`flex max-h-[90vh] w-full ${widthClass} flex-col rounded-lg border border-zinc-700 bg-[#18181f] text-xs shadow-2xl`}
       >
         <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-2.5">
-          <span className="text-sm font-semibold text-amber-400">{title}</span>
+          <span className="text-title font-semibold text-amber-400">{title}</span>
           <button
             type="button"
             onClick={onClose}

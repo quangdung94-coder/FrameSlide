@@ -4,6 +4,7 @@ import { getExportResolution } from './capabilities';
 import type { FrameSlideEngine } from './FrameSlideEngine';
 import { computeProjectDurationSec, getTotalFrames } from './timeline';
 import { rangeFrameCount, type FrameRange } from './frameRange';
+import { loadTextFonts } from './textOverlay';
 
 export interface ExportProgressInfo {
   currentFrame: number;
@@ -113,6 +114,7 @@ export async function exportMp4WebCodecs(opts: {
   const totalFrames = rangeFrameCount(span);
   const effectiveDurationSec = totalFrames / opts.fps;
   await opts.engine.whenReady();
+  await loadTextFonts(); // text in the video must never fall back to another font
   const prevSize = opts.engine.getSize();
 
   const encoderConfig = await resolveH264Config(width, height, opts.fps);
@@ -242,6 +244,7 @@ export async function exportViaFfmpeg(opts: {
   const totalFrames = rangeFrameCount(span);
   const effectiveDurationSec = totalFrames / opts.fps;
   await opts.engine.whenReady();
+  await loadTextFonts(); // text in the video must never fall back to another font
   const prevSize = opts.engine.getSize();
 
   let jobId: string;

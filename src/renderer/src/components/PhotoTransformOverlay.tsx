@@ -195,7 +195,7 @@ export function PhotoTransformOverlay({ canvasRef, onClose }: Props) {
           const v = Number(e.target.value);
           if (Number.isFinite(v)) onChange(v);
         }}
-        className="w-14 rounded border border-zinc-700 bg-zinc-950 px-1 py-0.5 text-right font-mono text-zinc-100"
+        className="w-16 rounded border border-zinc-700 bg-zinc-950 px-1 py-0.5 text-right font-mono text-zinc-100"
       />
       <span className="text-zinc-500">{suffix}</span>
     </label>

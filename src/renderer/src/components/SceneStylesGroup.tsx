@@ -35,7 +35,7 @@ export function SceneStylesGroup({ sceneId, disabled, onNotice }: Props) {
           {style.builtIn ? '' : '★ '}
           {style.name}
         </span>
-        <span className="truncate text-[11px] text-zinc-500">
+        <span className="truncate text-2xs text-zinc-500">
           {LAYOUT_LABELS[style.settings.layout]} • {style.settings.durationSec}s
         </span>
       </button>

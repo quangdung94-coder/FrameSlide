@@ -451,7 +451,7 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
               onChange={(e) => setLayout('sceneZoom', Number(e.target.value))}
               className="h-1 w-20 cursor-pointer accent-amber-400"
             />
-            <span className="w-8 font-mono text-zinc-500">{Math.round(sceneZoom * 100)}%</span>
+            <span className="w-9 font-mono text-zinc-500">{Math.round(sceneZoom * 100)}%</span>
           </label>
           <div className="ml-1 flex overflow-hidden rounded border border-zinc-700" role="group" aria-label="Cách xếp scene">
             {(
@@ -597,7 +597,7 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                       disabled={disabled}
                       onClick={(e) => e.stopPropagation()}
                       onChange={(e) => setSceneDuration(sc.id, Number(e.target.value) || 3)}
-                      className={`h-7 ${compactMode ? 'w-12 px-0' : 'w-14 px-1'} rounded border border-zinc-700 bg-zinc-950 text-center font-mono text-xs text-zinc-200`}
+                      className={`h-7 ${compactMode ? 'w-14 px-0' : 'w-16 px-1'} rounded border border-zinc-700 bg-zinc-950 text-center font-mono text-xs text-zinc-200`}
                       title="Thời lượng Scene (giây)"
                     />
                     {!compactMode && <span className="text-xs text-zinc-500">s</span>}

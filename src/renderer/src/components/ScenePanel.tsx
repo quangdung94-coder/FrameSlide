@@ -110,7 +110,7 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
             ))}
           </select>
           {scene.motionAuto && (
-            <span className="text-[11px] text-amber-300/80">
+            <span className="text-2xs text-amber-300/80">
               Do "Motion tự động" chọn. Chọn tay một mẫu để giữ cố định khi chạy tự động lần sau.
             </span>
           )}
