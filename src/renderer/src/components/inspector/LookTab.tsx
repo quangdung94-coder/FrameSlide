@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { FILM_LOOK_PRESETS } from '@engine/presets/filmLookPresets';
 import type { AspectMaskId, FilmLookParams } from '@shared/types';
 import { useAppStore } from '../../store/useAppStore';
 import { CheckField, Group, SelectField, SliderRow, type SelectOption } from '../ui';
+import { LookThumb } from './PresetThumb';
 
 type LookNumberKey = {
   [K in keyof FilmLookParams]: FilmLookParams[K] extends number ? K : never;
@@ -79,11 +81,12 @@ export function LookTab({ disabled, onNotice, onPickLut, onClearLut }: Props) {
   const updateSuper8 = useAppStore((s) => s.updateSuper8);
   const setLutIntensity = useAppStore((s) => s.setLutIntensity);
   const tuneDisabled = !look.enabled || disabled;
+  const [hoveredLook, setHoveredLook] = useState<string | null>(null);
 
   return (
     <>
       <Group id="look-presets" title="12 Film Look Presets + Clean" accent>
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5" onMouseLeave={() => setHoveredLook(null)}>
           {FILM_LOOK_PRESETS.map((preset) => {
             const active = look.presetId === preset.id;
             return (
@@ -94,14 +97,18 @@ export function LookTab({ disabled, onNotice, onPickLut, onClearLut }: Props) {
                   applyFilmLookPreset(preset.id);
                   onNotice(`Film Look: ${preset.name}`);
                 }}
-                title={preset.desc}
-                className={`rounded border px-2 h-8 text-left transition ${
+                title={`${preset.name}: ${preset.desc}`}
+                onMouseEnter={() => setHoveredLook(preset.id)}
+                onFocus={() => setHoveredLook(preset.id)}
+                onBlur={() => setHoveredLook(null)}
+                className={`rounded border p-1 text-left transition ${
                   active
                     ? 'border-amber-400 bg-amber-500/15 text-amber-200'
                     : 'border-zinc-800 bg-zinc-900/90 text-zinc-300 hover:border-zinc-600'
                 }`}
               >
-                <div className="truncate text-xs font-medium">{preset.name}</div>
+                <LookThumb look={preset.params} hovered={hoveredLook === preset.id} />
+                <div className="mt-1 truncate px-0.5 text-xs font-medium">{preset.name}</div>
               </button>
             );
           })}

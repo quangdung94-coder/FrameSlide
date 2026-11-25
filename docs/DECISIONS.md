@@ -60,3 +60,7 @@ File này lưu lại các quyết định quan trọng về sản phẩm và k�
 ### D24. Scene Style lưu trên máy, không mang nội dung chữ (Đợt 4)
 - **Quyết định:** "Scene Style" gom bố cục, thời lượng, chuyển động (kể cả ảnh xuất hiện lần lượt), nền, khung ảnh, chuyển cảnh, look riêng và thời điểm/vị trí chữ của một scene. Áp style giữ nguyên ảnh và nội dung chữ của scene đích. Style của người dùng lưu trong localStorage của máy (giống preset Look), không nằm trong file dự án. Có sẵn 4 style: Mở đầu, Kết thúc, Chân dung đôi, Lưới kỷ niệm.
 - **Lý do:** Style là thói quen dựng của người dùng, dùng lại qua nhiều dự án; chữ là nội dung riêng của từng đám cưới/sự kiện nên không được chép theo.
+
+### D25. Hình xem trước Template & Look bằng CSS, không dùng WebGL (Đợt 4)
+- **Quyết định:** Ô Template và Look (lưới 2 cột) có hình nhỏ dùng ảnh trong khay (hoặc màu mẫu khi khay trống). Rê chuột thì Template chạy thử chuỗi bố cục + zoom chậm; Look mô phỏng màu, viền tối, hạt, nháy, rung bằng CSS filter/overlay (`src/engine/presetPreview.ts`). Đây chỉ là gợi ý; hình thật vẫn là khung xem chính.
+- **Lý do:** Mỗi ô một WebGL context sẽ vượt giới hạn context của trình duyệt và tốn VRAM; CSS nhẹ, không cần thư viện, chỉ chạy khi rê chuột.
