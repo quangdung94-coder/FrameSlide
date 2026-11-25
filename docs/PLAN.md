@@ -110,3 +110,22 @@
 - [x] 4.3 **S9:** Scene Style: lưu scene thành mẫu (bố cục + chuyển động + nền + chữ) áp cho scene khác; mẫu có sẵn Mở đầu, Kết thúc, Chân dung đôi, Lưới kỷ niệm.
 - [x] 4.4 **U9:** Template & Look có hình xem trước khi rê chuột; lưới 2 cột.
 
+
+---
+
+## Bước 5d: Góp ý giao diện đợt 5 của anh Dũng (25/11/2026)
+> Kế hoạch chi tiết: `research/ke-hoach-dot-5-gop-y-giao-dien.html` (thư mục dự án). Mỗi mục một PR nhỏ: tự rà diff → typecheck + test + build + CI Windows đạt → gộp. Mọi tính năng là tùy chọn, film look bật sẵn, Full HD 30fps. Không đóng gói .exe. Anh Dũng duyệt Đợt 5.1 ngày 25/11/2026; các đợt sau chờ anh chọn.
+
+### Đợt 5.1: Phát và thời gian
+- [x] 5.1a **Space phát ngay:** sau khi kéo playhead, Space vẫn phát/dừng. (Nguyên nhân: thanh tua là `<input type="range">`, phím tắt bỏ qua mọi ô INPUT/SELECT. Nay chỉ ô gõ chữ thật mới chặn phím tắt; thanh trượt, ô chọn, nút bấm vẫn cho Space và F; logic trong `hooks/keyTarget.ts`. Thả chuột khỏi thanh tua thì trả bàn phím về app.)
+- [ ] 5.1b **J/K/L, tốc độ, lặp:** J phát lùi, K dừng, L phát tới, bấm lại để tăng 2× → 4×; ô tốc độ 0.25×–4×; nút lặp. Chỉ ảnh hưởng xem trước.
+- [ ] 5.1c **Thanh phát và thời gian:** nút ▶ tròn to, nút về đầu/cuối, thời gian một dòng (phút:giây:frame), scene đang phát, thước chia giây.
+
+### Đợt 5.2: Làm nhanh nhiều scene (chờ duyệt)
+- [ ] Motion tự động cho mọi scene · Dải scene Ctrl+lăn chuột zoom, xếp ngang/lưới · In/Out xuất một đoạn.
+
+### Đợt 5.3: Giao diện gọn (chờ duyệt)
+- [ ] Đồng bộ font và cỡ chữ · Nút ⚙ Cài đặt · Thanh chỉnh ảnh ra ngoài khung xem + crop có lưới.
+
+### Đợt 5.4: Chữ và nền (chờ duyệt)
+- [ ] Chữ riêng từng scene + font/màu/cỡ · Nền mờ chỉnh độ mờ, nhiều kiểu mờ.

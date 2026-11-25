@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { SCENE_SETTING_PARTS } from '@engine/sceneSettings';
 import { useAppStore } from '../store/useAppStore';
+import { classifyKeyTarget } from './keyTarget';
 
 export interface KeyboardShortcutOptions {
   /** Editing shortcuts are ignored while a render is running. */
@@ -16,9 +17,9 @@ export interface KeyboardShortcutOptions {
 
 const SCENE_LAYOUTS = ['single', 'diptych', 'triptych', 'mosaic4'] as const;
 
-function isTextTarget(target: EventTarget | null): boolean {
-  const el = target as HTMLElement | null;
-  return Boolean(el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT'));
+function keyTargetKind(target: EventTarget | null) {
+  const el = target as (HTMLElement & { type?: string }) | null;
+  return classifyKeyTarget(el);
 }
 
 /** Global keyboard shortcuts of the editor (the list shown in the "?" dialog: ShortcutsModal.SHORTCUTS). */
@@ -31,7 +32,9 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions): void {
 
     const onKeyDown = (e: KeyboardEvent) => {
       const o = optsRef.current;
-      const inInput = isTextTarget(e.target);
+      const targetKind = keyTargetKind(e.target);
+      // `inInput` = typing in a text field; Esc / Ctrl+Z / Ctrl+Y keep their text-field meaning there.
+      const inInput = targetKind === 'typing';
       const ctrl = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
       const plain = !ctrl && !e.altKey;
@@ -63,13 +66,24 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions): void {
       if (inInput || o.isExporting) return;
       const s = useAppStore.getState();
 
+      // Transport keys work even when a slider, dropdown or button has focus (e.g. right after
+      // dragging the scrubber). preventDefault also stops Space from clicking a focused button.
       if (e.code === 'Space') {
         e.preventDefault();
-        s.setIsPlaying(!s.isPlaying);
-      } else if (key === 'f') {
+        if (!e.repeat) s.setIsPlaying(!s.isPlaying);
+        return;
+      }
+      if (plain && key === 'f') {
         e.preventDefault();
         o.onToggleFullscreen();
-      } else if (e.key === '\\' && !e.repeat) {
+        return;
+      }
+
+      // The rest would clash with a focused control's own keys (arrows move a slider, digits pick
+      // in a dropdown), so it only runs when no control has focus.
+      if (targetKind === 'control') return;
+
+      if (e.key === '\\' && !e.repeat) {
         e.preventDefault();
         prevCompareBeforeHold = s.compareMode;
         s.setCompareMode('before');
@@ -124,6 +138,8 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions): void {
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
+      // A focused button / checkbox acts on Space key-up; Space belongs to playback instead.
+      if (e.code === 'Space' && keyTargetKind(e.target) === 'control') e.preventDefault();
       if (e.key === '\\' && prevCompareBeforeHold !== null) {
         useAppStore.getState().setCompareMode(prevCompareBeforeHold);
         prevCompareBeforeHold = null;
