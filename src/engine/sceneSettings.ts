@@ -8,9 +8,11 @@ import type {
   SceneStagger,
   TransitionType,
   CaptionTiming,
+  SceneTextOverride,
   TextOffset,
 } from '@shared/types';
 import { resizeSceneSlots } from './sceneBuilder';
+import { textStyleOnly } from './sceneText';
 
 /** Parts of a scene that can be copied to another scene (the photos themselves never are). */
 export type SceneSettingPart =
@@ -47,6 +49,8 @@ export interface SceneSettings {
   caption?: string;
   captionTiming?: CaptionTiming;
   captionOffset?: TextOffset;
+  /** Own text of the scene; pasting keeps the target's own words (only the look is copied). */
+  text?: SceneTextOverride;
   cardStyle?: SceneCardStyle;
   filmLookOff?: boolean;
 }
@@ -64,6 +68,7 @@ export function copySceneSettings(scene: SceneItem): SceneSettings {
     caption: scene.caption,
     captionTiming: scene.captionTiming ? { ...scene.captionTiming } : undefined,
     captionOffset: scene.captionOffset ? { ...scene.captionOffset } : undefined,
+    text: scene.text ? { ...scene.text } : undefined,
     cardStyle: scene.cardStyle ? { ...scene.cardStyle } : undefined,
     filmLookOff: scene.filmLookOff,
   };
@@ -102,6 +107,8 @@ export function applySceneSettings(
         next.caption = settings.caption;
         next.captionTiming = settings.captionTiming ? { ...settings.captionTiming } : undefined;
         next.captionOffset = settings.captionOffset ? { ...settings.captionOffset } : undefined;
+        next.text = textStyleOnly(settings.text, target.text);
+        if (!next.text) delete next.text;
         break;
       case 'frame':
         next.cardStyle = settings.cardStyle ? { ...settings.cardStyle } : undefined;

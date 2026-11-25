@@ -27,6 +27,7 @@ import { MOTION_STYLE_CODE_MAP } from './presets/motionTemplates';
 import { TRANSITION_CODE_MAP } from './presets/transitions';
 import { buildScenesFromPhotos } from './sceneBuilder';
 import { TextOverlayRenderer, typewriterCharCount } from './textOverlay';
+import { resolveSceneText } from './sceneText';
 import { clampTextOffset, computeTextAnim } from './textAnimation';
 import { TextureWindowCache } from './TextureWindowCache';
 import { computeProjectDurationSec, evaluateTimeline, projectDurationInput, resolveSlideDurations } from './timeline';
@@ -780,7 +781,9 @@ export class FrameSlideEngine {
     this.pass2Mat.uniforms['uBloom'].value = look.bloom * look.intensity * lookMix;
 
     // Text Timing (always / intro / outro / per-scene) + entry animation + EXIF Auto Date Stamp
-    const textCfg = params?.textOverlay ?? DEFAULT_TEXT_OVERLAY;
+    // Each scene follows the project text, turns it off or has its own (Đợt 5.4a).
+    const sceneText = resolveSceneText(params?.textOverlay ?? DEFAULT_TEXT_OVERLAY, sceneA);
+    const textCfg = sceneText.config;
     const timing = textCfg.timing ?? 'always';
     const perScene = timing === 'per-scene';
 
@@ -788,7 +791,7 @@ export class FrameSlideEngine {
     const firstPhoto = firstPid ? this.photoMap.get(firstPid) : undefined;
     const dateOverride =
       textCfg.autoExifDate && firstPhoto ? formatExifDateStamp(firstPhoto.takenAtMs) : undefined;
-    const titleOverride = perScene ? (sceneA?.caption?.trim() ?? '') : undefined;
+    const titleOverride = sceneText.titleOverride;
 
     const slotSec = resolveSlideDurations(this.scenes.length, projectDurationInput(this.scenes, params))[state.slideAIndex] ?? 0;
     const anim = computeTextAnim({
@@ -811,7 +814,7 @@ export class FrameSlideEngine {
 
     const hasText =
       textAlpha > 0.001 &&
-      (!perScene || Boolean(titleOverride) || textCfg.style === 'date-stamp-90s') &&
+      sceneText.hasWords &&
       this.textRenderer.update(textCfg, {
         width: this.width,
         height: this.height,

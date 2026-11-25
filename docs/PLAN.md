@@ -133,4 +133,6 @@
 - [x] 5.3d **Crop có lưới kiểu Photoshop:** nút "⬚ Crop" trên dải công cụ; hiện cả ảnh (thu nhỏ khung xem để thấy phần tràn ra ngoài ô), vùng ngoài khung tối đi; khung crop khóa đúng tỷ lệ ô ảnh; kéo cạnh/góc để cắt, kéo bên trong để dời, kéo bên ngoài khung để xoay (Shift: bước 15°); lưới Một phần ba / Lưới / Đường chéo / Tỷ lệ vàng; "Làm thẳng" kéo một đường theo chân trời; Enter áp dụng, Esc hủy, Ctrl+Z hoàn tác. Kết quả ghi vào transform có sẵn (vị trí/zoom/xoay; theo tư thế Đầu/Cuối nếu có keyframe), nên xem trước và xuất không đổi gì. (Logic thuần trong `engine/photoTransform.ts`, test `photoCrop.test.ts`.)
 
 ### Đợt 5.4: Chữ và nền (anh Dũng duyệt 25/11/2026)
-- [ ] Chữ riêng từng scene + font/màu/cỡ · Nền mờ chỉnh độ mờ, nhiều kiểu mờ.
+- [x] 5.4a **Chữ riêng từng scene:** bảng Scene › "Chữ của scene" chọn Theo dự án / Riêng / Tắt chữ. "Riêng" có kiểu chữ, chuyển động, tiêu đề, phụ đề riêng, hiện trong scene đó với thời điểm và vị trí riêng (kéo chữ được), kể cả khi chữ dự án đang tắt. Dán thiết lập "Chữ" và Scene Style mang theo kiểu chữ, không mang nội dung. (Logic `engine/sceneText.ts`, `SceneItem.text`; D27 sửa D23.)
+- [ ] 5.4b **Bảng chữ kiểu Premiere/CapCut:** font, cỡ, đậm/nghiêng, canh lề, khoảng cách chữ, màu, viền, bóng.
+- [ ] 5.4c **Nền mờ:** độ mờ, độ tối, phóng nền, 5 kiểu mờ.

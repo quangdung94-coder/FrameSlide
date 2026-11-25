@@ -1,5 +1,6 @@
 import type { SceneItem } from '@shared/types';
 import { applySceneSettings, copySceneSettings, type SceneSettingPart, type SceneSettings } from './sceneSettings';
+import { textStyleOnly } from './sceneText';
 
 /** A reusable scene look: layout + timing + motion + background + frame + caption timing/position. */
 export interface SceneStyle {
@@ -25,6 +26,7 @@ export const SCENE_STYLE_PARTS: readonly SceneSettingPart[] = [
 export function sceneStyleFromScene(scene: SceneItem, name: string, id: string): SceneStyle {
   const settings = copySceneSettings(scene);
   delete settings.caption; // a style never carries the words themselves
+  if (settings.text) settings.text = textStyleOnly(settings.text, undefined);
   return { id, name: name.trim(), settings };
 }
 
@@ -32,6 +34,10 @@ export function applySceneStyle(target: SceneItem, style: SceneStyle): SceneItem
   const next = applySceneSettings(target, style.settings, SCENE_STYLE_PARTS);
   next.captionTiming = style.settings.captionTiming ? { ...style.settings.captionTiming } : undefined;
   next.captionOffset = style.settings.captionOffset ? { ...style.settings.captionOffset } : undefined;
+  // The text look (own style / off) comes along; the target keeps its own words (D24).
+  const text = textStyleOnly(style.settings.text, target.text);
+  if (text) next.text = text;
+  else delete next.text;
   return next;
 }
 

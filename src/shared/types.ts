@@ -222,6 +222,8 @@ export interface SceneItem {
   captionTiming?: CaptionTiming;
   /** Own caption position (per-scene captions only; otherwise the project's text position). */
   captionOffset?: TextOffset;
+  /** Own text for this scene: turned off, or its own style and words (undefined = follow the project). */
+  text?: SceneTextOverride;
   /** Own background for this scene (otherwise the project background is used). */
   background?: SceneBackground;
   /** Photo IDs from `slides` (null = empty slot waiting for photo) */
@@ -312,6 +314,20 @@ export interface TextOverlayConfig {
   opacity: number; // 0..1
   timing: TextTimingMode;
   autoExifDate: boolean;
+}
+
+/**
+ * Text of one scene (Đợt 5.4a). 'off' hides the project text on this scene; 'own' shows this
+ * scene's own style and words during the scene (with the scene's caption timing and position).
+ */
+export interface SceneTextOverride {
+  mode: 'off' | 'own';
+  /** Own style ('own' only; missing = Minimal Title). */
+  style?: Exclude<TextStyleId, 'none'>;
+  /** Own entry animation ('own' only; missing = the project's animation). */
+  animation?: TextAnimationId;
+  title?: string;
+  subtitle?: string;
 }
 
 export const DEFAULT_TEXT_OVERLAY: TextOverlayConfig = {
