@@ -101,9 +101,10 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions): void {
         return;
       }
 
-      // The rest would clash with a focused control's own keys (arrows move a slider, digits pick
-      // in a dropdown), so it only runs when no control has focus.
-      if (targetKind === 'control') return;
+      // Plain keys would clash with a focused control's own keys (arrows move a slider, letters and
+      // digits pick in a dropdown), so they only run when no control has focus. Ctrl combos
+      // (Ctrl+E, Ctrl+D, …) never clash and always work.
+      if (targetKind === 'control' && !ctrl) return;
 
       if (plain && !e.shiftKey && (key === 'i' || key === 'o')) {
         // In / Out at the playhead (Premiere / Resolve keys).

@@ -183,7 +183,7 @@ export const PlaybackBar = memo(function PlaybackBar({
             onClick={() => shuttle('j')}
           >
             <Icon name="rewind" />
-            {reverseActive && <span className="ml-0.5 text-[11px]">{formatPlaybackRate(playbackRate)}</span>}
+            {reverseActive && <span className="ml-0.5 text-2xs">{formatPlaybackRate(playbackRate)}</span>}
           </TransportButton>
           <button
             type="button"
@@ -201,7 +201,7 @@ export const PlaybackBar = memo(function PlaybackBar({
             active={forwardShuttle}
             onClick={() => shuttle('l')}
           >
-            {forwardShuttle && <span className="mr-0.5 text-[11px]">{formatPlaybackRate(playbackRate)}</span>}
+            {forwardShuttle && <span className="mr-0.5 text-2xs">{formatPlaybackRate(playbackRate)}</span>}
             <Icon name="ffwd" />
           </TransportButton>
           <TransportButton title="Tiến 1 frame (→ hoặc giữ K + L)" disabled={disabled} onClick={() => seek(shownFrame + 1)}>
@@ -277,7 +277,7 @@ export const PlaybackBar = memo(function PlaybackBar({
               / {showFrames ? formatTimecode(totalFrames, fps) : formatSecondsClock(effectiveDurationSec)}
             </span>
           </span>
-          <span className="whitespace-nowrap text-[11px] text-zinc-400">
+          <span className="whitespace-nowrap text-2xs text-zinc-400">
             {marked && (
               <span className="mr-1.5 text-amber-300">
                 In–Out {formatTimecode(marked.start, fps)}–{formatTimecode(marked.end - 1, fps)} ·
@@ -316,7 +316,7 @@ export const PlaybackBar = memo(function PlaybackBar({
           {marks.map((t) => (
             <span
               key={t}
-              className="absolute top-0 -translate-x-1/2 font-mono text-[11px] leading-none text-zinc-500"
+              className="absolute top-0 -translate-x-1/2 font-mono text-2xs leading-none text-zinc-500"
               style={{ left: pct(t) }}
             >
               {t}s

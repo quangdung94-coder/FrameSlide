@@ -96,7 +96,7 @@ export function ExportDialog({ jobs, appInfo, exportSize, effectiveDurationSec, 
             })}
           </div>
           {rangeMode !== 'all' && (
-            <span className="text-[11px] text-zinc-500">
+            <span className="text-2xs text-zinc-500">
               Hạt phim, bụi, rung giữ đúng như khi xem trước. Fade In/Out vẫn tính theo đầu/cuối cả clip. Batch Export luôn xuất toàn bộ.
             </span>
           )}

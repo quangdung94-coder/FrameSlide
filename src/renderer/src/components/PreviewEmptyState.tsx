@@ -13,7 +13,7 @@ export function PreviewEmptyState({ hasPhotos, hasScenes, onPickImages, onPickFo
     {/* Rich Empty State when no photos are loaded */}
     {!hasPhotos && (
       <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-zinc-950/90 p-6 text-center">
-        <div className="mb-2 text-lg font-semibold text-amber-400">
+        <div className="mb-2 text-title font-semibold text-amber-400">
           Bắt đầu dựng B-roll cùng FrameSlide
         </div>
         <p className="mb-5 max-w-md text-xs text-zinc-400">
@@ -51,7 +51,7 @@ export function PreviewEmptyState({ hasPhotos, hasScenes, onPickImages, onPickFo
     {/* Photos are in the tray but nothing is on the timeline yet */}
     {hasPhotos && !hasScenes && (
       <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-zinc-950/85 p-6 text-center">
-        <div className="mb-2 text-base font-semibold text-amber-400">
+        <div className="mb-2 text-title font-semibold text-amber-400">
           Ảnh đã vào khay, timeline đang trống
         </div>
         <p className="max-w-md text-xs text-zinc-400">

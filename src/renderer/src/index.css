@@ -1,5 +1,32 @@
 @import "tailwindcss";
 
+/*
+ * Đợt 5.3a: one type scale for the whole app.
+ *   text-2xs  11px  captions, badges, hints
+ *   text-xs   12px  body text, buttons, inputs (default)
+ *   text-sm   13px  group / section headings
+ *   text-title 15px dialog titles
+ * UI font: Be Vietnam Pro; numbers and timecode: JetBrains Mono. Do not use text-[Npx].
+ */
+@theme {
+  --font-sans: "Be Vietnam Pro", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, ui-monospace, monospace;
+  --text-2xs: 11px;
+  --text-2xs--line-height: 1.4;
+  --text-xs: 12px;
+  --text-xs--line-height: 1.45;
+  --text-sm: 13px;
+  --text-sm--line-height: 1.45;
+  --text-title: 15px;
+  --text-title--line-height: 1.4;
+}
+
+html,
+body {
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
 /* Thicker, easier-to-grab range sliders (6px track, 14px thumb). */
 .slider-thick {
   -webkit-appearance: none;

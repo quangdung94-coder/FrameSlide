@@ -64,3 +64,7 @@ File này lưu lại các quyết định quan trọng về sản phẩm và k�
 ### D25. Hình xem trước Template & Look bằng CSS, không dùng WebGL (Đợt 4)
 - **Quyết định:** Ô Template và Look (lưới 2 cột) có hình nhỏ dùng ảnh trong khay (hoặc màu mẫu khi khay trống). Rê chuột thì Template chạy thử chuỗi bố cục + zoom chậm; Look mô phỏng màu, viền tối, hạt, nháy, rung bằng CSS filter/overlay (`src/engine/presetPreview.ts`). Đây chỉ là gợi ý; hình thật vẫn là khung xem chính.
 - **Lý do:** Mỗi ô một WebGL context sẽ vượt giới hạn context của trình duyệt và tốn VRAM; CSS nhẹ, không cần thư viện, chỉ chạy khi rê chuột.
+
+### D26. Font đóng gói trong app, một thang cỡ chữ (Đợt 5.3a)
+- **Quyết định:** Font Be Vietnam Pro, JetBrains Mono, Playfair Display lấy từ gói `@fontsource/*` (giấy phép OFL, chỉ là file font, không có code chạy), Vite gom vào bản build; bỏ link Google Fonts. Giao diện dùng Be Vietnam Pro, số/thời gian dùng JetBrains Mono. Thang cỡ chữ duy nhất trong `index.css`: `text-2xs` 11px, `text-xs` 12px, `text-sm` 13px, `text-title` 15px; cấm `text-[Npx]` (có test). Trước khi vẽ chữ vào video, engine chờ font tải xong (`loadTextFonts`).
+- **Lý do:** Máy không có mạng thì chữ trong video bị đổi sang font khác; giao diện trước đó dùng font hệ thống và cỡ chữ lẫn lộn 8–18px.

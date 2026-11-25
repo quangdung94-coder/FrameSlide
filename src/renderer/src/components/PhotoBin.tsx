@@ -93,7 +93,7 @@ const PhotoCard = memo(function PhotoCard({
       )}
 
       {(rot !== 0 || Math.abs(exp) > 0.05) && (
-        <span className="absolute bottom-6 left-1 rounded bg-amber-500/90 px-1 text-[8px] font-bold text-zinc-950">
+        <span className="absolute bottom-6 left-1 rounded bg-amber-500/90 px-1 text-2xs font-bold text-zinc-950">
           {rot ? `${rot}°` : ''}
           {rot && Math.abs(exp) > 0.05 ? ' ' : ''}
           {Math.abs(exp) > 0.05 ? `${exp > 0 ? '+' : ''}${exp.toFixed(1)}EV` : ''}

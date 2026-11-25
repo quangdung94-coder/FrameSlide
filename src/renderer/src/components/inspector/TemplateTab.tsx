@@ -99,9 +99,9 @@ export function TemplateTab({ disabled, onNotice }: Props) {
                   <span className="truncate text-xs font-medium text-zinc-100">{tpl.name}</span>
                   <span className="flex shrink-0 items-center gap-1">
                     {is3d && (
-                      <span className="rounded bg-amber-500/20 px-1 text-[10px] font-bold text-amber-300">3D</span>
+                      <span className="rounded bg-amber-500/20 px-1 text-2xs font-bold text-amber-300">3D</span>
                     )}
-                    <span className="rounded bg-zinc-800 px-1 text-[10px] text-zinc-400">
+                    <span className="rounded bg-zinc-800 px-1 text-2xs text-zinc-400">
                       {tpl.heavyLevel === 'light' ? 'Nhẹ' : 'Vừa'}
                     </span>
                   </span>
