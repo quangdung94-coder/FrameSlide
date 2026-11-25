@@ -19,6 +19,7 @@ import {
 import { BG_PATTERN_CODE, BG_STYLE_CODE, hexToLinearRgb, resolveSceneBackground } from './background';
 import { classifyGpuRenderer } from './capabilities';
 import { cardStyleToUniform } from './cardStyle';
+import { STAGGER_STYLE_CODE, staggerAppear } from './stagger';
 import { photoAdjustToUniform } from './photoAdjust';
 import { resolvePhotoTransform } from './photoKeyframes';
 import { createLutStripTexture, parseCubeLut } from './cubeLutParser';
@@ -240,6 +241,10 @@ export class FrameSlideEngine {
         uExpA2: { value: 1 },
         uExpA3: { value: 1 },
         uCardStyleA: { value: new THREE.Vector4(0, 1, 1, 0) },
+        uStaggerA: { value: new THREE.Vector4(1, 1, 1, 1) },
+        uStaggerB: { value: new THREE.Vector4(1, 1, 1, 1) },
+        uStaggerStyleA: { value: 0 },
+        uStaggerStyleB: { value: 0 },
         uCardStyleB: { value: new THREE.Vector4(0, 1, 1, 0) },
         uAdjA0: { value: new THREE.Vector4(1, 1, 0, 1) },
         uAdjA1: { value: new THREE.Vector4(1, 1, 0, 1) },
@@ -649,6 +654,7 @@ export class FrameSlideEngine {
     prefix: 'A' | 'B',
     scene: SceneItem | undefined,
     motionProgress: number,
+    sceneTimeSec: number,
     keyframePreview: 'start' | 'end' | null
   ): boolean {
     let missingTex = false;
@@ -659,6 +665,12 @@ export class FrameSlideEngine {
     );
     this.pass1Mat.uniforms[`uMotionDir${prefix}`].value =
       MOTION_DIR_CODE[scene?.motionDirection ?? 'auto'] ?? 0;
+    // Photos entering one after another (2–4 photo scenes), driven by scene time.
+    const stagger = scene?.stagger;
+    (this.pass1Mat.uniforms[`uStagger${prefix}`].value as THREE.Vector4).set(
+      ...staggerAppear(stagger, scene?.slots.length ?? 0, sceneTimeSec)
+    );
+    this.pass1Mat.uniforms[`uStaggerStyle${prefix}`].value = stagger ? STAGGER_STYLE_CODE[stagger.style] ?? 1 : 0;
 
     for (let k = 0; k < 4; k++) {
       const pid = scene?.slots[k] ?? null;
@@ -725,8 +737,8 @@ export class FrameSlideEngine {
 
     // Pin keyframes to Start/End only for the on-screen preview while editing; never when exporting.
     const keyframePreview = finalTarget ? null : this.keyframePreview;
-    const missingA = this.bindSceneSlots('A', sceneA, state.motionProgressA, keyframePreview);
-    const missingB = this.bindSceneSlots('B', sceneB, state.motionProgressB, keyframePreview);
+    const missingA = this.bindSceneSlots('A', sceneA, state.motionProgressA, state.sceneTimeA, keyframePreview);
+    const missingB = this.bindSceneSlots('B', sceneB, state.motionProgressB, state.sceneTimeB, keyframePreview);
     if (missingA || missingB) {
       void this.preloadAroundSceneIndex(state.slideAIndex);
     }

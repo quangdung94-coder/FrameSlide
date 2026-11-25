@@ -72,4 +72,10 @@ describe('GLSL ES 3.00 shader sources', () => {
     expect(SCENE_TRANSITION_FRAGMENT_SHADER).toContain('uniform vec4 uCardStyleB;');
     expect(SCENE_TRANSITION_FRAGMENT_SHADER).toContain('float roundedMaskAA(');
   });
+
+  it('scene shader has staggered entry per scene without extra card calls', () => {
+    expect(SCENE_TRANSITION_FRAGMENT_SHADER).toContain('uniform vec4 uStaggerA;');
+    expect(SCENE_TRANSITION_FRAGMENT_SHADER).toContain('uniform int uStaggerStyleB;');
+    expect(SCENE_TRANSITION_FRAGMENT_SHADER.match(/col = compositeCard\(/g)?.length).toBe(1);
+  });
 });

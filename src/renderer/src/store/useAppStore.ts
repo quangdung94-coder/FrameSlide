@@ -11,6 +11,7 @@ import {
 } from '@engine/sceneBuilder';
 import { mapById, omitKeys, withOptional } from '@engine/objectUtils';
 import { clamp } from '@engine/num';
+import { DEFAULT_STAGGER, normalizeStagger } from '@engine/stagger';
 import {
   MAX_HISTORY,
   loadUserPresets,
@@ -38,6 +39,7 @@ import {
   type BackgroundStyle,
   type PhotoAdjust,
   type SceneCardStyle,
+  type SceneStagger,
   type PhotoKeyframeEase,
   type PhotoTransform,
   type SceneBackground,
@@ -167,6 +169,8 @@ interface AppState {
   setSceneFilmLookOff: (sceneId: string, off: boolean) => void;
   /** Frame look (corners, shadow, border, soft edge) of a scene's photos; `null` = default look. */
   setSceneCardStyle: (sceneId: string, style: SceneCardStyle | null) => void;
+  /** Turn on / change (merged) or turn off (null) photos entering one after another. */
+  setSceneStagger: (sceneId: string, stagger: Partial<SceneStagger> | null) => void;
   setSceneMotionDirection: (sceneId: string, motionDirection: MotionDirection) => void;
   /** Own Motion Template for one scene; `null` = follow the project's template. */
   setSceneMotionTemplate: (sceneId: string, template: MotionTemplateId | null) => void;
@@ -690,6 +694,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       ...pushPast(s),
       scenes: mapById(s.scenes, sceneId, (sc) =>
         withOptional(sc, 'transitionDurationSec', durationSec === null ? null : clamp(durationSec, 0.2, 2.5))
+      ),
+    })),
+
+  setSceneStagger: (sceneId, stagger) =>
+    set((s) => ({
+      ...pushPast(s),
+      scenes: mapById(s.scenes, sceneId, (sc) =>
+        withOptional(sc, 'stagger', stagger ? normalizeStagger({ ...DEFAULT_STAGGER, ...sc.stagger, ...stagger }) : null)
       ),
     })),
 

@@ -1,4 +1,13 @@
-import type { MotionDirection, MotionTemplateId, SceneBackground, SceneCardStyle, SceneItem, SceneLayoutId, TransitionType } from '@shared/types';
+import type {
+  MotionDirection,
+  MotionTemplateId,
+  SceneBackground,
+  SceneCardStyle,
+  SceneItem,
+  SceneLayoutId,
+  SceneStagger,
+  TransitionType,
+} from '@shared/types';
 import { resizeSceneSlots } from './sceneBuilder';
 
 /** Parts of a scene that can be copied to another scene (the photos themselves never are). */
@@ -31,6 +40,7 @@ export interface SceneSettings {
   transitionDurationSec?: number;
   motionDirection?: MotionDirection;
   motionTemplate?: MotionTemplateId;
+  stagger?: SceneStagger;
   background?: SceneBackground;
   caption?: string;
   cardStyle?: SceneCardStyle;
@@ -45,6 +55,7 @@ export function copySceneSettings(scene: SceneItem): SceneSettings {
     transitionDurationSec: scene.transitionDurationSec,
     motionDirection: scene.motionDirection,
     motionTemplate: scene.motionTemplate,
+    stagger: scene.stagger ? { ...scene.stagger } : undefined,
     background: scene.background ? { ...scene.background } : undefined,
     caption: scene.caption,
     cardStyle: scene.cardStyle ? { ...scene.cardStyle } : undefined,
@@ -70,6 +81,7 @@ export function applySceneSettings(
       case 'motion':
         next.motionDirection = settings.motionDirection;
         next.motionTemplate = settings.motionTemplate;
+        next.stagger = settings.stagger ? { ...settings.stagger } : undefined;
         break;
       case 'background':
         next.background = settings.background ? { ...settings.background } : undefined;
