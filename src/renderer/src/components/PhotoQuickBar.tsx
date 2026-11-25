@@ -9,7 +9,9 @@ interface Props {
   disabled: boolean;
   focalPickMode: boolean;
   editMode: boolean;
+  cropMode: boolean;
   onEdit: () => void;
+  onCrop: () => void;
   onToggleFocalPick: () => void;
   /** While editing, the photo editor puts its exact-value fields into this slot of the strip. */
   onToolSlot: (el: HTMLDivElement | null) => void;
@@ -20,7 +22,7 @@ interface Props {
  * photo. Shows which photo is selected and quick edits for it: edit, focal point, rotate,
  * exposure, reset. Keeps its height when nothing is selected so the preview does not jump.
  */
-export function PhotoQuickBar({ photo, photoNumber, disabled, focalPickMode, editMode, onEdit, onToggleFocalPick, onToolSlot }: Props) {
+export function PhotoQuickBar({ photo, photoNumber, disabled, focalPickMode, editMode, cropMode, onEdit, onCrop, onToggleFocalPick, onToolSlot }: Props) {
   const rotatePhoto90 = useAppStore((s) => s.rotatePhoto90);
   const setPhotoExposure = useAppStore((s) => s.setPhotoExposure);
   const setPhotoTransform = useAppStore((s) => s.setPhotoTransform);
@@ -46,8 +48,8 @@ export function PhotoQuickBar({ photo, photoNumber, disabled, focalPickMode, edi
         {photoNumber !== null && ' · '}
         {photo.name}
       </span>
-      {editMode && <div ref={onToolSlot} className="ml-auto flex shrink-0 items-center gap-2 text-xs" />}
-      <div className={`ml-auto flex shrink-0 items-center gap-1 ${editMode ? 'hidden' : ''}`}>
+      {(editMode || cropMode) && <div ref={onToolSlot} className="ml-auto flex shrink-0 items-center gap-2 text-xs" />}
+      <div className={`ml-auto flex shrink-0 items-center gap-1 ${editMode || cropMode ? 'hidden' : ''}`}>
       {(
         [
           {
@@ -58,6 +60,13 @@ export function PhotoQuickBar({ photo, photoNumber, disabled, focalPickMode, edi
               : 'Kéo trực tiếp trên khung xem để di chuyển, phóng to, xoay ảnh',
             active: editMode,
             onClick: onEdit,
+          },
+          {
+            key: 'crop',
+            label: '⬚ Crop',
+            title: 'Cắt khung kiểu Photoshop: lưới một phần ba, kéo góc để cắt, kéo ngoài khung để xoay, Làm thẳng',
+            active: cropMode,
+            onClick: onCrop,
           },
           {
             key: 'focal',
