@@ -140,4 +140,4 @@
 ### Đợt 6: Góp ý 25/11/2026 tối (anh Dũng duyệt làm theo thứ tự 3 → 2 → 1)
 - [x] 6.3 **Mở app nhanh, không còn cửa sổ cmd:** "Mo FrameSlide (an).vbs" chạy ẩn bước kiểm tra (lấy bản mới, xem có cần cài thư viện / build lại không); nếu đã sẵn sàng thì mở thẳng bản đã build bằng Electron (không bật máy chủ dev). Chỉ khi có bản mới mới hiện cửa sổ tiến trình, build xong tự đóng. Commit đã build ghi ở `out/.build-commit`.
 - [x] 6.2 **Chọn nhiều scene:** Shift + click chọn dải, Ctrl + click thêm/bớt; xóa nhiều scene một lần (Delete, chuột phải, nút trên dải scene); Ctrl+Z một lần lấy lại hết.
-- [ ] 6.1 **Sắp lại hộp Xuất video:** "Lưu vào" (thư mục + tên file) lên đầu, chọn phần xuất, chọn định dạng, tùy chọn, một nút Xuất có tóm tắt; Batch là tab dùng chung thư mục.
+- [x] 6.1 **Sắp lại hộp Xuất video:** "Lưu vào" (thư mục + tên file) lên đầu, chọn phần xuất, chọn định dạng, tùy chọn, một nút Xuất có tóm tắt; Batch là tab dùng chung thư mục.

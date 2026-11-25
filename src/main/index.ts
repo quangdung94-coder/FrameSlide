@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron';
 import { existsSync } from 'fs';
-import { readFile, writeFile } from 'fs/promises';
+import { mkdir, readFile, writeFile } from 'fs/promises';
 import { basename, join } from 'path';
 import { pathToFileURL } from 'url';
 import type {
@@ -35,6 +35,7 @@ import {
   mergeRegeneratedSlide,
   setProxyMaxEdge,
 } from './proxyService';
+import { nextFreeFileName } from '@shared/exportPath';
 import { clearCacheFiles, getCacheStats, readAppSettings, writeAppSettings } from './appSettings';
 
 const isDev = Boolean(process.env['ELECTRON_RENDERER_URL']);
@@ -303,15 +304,36 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.handle('export:pickOutputFolder', async (): Promise<PickFolderResult> => {
+  ipcMain.handle('export:pickOutputFolder', async (_evt, defaultPath?: string): Promise<PickFolderResult> => {
     const res = await dialog.showOpenDialog({
-      title: 'Chọn thư mục lưu các clip Batch Export',
+      title: 'Chọn thư mục lưu video xuất ra',
+      defaultPath: defaultPath && existsSync(defaultPath) ? defaultPath : undefined,
       properties: ['openDirectory', 'createDirectory'],
     });
     if (res.canceled || res.filePaths.length === 0) {
       return { canceled: true };
     }
     return { canceled: false, folderPath: res.filePaths[0] };
+  });
+
+  // Đợt 6.1: the export dialog shows where the video goes before the render starts.
+  ipcMain.handle('export:defaultFolder', (): string => {
+    try {
+      return app.getPath('videos');
+    } catch {
+      return app.getPath('documents');
+    }
+  });
+
+  /** Full path for `fileName` in `folder` (created if missing); "_2", "_3"… instead of overwriting. */
+  ipcMain.handle('export:freePath', async (_evt, folder: string, fileName: string): Promise<string> => {
+    await mkdir(folder, { recursive: true });
+    const free = nextFreeFileName(basename(fileName), (name) => existsSync(join(folder, name)));
+    return join(folder, free);
+  });
+
+  ipcMain.handle('shell:openFolder', async (_evt, folder: string): Promise<void> => {
+    if (folder && existsSync(folder)) await shell.openPath(folder);
   });
 
   ipcMain.handle('shell:revealInFolder', async (_evt, filePath: string): Promise<void> => {

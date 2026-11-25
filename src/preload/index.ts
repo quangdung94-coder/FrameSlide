@@ -26,7 +26,10 @@ const api: FrameSlideAPI = {
   openProject: () => ipcRenderer.invoke('project:open'),
   writeAutosave: (data: ProjectFileData) => ipcRenderer.invoke('project:writeAutosave', data),
   loadAutosave: () => ipcRenderer.invoke('project:loadAutosave'),
-  pickOutputFolder: () => ipcRenderer.invoke('export:pickOutputFolder'),
+  pickOutputFolder: (defaultPath?: string) => ipcRenderer.invoke('export:pickOutputFolder', defaultPath),
+  getDefaultExportFolder: () => ipcRenderer.invoke('export:defaultFolder'),
+  freeExportPath: (folder: string, fileName: string) => ipcRenderer.invoke('export:freePath', folder, fileName),
+  openFolder: (folder: string) => ipcRenderer.invoke('shell:openFolder', folder),
   revealInFolder: (filePath: string) => ipcRenderer.invoke('shell:revealInFolder', filePath),
   saveBinaryFile: (data: Uint8Array, defaultName: string) =>
     ipcRenderer.invoke('export:saveBinary', data, defaultName),

@@ -529,7 +529,12 @@ export interface FrameSlideAPI {
   openProject: () => Promise<OpenProjectResult>;
   writeAutosave: (data: ProjectFileData) => Promise<void>;
   loadAutosave: () => Promise<ProjectFileData | null>;
-  pickOutputFolder: () => Promise<PickFolderResult>;
+  pickOutputFolder: (defaultPath?: string) => Promise<PickFolderResult>;
+  /** The user's Videos folder: where exports go until another folder is chosen. */
+  getDefaultExportFolder: () => Promise<string>;
+  /** Full path in `folder` for `fileName`, with "_2", "_3"… when that file exists. Creates the folder. */
+  freeExportPath: (folder: string, fileName: string) => Promise<string>;
+  openFolder: (folder: string) => Promise<void>;
   revealInFolder: (filePath: string) => Promise<void>;
   saveBinaryFile: (data: Uint8Array, defaultName: string) => Promise<SaveFileResult>;
   saveBinaryToPath: (data: Uint8Array, filePath: string) => Promise<void>;
