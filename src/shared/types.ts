@@ -215,6 +215,8 @@ export interface SceneItem {
   motionDirection?: MotionDirection;
   /** Own Motion Template for this scene (undefined = follow the project's template). */
   motionTemplate?: MotionTemplateId;
+  /** True = `motionTemplate` was picked by "Motion tự động", so a later auto run may replace it. */
+  motionAuto?: boolean;
   caption?: string;
   /** When this scene's caption appears / disappears (per-scene captions only). */
   captionTiming?: CaptionTiming;

@@ -87,6 +87,8 @@ export function applySceneSettings(
       case 'motion':
         next.motionDirection = settings.motionDirection;
         next.motionTemplate = settings.motionTemplate;
+        // A pasted template is a deliberate choice: auto motion must leave it alone.
+        delete next.motionAuto;
         next.stagger = settings.stagger ? { ...settings.stagger } : undefined;
         break;
       case 'background':

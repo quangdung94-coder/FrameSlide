@@ -11,6 +11,7 @@ import {
 } from '@engine/sceneBuilder';
 import { mapById, omitKeys, withOptional } from '@engine/objectUtils';
 import { clamp } from '@engine/num';
+import { planAutoMotion, type AutoMotionMode } from '@engine/autoMotion';
 import { MAX_PLAYBACK_RATE, type PlayDirection } from '@engine/playback';
 import { DEFAULT_STAGGER, normalizeStagger } from '@engine/stagger';
 import { clampTextOffset } from '@engine/textAnimation';
@@ -201,6 +202,10 @@ interface AppState {
   setSceneMotionDirection: (sceneId: string, motionDirection: MotionDirection) => void;
   /** Own Motion Template for one scene; `null` = follow the project's template. */
   setSceneMotionTemplate: (sceneId: string, template: MotionTemplateId | null) => void;
+  /** "Motion tự động": a template for every scene not picked by hand. Returns scenes changed. */
+  applyAutoMotion: (mode: AutoMotionMode, seed?: number) => number;
+  /** Put every auto-picked scene back to "Theo dự án" (hand-picked ones are kept). */
+  clearAutoMotion: () => number;
   setSceneCaption: (sceneId: string, caption: string) => void;
   /** When the scene's caption shows (null = whole scene). */
   setSceneCaptionTiming: (sceneId: string, timing: CaptionTiming | null) => void;
@@ -803,8 +808,34 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSceneMotionTemplate: (sceneId, template) =>
     set((s) => ({
       ...pushPast(s),
-      scenes: mapById(s.scenes, sceneId, (sc) => withOptional(sc, 'motionTemplate', template || null)),
+      scenes: mapById(s.scenes, sceneId, (sc) => omitKeys(withOptional(sc, 'motionTemplate', template || null), 'motionAuto')),
     })),
+
+  applyAutoMotion: (mode, seed) => {
+    const s = get();
+    const plan = planAutoMotion(s.scenes, { mode, seed: seed ?? Date.now() });
+    if (plan.every((p) => p === null)) return 0;
+    let changed = 0;
+    const scenes = s.scenes.map((sc, i) => {
+      const pick = plan[i];
+      if (!pick) return sc;
+      changed++;
+      return { ...sc, motionTemplate: pick, motionAuto: true };
+    });
+    set({ ...pushPast(s), scenes });
+    return changed;
+  },
+
+  clearAutoMotion: () => {
+    const s = get();
+    const count = s.scenes.filter((sc) => sc.motionAuto).length;
+    if (count === 0) return 0;
+    set({
+      ...pushPast(s),
+      scenes: s.scenes.map((sc) => (sc.motionAuto ? omitKeys(sc, 'motionTemplate', 'motionAuto') : sc)),
+    });
+    return count;
+  },
 
   setSceneCaptionTiming: (sceneId, timing) =>
     set((s) => ({

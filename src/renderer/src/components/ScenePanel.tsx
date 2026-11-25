@@ -109,6 +109,11 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
               </option>
             ))}
           </select>
+          {scene.motionAuto && (
+            <span className="text-[11px] text-amber-300/80">
+              Do "Motion tự động" chọn. Chọn tay một mẫu để giữ cố định khi chạy tự động lần sau.
+            </span>
+          )}
         </label>
         <label className="flex flex-col gap-1 text-xs text-zinc-400">
           Hướng chuyển động riêng
