@@ -3,32 +3,60 @@ import type { SlideAsset } from '@shared/types';
 import { useAppStore } from '../store/useAppStore';
 
 interface Props {
-  photo: SlideAsset;
+  photo: SlideAsset | null;
+  /** 1-based number of the photo in the tray, shown before its name. */
+  photoNumber: number | null;
   disabled: boolean;
   focalPickMode: boolean;
+  editMode: boolean;
   onEdit: () => void;
   onToggleFocalPick: () => void;
+  /** While editing, the photo editor puts its exact-value fields into this slot of the strip. */
+  onToolSlot: (el: HTMLDivElement | null) => void;
 }
 
-/** Floating bar on the preview for the selected photo: edit, focal point, rotate, exposure, reset. */
-export function PhotoQuickBar({ photo, disabled, focalPickMode, onEdit, onToggleFocalPick }: Props) {
+/**
+ * Tool strip above the preview (Đợt 5.3c): it sits outside the picture so it never covers the
+ * photo. Shows which photo is selected and quick edits for it: edit, focal point, rotate,
+ * exposure, reset. Keeps its height when nothing is selected so the preview does not jump.
+ */
+export function PhotoQuickBar({ photo, photoNumber, disabled, focalPickMode, editMode, onEdit, onToggleFocalPick, onToolSlot }: Props) {
   const rotatePhoto90 = useAppStore((s) => s.rotatePhoto90);
   const setPhotoExposure = useAppStore((s) => s.setPhotoExposure);
   const setPhotoTransform = useAppStore((s) => s.setPhotoTransform);
+
+  if (!photo) {
+    return (
+      <div className="flex h-10 shrink-0 items-center px-1 text-xs text-zinc-500">
+        Chọn một ảnh trên thẻ scene hoặc khay ảnh để chỉnh nhanh.
+      </div>
+    );
+  }
+
+  const ev = photo.exposure ?? 0;
 
   return (
     <div
       role="toolbar"
       aria-label="Chỉnh nhanh ảnh đang chọn"
-      className="absolute top-2.5 right-2.5 z-20 flex items-center gap-0.5 rounded-md border border-zinc-700 bg-black/80 p-0.5 text-xs text-zinc-200 shadow-lg backdrop-blur-sm"
+      className="flex h-10 shrink-0 items-center gap-1 text-sm text-zinc-200"
     >
+      <span className="mr-1 min-w-0 truncate text-xs text-zinc-400" title={photo.name}>
+        {photoNumber !== null && <span className="font-semibold text-zinc-200">Ảnh {photoNumber}</span>}
+        {photoNumber !== null && ' · '}
+        {photo.name}
+      </span>
+      {editMode && <div ref={onToolSlot} className="ml-auto flex shrink-0 items-center gap-2 text-xs" />}
+      <div className={`ml-auto flex shrink-0 items-center gap-1 ${editMode ? 'hidden' : ''}`}>
       {(
         [
           {
             key: 'edit',
             label: '✥ Chỉnh',
-            title: 'Kéo trực tiếp trên khung xem để di chuyển, phóng to, xoay ảnh',
-            active: false,
+            title: editMode
+              ? 'Đang chỉnh ảnh trên khung xem • bấm lại để xong'
+              : 'Kéo trực tiếp trên khung xem để di chuyển, phóng to, xoay ảnh',
+            active: editMode,
             onClick: onEdit,
           },
           {
@@ -85,15 +113,22 @@ export function PhotoQuickBar({ photo, disabled, focalPickMode, onEdit, onToggle
           disabled={disabled}
           title={b.title}
           onClick={b.onClick}
-          className={`h-8 rounded px-2.5 font-medium transition disabled:opacity-40 ${
+          className={`h-8 rounded border px-3 font-medium transition disabled:opacity-40 ${
             b.active
-              ? 'bg-amber-500/25 text-amber-300'
-              : 'hover:bg-zinc-800 hover:text-amber-300'
+              ? 'border-amber-400 bg-amber-500/20 text-amber-300'
+              : 'border-zinc-700 bg-zinc-900 hover:border-amber-400 hover:text-amber-300'
           }`}
         >
           {b.label}
         </button>
       ))}
+        <span
+          className="w-14 text-right font-mono text-xs text-zinc-400"
+          title="Độ sáng riêng của ảnh này (EV)"
+        >
+          {ev === 0 ? '0 EV' : `${ev > 0 ? '+' : ''}${ev.toFixed(2)}`}
+        </span>
+      </div>
     </div>
   );
 }
