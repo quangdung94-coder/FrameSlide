@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getExportResolution } from '@engine/capabilities';
 import { getSlotFrameRect } from '@engine/layoutGeometry';
 import { MOTION_STYLE_CODE_MAP } from '@engine/presets/motionTemplates';
@@ -13,6 +14,8 @@ import { useAppStore } from '../store/useAppStore';
 interface Props {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   onClose: () => void;
+  /** Slot in the tool strip above the preview; the exact-value fields go there (outside the picture). */
+  toolSlot?: HTMLElement | null;
 }
 
 type DragMode = 'move' | 'scale' | 'rotate';
@@ -33,7 +36,7 @@ interface DragState {
  * drag inside the box to move, drag a corner to scale, drag the round handle to rotate
  * (hold Shift to snap 15°). Numbers below the preview allow exact values.
  */
-export function PhotoTransformOverlay({ canvasRef, onClose }: Props) {
+export function PhotoTransformOverlay({ canvasRef, onClose, toolSlot }: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const lastWheelRef = useRef(0);
@@ -195,10 +198,68 @@ export function PhotoTransformOverlay({ canvasRef, onClose }: Props) {
           const v = Number(e.target.value);
           if (Number.isFinite(v)) onChange(v);
         }}
-        className="w-16 rounded border border-zinc-700 bg-zinc-950 px-1 py-0.5 text-right font-mono text-zinc-100"
+        className="w-18 rounded border border-zinc-700 bg-zinc-950 px-1 py-0.5 text-right font-mono text-zinc-100"
       />
       <span className="text-zinc-500">{suffix}</span>
     </label>
+  );
+
+  // Exact values: shown in the tool strip above the preview so they never cover the photo.
+  const valuePanel = (
+      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-200">
+        <span className="font-semibold text-amber-400">
+          Chỉnh ảnh{scene && scene.slots.length > 1 ? ` • ô ${slotIdx + 1}` : ''}
+        </span>
+        {photo?.transformEnd && (
+          <div className="flex overflow-hidden rounded border border-zinc-700">
+            {(
+              [
+                ['start', 'Đầu'],
+                ['end', 'Cuối'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setKeyframeEditPhase(id)}
+                title={id === 'start' ? 'Chỉnh tư thế lúc bắt đầu scene' : 'Chỉnh tư thế lúc kết thúc scene'}
+                className={`px-2 py-0.5 ${
+                  keyframeEditPhase === id
+                    ? 'bg-amber-500 font-semibold text-zinc-950'
+                    : 'bg-zinc-900 text-zinc-300 hover:text-amber-300'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        {numField('X', xf.x * 100, (v) => apply({ x: v / 100 }), 1, '%')}
+        {numField('Y', xf.y * 100, (v) => apply({ y: v / 100 }), 1, '%')}
+        {numField(
+          'Zoom',
+          xf.scale * 100,
+          (v) => apply({ scale: v / 100 }),
+          5,
+          `% (${PHOTO_TRANSFORM_LIMITS.scaleMin * 100}–${PHOTO_TRANSFORM_LIMITS.scaleMax * 100})`
+        )}
+        {numField('Xoay', xf.rotationDeg, (v) => apply({ rotationDeg: v }), 1, '°')}
+        <button
+          type="button"
+          disabled={!photo}
+          onClick={() => photo && setPhotoTransform(photo.id, { ...IDENTITY_PHOTO_TRANSFORM }, true)}
+          className="rounded border border-zinc-700 px-1.5 py-0.5 hover:border-amber-400 hover:text-amber-300 disabled:opacity-40"
+        >
+          Đặt lại
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded bg-amber-500 px-2 py-0.5 font-semibold text-zinc-950 hover:bg-amber-400"
+        >
+          Xong
+        </button>
+      </div>
   );
 
   const handle = 'absolute h-3 w-3 rounded-sm border border-zinc-950 bg-amber-400 shadow';
@@ -312,61 +373,11 @@ export function PhotoTransformOverlay({ canvasRef, onClose }: Props) {
         </div>
       )}
 
-      {/* Exact values */}
-      <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 flex-wrap items-center gap-2 rounded-md border border-zinc-700 bg-zinc-950/90 px-2 py-1 text-xs text-zinc-200 shadow-lg">
-        <span className="font-semibold text-amber-400">
-          Chỉnh ảnh{scene && scene.slots.length > 1 ? ` • ô ${slotIdx + 1}` : ''}
-        </span>
-        {photo?.transformEnd && (
-          <div className="flex overflow-hidden rounded border border-zinc-700">
-            {(
-              [
-                ['start', 'Đầu'],
-                ['end', 'Cuối'],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setKeyframeEditPhase(id)}
-                title={id === 'start' ? 'Chỉnh tư thế lúc bắt đầu scene' : 'Chỉnh tư thế lúc kết thúc scene'}
-                className={`px-2 py-0.5 ${
-                  keyframeEditPhase === id
-                    ? 'bg-amber-500 font-semibold text-zinc-950'
-                    : 'bg-zinc-900 text-zinc-300 hover:text-amber-300'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-        {numField('X', xf.x * 100, (v) => apply({ x: v / 100 }), 1, '%')}
-        {numField('Y', xf.y * 100, (v) => apply({ y: v / 100 }), 1, '%')}
-        {numField(
-          'Zoom',
-          xf.scale * 100,
-          (v) => apply({ scale: v / 100 }),
-          5,
-          `% (${PHOTO_TRANSFORM_LIMITS.scaleMin * 100}–${PHOTO_TRANSFORM_LIMITS.scaleMax * 100})`
-        )}
-        {numField('Xoay', xf.rotationDeg, (v) => apply({ rotationDeg: v }), 1, '°')}
-        <button
-          type="button"
-          disabled={!photo}
-          onClick={() => photo && setPhotoTransform(photo.id, { ...IDENTITY_PHOTO_TRANSFORM }, true)}
-          className="rounded border border-zinc-700 px-1.5 py-0.5 hover:border-amber-400 hover:text-amber-300 disabled:opacity-40"
-        >
-          Đặt lại
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded bg-amber-500 px-2 py-0.5 font-semibold text-zinc-950 hover:bg-amber-400"
-        >
-          Xong
-        </button>
-      </div>
+      {toolSlot ? createPortal(valuePanel, toolSlot) : (
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-md border border-zinc-700 bg-zinc-950/90 px-2 py-1 shadow-lg">
+          {valuePanel}
+        </div>
+      )}
     </div>
   );
 }

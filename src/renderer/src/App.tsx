@@ -52,6 +52,7 @@ export default function App() {
   const [isFullscreenPreview, setIsFullscreenPreview] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [photoToolSlot, setPhotoToolSlot] = useState<HTMLDivElement | null>(null);
 
   // ⚙ Cài đặt: defaults for a new project, applied once when the app opens (empty project only).
   useEffect(() => {
@@ -325,6 +326,23 @@ export default function App() {
 
         {/* Center: Preview Canvas + Playback + Scene Track */}
         <main className="flex min-w-0 flex-1 flex-col justify-between overflow-hidden p-3">
+          {!isFullscreenPreview && scenes.length > 0 && (
+            <div className="mx-auto w-full max-w-4xl">
+              <PhotoQuickBar
+                photo={focalTargetPhoto}
+                photoNumber={focalTargetPhoto ? slides.indexOf(focalTargetPhoto) + 1 : null}
+                disabled={isExporting || textDragMode}
+                focalPickMode={focalPickMode}
+                editMode={transformEditMode}
+                onEdit={() => (transformEditMode ? setTransformEditMode(false) : startTransformEdit())}
+                onToggleFocalPick={() => {
+                  setTransformEditMode(false);
+                  setFocalPickMode(!focalPickMode);
+                }}
+                onToolSlot={setPhotoToolSlot}
+              />
+            </div>
+          )}
           <div className="flex min-h-0 flex-1 items-center justify-center">
             <div
               className={`relative max-h-full overflow-hidden rounded-lg border border-zinc-800 bg-black shadow-2xl ${
@@ -378,17 +396,8 @@ export default function App() {
               {transformEditMode && !isExporting && scenes.length > 0 && (
                 <PhotoTransformOverlay
                   canvasRef={canvasRef}
+                  toolSlot={photoToolSlot}
                   onClose={() => setTransformEditMode(false)}
-                />
-              )}
-
-              {!isFullscreenPreview && scenes.length > 0 && !transformEditMode && !textDragMode && focalTargetPhoto && (
-                <PhotoQuickBar
-                  photo={focalTargetPhoto}
-                  disabled={isExporting}
-                  focalPickMode={focalPickMode}
-                  onEdit={startTransformEdit}
-                  onToggleFocalPick={() => setFocalPickMode(!focalPickMode)}
                 />
               )}
 
