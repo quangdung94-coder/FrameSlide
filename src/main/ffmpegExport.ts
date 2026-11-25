@@ -1,4 +1,6 @@
-import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'child_process';
+import { execFile, spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'child_process';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import { randomUUID } from 'crypto';
 import type { ExportCodec, FfmpegExportFinishResult } from '@shared/types';
 
@@ -14,9 +16,28 @@ interface ActiveJob {
 
 const activeJobs = new Map<string, ActiveJob>();
 
+/**
+ * FFmpeg the app runs (Bước 6): the copy shipped inside FrameSlide.exe
+ * (resources/ffmpeg/ffmpeg.exe) when there is one, otherwise `ffmpeg` from PATH.
+ */
+export function resolveFfmpegPath(resourcesPath: string | undefined = process.resourcesPath): string {
+  if (resourcesPath) {
+    const bundled = join(resourcesPath, 'ffmpeg', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+    if (existsSync(bundled)) return bundled;
+  }
+  return 'ffmpeg';
+}
+
 export function isFfmpegAvailable(): boolean {
-  const res = spawnSync('ffmpeg', ['-version'], { windowsHide: true, timeout: 3000 });
+  const res = spawnSync(resolveFfmpegPath(), ['-version'], { windowsHide: true, timeout: 3000 });
   return res.status === 0;
+}
+
+/** Same check without blocking app start (the sync one can take seconds on a cold disk). */
+export function checkFfmpegAvailable(): Promise<boolean> {
+  return new Promise((resolve) => {
+    execFile(resolveFfmpegPath(), ['-version'], { windowsHide: true, timeout: 20000 }, (err) => resolve(!err));
+  });
 }
 
 export function formatFfmpegFps(fps: number): string {
@@ -97,7 +118,7 @@ export function startFfmpegJob(opts: {
 }): string {
   const jobId = randomUUID();
   const args = buildFfmpegArgs(opts);
-  const proc = spawn('ffmpeg', args, { windowsHide: true });
+  const proc = spawn(resolveFfmpegPath(), args, { windowsHide: true });
 
   const job: ActiveJob = {
     process: proc,

@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, renameSync } from 'fs';
 import { readdir, stat } from 'fs/promises';
 import { basename, extname, join, relative, resolve } from 'path';
 import sharp from 'sharp';
@@ -328,9 +328,12 @@ export async function ensureSamplePhotos(cacheDir: string): Promise<SlideAsset[]
   for (const spec of specs) {
     const rawPath = join(sampleDir, spec.filename);
     if (!existsSync(rawPath)) {
+      // Write then rename: a half-written sample (crash, second writer) is never taken as done.
+      const tmpPath = `${rawPath}.${process.pid}.tmp`;
       await sharp(Buffer.from(spec.svg))
         .jpeg({ quality: 95, mozjpeg: true })
-        .toFile(rawPath);
+        .toFile(tmpPath);
+      renameSync(tmpPath, rawPath);
     }
     const asset = await createImageProxy(rawPath, cacheDir);
     assets.push(asset);

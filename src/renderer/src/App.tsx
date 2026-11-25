@@ -13,6 +13,7 @@ import { PreviewEmptyState } from './components/PreviewEmptyState';
 import { PlaybackBar } from './components/PlaybackBar';
 import { SceneTrack } from './components/SceneTrack';
 import { ExportDialog } from './components/ExportDialog';
+import { GpuNotice } from './components/GpuNotice';
 import { ShortcutsModal } from './components/ShortcutsModal';
 import { SettingsDialog } from './components/SettingsDialog';
 import { usePrefsStore } from './store/usePrefsStore';
@@ -566,6 +567,7 @@ export default function App() {
       {showShortcutsModal && <ShortcutsModal onClose={() => setShowShortcutsModal(false)} />}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
 
+      <GpuNotice />
       <StatusFooter appInfo={appInfo} previewSize={resolvedSize} liveFps={liveFps} notice={statusNotice} />
     </div>
   );

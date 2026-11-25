@@ -1,21 +1,46 @@
 appId: local.frameslide.app
 productName: FrameSlide
+copyright: FrameSlide — dùng cá nhân, chia sẻ miễn phí
 directories:
   output: release
+  buildResources: build
 files:
   - out/**/*
   - package.json
+  # The renderer bundles these already; the main process only needs sharp.
   - "!**/node_modules/three/**/*"
+  - "!**/node_modules/@fontsource/**/*"
+  - "!**/node_modules/react/**/*"
+  - "!**/node_modules/react-dom/**/*"
+  - "!**/node_modules/zustand/**/*"
+  - "!**/node_modules/mp4-muxer/**/*"
 asarUnpack:
   - "**/node_modules/sharp/**/*"
   - "**/node_modules/@img/**/*"
+# Bước 6: FFmpeg ships with the app (ProRes / DNxHR without installing anything).
+# CI downloads ffmpeg.exe into vendor/ffmpeg before packaging; see .github/workflows/release.yml.
+extraResources:
+  - from: vendor/ffmpeg
+    to: ffmpeg
+    filter:
+      - "**/*"
 win:
+  icon: build/icon.png
   target:
     - target: nsis
       arch:
         - x64
+    - target: portable
+      arch:
+        - x64
 nsis:
   oneClick: false
+  perMachine: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  shortcutName: FrameSlide
+  artifactName: FrameSlide-Setup-${version}.${ext}
+  deleteAppDataOnUninstall: false
+portable:
+  artifactName: FrameSlide-Portable-${version}.${ext}

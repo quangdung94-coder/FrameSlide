@@ -1,0 +1,109 @@
+name: Đóng gói FrameSlide.exe
+
+# Bước 6: bộ cài Windows (NSIS) + bản chạy liền (portable), có sẵn FFmpeg, không cần Node.
+# - PR: đóng gói + tự kiểm tra (smoke test), file .exe để ở mục Artifacts của lần chạy.
+# - Gộp vào main: như trên, rồi cập nhật GitHub Release "FrameSlide (bản mới nhất)".
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package-windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Tải FFmpeg (bản dựng sẵn cho Windows)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force vendor/ffmpeg | Out-Null
+          $zip = "$env:RUNNER_TEMP\ffmpeg.zip"
+          $src = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip'
+          try {
+            Invoke-WebRequest $src -OutFile $zip -UseBasicParsing
+          } catch {
+            Write-Host "gyan.dev lỗi, dùng BtbN/FFmpeg-Builds"
+            $rel = Invoke-RestMethod -Headers @{ Authorization = "Bearer $env:GH_TOKEN" } https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest
+            $asset = $rel.assets | Where-Object { $_.name -match '^ffmpeg-n\d.*-win64-gpl-\d[\d.]*\.zip$' } | Select-Object -First 1
+            if (-not $asset) { throw 'Không tìm thấy bản FFmpeg win64' }
+            $src = $asset.browser_download_url
+            Invoke-WebRequest $src -OutFile $zip -UseBasicParsing
+          }
+          Write-Host "FFmpeg từ: $src"
+          Expand-Archive $zip -DestinationPath "$env:RUNNER_TEMP\ffmpeg-x" -Force
+          $exe = Get-ChildItem "$env:RUNNER_TEMP\ffmpeg-x" -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          Copy-Item $exe.FullName vendor/ffmpeg/ffmpeg.exe
+          $lic = Get-ChildItem "$env:RUNNER_TEMP\ffmpeg-x" -Recurse -Include LICENSE*, COPYING* | Select-Object -First 1
+          if ($lic) { Copy-Item $lic.FullName vendor/ffmpeg/LICENSE.txt }
+          "FFmpeg (GPL) - https://ffmpeg.org - nguồn bản dựng: $src" | Out-File vendor/ffmpeg/README.txt -Encoding utf8
+          $enc = & vendor/ffmpeg/ffmpeg.exe -hide_banner -encoders
+          foreach ($need in 'prores_ks', 'dnxhd', 'libx264') {
+            if (-not ($enc | Select-String $need)) { throw "FFmpeg thiếu encoder $need" }
+          }
+          & vendor/ffmpeg/ffmpeg.exe -hide_banner -version | Select-Object -First 1
+
+      - name: Đóng gói .exe
+        run: npm run package:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Tự kiểm tra bản đóng gói (mở app, ảnh mẫu, FFmpeg)
+        shell: pwsh
+        run: |
+          $out = "$env:RUNNER_TEMP\smoke.json"
+          $p = Start-Process "release/win-unpacked/FrameSlide.exe" -ArgumentList "--smoke-test=$out" -PassThru
+          if (-not $p.WaitForExit(180000)) { $p.Kill(); throw 'App không tự thoát sau 3 phút' }
+          if (-not (Test-Path $out)) { throw 'App không ghi kết quả kiểm tra' }
+          Get-Content $out
+          $r = Get-Content $out -Raw | ConvertFrom-Json
+          if (-not $r.ok) { throw 'Bản đóng gói chưa đạt' }
+          Get-ChildItem release/*.exe | ForEach-Object { "{0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB) }
+
+      - name: Lưu file .exe (Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: FrameSlide-Windows
+          path: release/*.exe
+          retention-days: 30
+
+      - name: Cập nhật bản phát hành "bản mới nhất"
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ban-moi-nhat
+          name: FrameSlide (bản mới nhất)
+          make_latest: true
+          overwrite_files: true
+          files: release/*.exe
+          body: |
+            Bản đóng gói tự động từ nhánh main, commit ${{ github.sha }}.
+
+            **Cài đặt (khuyên dùng):** tải `FrameSlide-Setup-*.exe`, chạy, bấm Next. Có biểu tượng FrameSlide trên Desktop và Start Menu.
+            **Chạy liền không cài:** tải `FrameSlide-Portable-*.exe`, bấm đúp là chạy (mỗi lần mở chậm hơn bản cài vài giây vì phải giải nén).
+
+            Không cần cài Node.js hay FFmpeg; FFmpeg (GPL, ffmpeg.org) có sẵn trong app để xuất ProRes / DNxHR.
+            Windows SmartScreen có thể báo "Windows protected your PC" vì file không ký số: bấm "More info" → "Run anyway".
