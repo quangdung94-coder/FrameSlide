@@ -61,6 +61,36 @@ export function computeEffectiveTotalDurationSec(
   return durations.reduce((acc, d) => acc + d, 0);
 }
 
+/** Duration settings of a project (the matching fields of RenderParams). */
+export interface ProjectDurationParams {
+  durationMode?: DurationMode;
+  totalDurationSec?: number;
+  defaultSlideDurationSec?: number;
+  handlesSec?: number;
+}
+
+/** Timeline duration input for a list of scenes + the project's duration settings. */
+export function projectDurationInput(
+  scenes: readonly { durationSec?: number }[],
+  params?: ProjectDurationParams | null
+): TimelineDurationInput & { durationMode: DurationMode } {
+  return {
+    durationMode: params?.durationMode ?? 'per-slide',
+    totalDurationSec: params?.totalDurationSec ?? 15,
+    defaultSlideDurationSec: params?.defaultSlideDurationSec ?? 3.5,
+    slideDurations: scenes.map((sc) => sc.durationSec),
+    handlesSec: params?.handlesSec ?? 0,
+  };
+}
+
+/** Total length (seconds) of a project's timeline. */
+export function computeProjectDurationSec(
+  scenes: readonly { durationSec?: number }[],
+  params?: ProjectDurationParams | null
+): number {
+  return computeEffectiveTotalDurationSec(scenes.length, projectDurationInput(scenes, params));
+}
+
 export function getTotalFrames(totalDurationSec: number, fps: number): number {
   return Math.max(1, Math.round(totalDurationSec * fps));
 }

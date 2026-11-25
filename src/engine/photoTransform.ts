@@ -1,4 +1,5 @@
 import type { PhotoTransform } from '@shared/types';
+import { clamp, finiteOr } from './num';
 
 export const IDENTITY_PHOTO_TRANSFORM: PhotoTransform = { x: 0, y: 0, scale: 1, rotationDeg: 0 };
 
@@ -9,13 +10,9 @@ export const PHOTO_TRANSFORM_LIMITS = {
   rotation: 180,
 } as const;
 
-const finiteOr = (v: unknown, fallback: number) =>
-  typeof v === 'number' && Number.isFinite(v) ? v : fallback;
-
 /** Clamps every field to a safe range; missing/invalid values become the identity. */
 export function normalizePhotoTransform(t: Partial<PhotoTransform> | undefined | null): PhotoTransform {
   const L = PHOTO_TRANSFORM_LIMITS;
-  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
   let rot = finiteOr(t?.rotationDeg, 0);
   // wrap to -180..180
   rot = ((((rot + 180) % 360) + 360) % 360) - 180;

@@ -12,7 +12,7 @@ import {
 import { FILM_LOOK_PRESETS } from '@engine/presets/filmLookPresets';
 import { MOTION_TEMPLATE_PRESETS } from '@engine/presets/motionTemplates';
 import { TRANSITION_PRESETS } from '@engine/presets/transitions';
-import { computeEffectiveTotalDurationSec, getTotalFrames } from '@engine/timeline';
+import { computeProjectDurationSec, getTotalFrames } from '@engine/timeline';
 import { IDENTITY_PHOTO_TRANSFORM } from '@engine/photoTransform';
 import { BackgroundPanel } from './components/BackgroundPanel';
 import { PhotoBin } from './components/PhotoBin';
@@ -288,13 +288,7 @@ export default function App() {
 
   const effectiveDurationSec = useMemo(
     () =>
-      computeEffectiveTotalDurationSec(scenes.length, {
-        durationMode: renderParams.durationMode,
-        totalDurationSec: renderParams.totalDurationSec,
-        defaultSlideDurationSec: renderParams.defaultSlideDurationSec,
-        slideDurations: scenes.map((sc) => sc.durationSec),
-        handlesSec: renderParams.handlesSec,
-      }),
+      computeProjectDurationSec(scenes, renderParams),
     [scenes, renderParams]
   );
 
@@ -633,13 +627,7 @@ export default function App() {
 
     const tick = (now: number) => {
       const s = useAppStore.getState();
-      const effDur = computeEffectiveTotalDurationSec(s.scenes.length, {
-        durationMode: s.renderParams.durationMode,
-        totalDurationSec: s.renderParams.totalDurationSec,
-        defaultSlideDurationSec: s.renderParams.defaultSlideDurationSec,
-        slideDurations: s.scenes.map((sc) => sc.durationSec),
-        handlesSec: s.renderParams.handlesSec,
-      });
+      const effDur = computeProjectDurationSec(s.scenes, s.renderParams);
       const total = getTotalFrames(effDur, s.fps);
       const elapsedSec = (now - startWallMs) / 1000;
       const nextFrame = (startFrame + Math.floor(elapsedSec * s.fps)) % total;

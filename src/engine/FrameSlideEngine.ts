@@ -27,7 +27,7 @@ import { TRANSITION_CODE_MAP } from './presets/transitions';
 import { buildScenesFromPhotos } from './sceneBuilder';
 import { TextOverlayRenderer } from './textOverlay';
 import { TextureWindowCache } from './TextureWindowCache';
-import { computeEffectiveTotalDurationSec, evaluateTimeline } from './timeline';
+import { computeProjectDurationSec, evaluateTimeline, projectDurationInput } from './timeline';
 import {
   FULLSCREEN_VERTEX_SHADER,
   SCENE_TRANSITION_FRAGMENT_SHADER,
@@ -598,14 +598,10 @@ export class FrameSlideEngine {
       frameIndex,
       fps,
       slideCount: this.scenes.length,
-      totalDurationSec: params.totalDurationSec,
       transitionDurationSec: params.transitionDurationSec,
       transitionDurations: this.scenes.map((sc) => sc.transitionDurationSec),
       simulate18fps: params.super8.enabled && params.super8.simulate18fps,
-      durationMode: params.durationMode,
-      defaultSlideDurationSec: params.defaultSlideDurationSec,
-      slideDurations: this.scenes.map((s) => s.durationSec),
-      handlesSec: params.handlesSec,
+      ...projectDurationInput(this.scenes, params),
     });
 
     const needed = [state.slideBIndex + 1, state.slideBIndex, state.slideAIndex].filter(
@@ -717,14 +713,10 @@ export class FrameSlideEngine {
       frameIndex,
       fps,
       slideCount: this.scenes.length,
-      totalDurationSec: params?.totalDurationSec ?? 15,
       transitionDurationSec: params?.transitionDurationSec ?? 0.9,
       transitionDurations: this.scenes.map((sc) => sc.transitionDurationSec),
       simulate18fps: look.enabled && look.simulate18fps,
-      durationMode: params?.durationMode ?? 'per-slide',
-      defaultSlideDurationSec: params?.defaultSlideDurationSec ?? 3.5,
-      slideDurations: this.scenes.map((s) => s.durationSec),
-      handlesSec: params?.handlesSec ?? 0,
+      ...projectDurationInput(this.scenes, params),
     });
 
     this.lastSceneIndex = state.slideAIndex;
@@ -827,13 +819,7 @@ export class FrameSlideEngine {
       videoFade = Math.min(videoFade, Math.max(0, timeSec / fadeInSec));
     }
     if (fadeOutSec > 0.01) {
-      const effectiveTotalSec = computeEffectiveTotalDurationSec(this.scenes.length, {
-        durationMode: params?.durationMode ?? 'per-slide',
-        totalDurationSec: params?.totalDurationSec ?? 15,
-        defaultSlideDurationSec: params?.defaultSlideDurationSec ?? 3.5,
-        slideDurations: this.scenes.map((s) => s.durationSec),
-        handlesSec: params?.handlesSec ?? 0,
-      });
+      const effectiveTotalSec = computeProjectDurationSec(this.scenes, params);
       const remainingSec = effectiveTotalSec - timeSec;
       if (remainingSec < fadeOutSec) {
         videoFade = Math.min(videoFade, Math.max(0, remainingSec / fadeOutSec));

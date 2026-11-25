@@ -2,7 +2,7 @@ import { ArrayBufferTarget, Muxer } from 'mp4-muxer';
 import type { ExportCodec, FrameSlideAPI, RenderParams, SceneItem, SlideAsset } from '@shared/types';
 import { getExportResolution } from './capabilities';
 import type { FrameSlideEngine } from './FrameSlideEngine';
-import { computeEffectiveTotalDurationSec, getTotalFrames } from './timeline';
+import { computeProjectDurationSec, getTotalFrames } from './timeline';
 
 export interface ExportProgressInfo {
   currentFrame: number;
@@ -75,13 +75,7 @@ function getEffectiveDurationAndFrames(
   params: RenderParams
 ): { effectiveDurationSec: number; totalFrames: number } {
   const scenes = engine.getScenes();
-  const effectiveDurationSec = computeEffectiveTotalDurationSec(scenes.length, {
-    durationMode: params.durationMode,
-    totalDurationSec: params.totalDurationSec,
-    defaultSlideDurationSec: params.defaultSlideDurationSec,
-    slideDurations: scenes.map((s) => s.durationSec),
-    handlesSec: params.handlesSec,
-  });
+  const effectiveDurationSec = computeProjectDurationSec(scenes, params);
   return {
     effectiveDurationSec,
     totalFrames: getTotalFrames(effectiveDurationSec, fps),
