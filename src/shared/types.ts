@@ -46,7 +46,14 @@ export interface BackgroundOptions {
   /** CSS-style gradient angle: 0 = bottom→top, 90 = left→right. */
   angleDeg: number;
   pattern: BackgroundPattern;
+  /** "Ảnh mờ" background (Đợt 5.4c): blur type, strength 0–100, darkness 0–100, zoom 100–160 %. */
+  blurKind?: BackgroundBlurKind;
+  blurAmount?: number;
+  blurDarkness?: number;
+  blurZoom?: number;
 }
+
+export type BackgroundBlurKind = 'smooth' | 'zoom' | 'motion' | 'frosted' | 'vignette';
 
 /** Per-scene background that replaces the project background for that scene only. */
 export interface SceneBackground extends BackgroundOptions {
