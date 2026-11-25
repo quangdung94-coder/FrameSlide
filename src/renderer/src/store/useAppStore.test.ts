@@ -530,3 +530,36 @@ describe('scene frame style', () => {
   });
 });
 
+
+describe('multi-select scenes (Đợt 6.2)', () => {
+  beforeEach(() => {
+    useAppStore.setState({ scenes: [], activeSceneId: null, selectedSceneIds: [], sceneSelectAnchor: null, past: [], future: [] });
+    for (let i = 0; i < 5; i++) useAppStore.getState().addScene('single');
+  });
+
+  it('Shift + click selects a range and removeScenes deletes it in one undo step', () => {
+    const ids = useAppStore.getState().scenes.map((sc) => sc.id);
+    const st = useAppStore.getState();
+    st.clickScene(ids[1], 'single');
+    st.clickScene(ids[3], 'range');
+    expect(useAppStore.getState().selectedSceneIds).toEqual([ids[1], ids[2], ids[3]]);
+    const pastBefore = useAppStore.getState().past.length;
+    useAppStore.getState().removeScenes(useAppStore.getState().selectedSceneIds);
+    const after = useAppStore.getState();
+    expect(after.scenes.map((sc) => sc.id)).toEqual([ids[0], ids[4]]);
+    expect(after.activeSceneId).toBe(ids[4]);
+    expect(after.selectedSceneIds).toEqual([ids[4]]);
+    expect(after.past.length).toBe(pastBefore + 1);
+    useAppStore.getState().undo();
+    expect(useAppStore.getState().scenes.map((sc) => sc.id)).toEqual(ids);
+  });
+
+  it('deleting every scene leaves one empty scene', () => {
+    const ids = useAppStore.getState().scenes.map((sc) => sc.id);
+    useAppStore.getState().removeScenes(ids);
+    const after = useAppStore.getState();
+    expect(after.scenes).toHaveLength(1);
+    expect(ids).not.toContain(after.scenes[0].id);
+    expect(after.activeSceneId).toBe(after.scenes[0].id);
+  });
+});

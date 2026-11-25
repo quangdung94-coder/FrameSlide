@@ -126,6 +126,16 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
   const hasClipboard = useAppStore((s) => s.sceneClipboard !== null);
   const duplicateScene = useAppStore((s) => s.duplicateScene);
   const removeScene = useAppStore((s) => s.removeScene);
+  const removeScenes = useAppStore((s) => s.removeScenes);
+  const clickScene = useAppStore((s) => s.clickScene);
+  const clearSceneSelection = useAppStore((s) => s.clearSceneSelection);
+  const rawSelectedIds = useAppStore((s) => s.selectedSceneIds);
+  // Selection can hold ids of scenes removed by undo etc.: keep only live ones.
+  const selectedIds = useMemo(() => {
+    const keep = new Set(rawSelectedIds);
+    return scenes.filter((sc) => keep.has(sc.id)).map((sc) => sc.id);
+  }, [rawSelectedIds, scenes]);
+  const multiSelected = selectedIds.length > 1;
   const moveScene = useAppStore((s) => s.moveScene);
   const reorderScene = useAppStore((s) => s.reorderScene);
   const randomizeSceneTransitions = useAppStore((s) => s.randomizeSceneTransitions);
@@ -333,6 +343,17 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
           ]
         : []),
       { separator: true, label: '' },
+      ...(multiSelected && selectedIds.includes(sceneId)
+        ? [
+            {
+              label: `Xóa ${selectedIds.length} scene đã chọn`,
+              hint: 'Delete',
+              danger: true,
+              onClick: () => removeScenes(selectedIds),
+              disabled,
+            },
+          ]
+        : []),
       {
         label: 'Xóa scene',
         danger: true,
@@ -436,6 +457,31 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
           >
             Trống ô
           </button>
+          {multiSelected && (
+            <span
+              role="status"
+              className="ml-1 flex items-center gap-1 rounded border border-amber-400/60 bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-200"
+            >
+              Đã chọn {selectedIds.length} scene
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => removeScenes(selectedIds)}
+                title="Xóa các scene đã chọn (phím Delete, Ctrl+Z để hoàn tác)"
+                className="rounded bg-red-600/80 px-1.5 text-white hover:bg-red-500 disabled:opacity-40"
+              >
+                🗑 Xóa
+              </button>
+              <button
+                type="button"
+                onClick={clearSceneSelection}
+                title="Bỏ chọn (Esc)"
+                className="rounded px-1 text-zinc-300 hover:text-white"
+              >
+                ✕
+              </button>
+            </span>
+          )}
           <label
             className="ml-1 flex items-center gap-1 text-xs text-zinc-400"
             title="Phóng to / thu nhỏ thẻ Scene (hoặc Ctrl + lăn chuột trên dải scene)"
@@ -517,11 +563,20 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
             <div key={sc.id} className="relative flex shrink-0 items-stretch gap-1.5">
               <div
                 draggable={!disabled}
-                onClick={() => {
-                  selectSceneAndSeek(sc.id, 0);
+                onMouseDown={(e) => {
+                  // Shift + click would otherwise select page text.
+                  if (e.shiftKey) e.preventDefault();
+                }}
+                onClick={(e) => {
+                  clickScene(sc.id, e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'single');
                   setInspectorScope('scene');
                 }}
                 onContextMenu={(e) => {
+                  // Right-click inside a multi-selection keeps it (menu offers "Xóa N scene").
+                  if (multiSelected && selectedIds.includes(sc.id)) {
+                    openAt(e, buildSceneMenu(sc.id));
+                    return;
+                  }
                   selectSceneAndSeek(sc.id, 0);
                   setInspectorScope('scene');
                   openAt(e, buildSceneMenu(sc.id));
@@ -572,9 +627,12 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                   isSceneDropHot
                     ? 'border-amber-400 bg-amber-500/15 ring-2 ring-amber-400'
                     : isActive
-                      ? 'border-amber-400 bg-zinc-800/90 shadow-md shadow-amber-500/10'
-                      : 'border-zinc-800 bg-zinc-900/90 hover:border-zinc-700'
+                      ? `border-amber-400 bg-zinc-800/90 shadow-md shadow-amber-500/10 ${multiSelected ? 'ring-2 ring-amber-400/70' : ''}`
+                      : multiSelected && selectedIds.includes(sc.id)
+                        ? 'border-amber-400/80 bg-amber-500/10 ring-2 ring-amber-400/70'
+                        : 'border-zinc-800 bg-zinc-900/90 hover:border-zinc-700'
                 }`}
+                aria-selected={selectedIds.includes(sc.id)}
               >
                 {/* Card Header */}
                 <div className="mb-1 flex items-center justify-between gap-1">
@@ -668,6 +726,12 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                            // Shift / Ctrl + click anywhere on the card picks scenes (Đợt 6.2).
+                            clickScene(sc.id, e.shiftKey ? 'range' : 'toggle');
+                            setInspectorScope('scene');
+                            return;
+                          }
                           if (selectedPhotoId && !disabled) {
                             assignPhotoToSlot(sc.id, slotIdx, selectedPhotoId);
                             setInspectorScope('scene');

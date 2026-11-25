@@ -44,6 +44,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions): void {
 
       if (e.key === 'Escape') {
         o.onEscape(inInput);
+        if (!inInput) useAppStore.getState().clearSceneSelection();
         return;
       }
 
@@ -131,7 +132,10 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions): void {
           s.setFrameIndex(Math.max(0, Math.min(Math.max(0, o.totalFrames - 1), s.frameIndex + delta)));
         }
       } else if (e.key === 'Delete') {
-        if (s.activeSceneId && s.scenes.length > 1) s.removeScene(s.activeSceneId);
+        const live = new Set(s.scenes.map((sc) => sc.id));
+        const picked = s.selectedSceneIds.filter((id) => live.has(id));
+        if (picked.length > 1) s.removeScenes(picked);
+        else if (s.activeSceneId && s.scenes.length > 1) s.removeScene(s.activeSceneId);
       } else if (ctrl && !e.shiftKey && key === 'd') {
         e.preventDefault();
         if (s.activeSceneId) s.duplicateScene(s.activeSceneId);

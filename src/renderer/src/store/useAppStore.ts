@@ -1,3 +1,4 @@
+import { clickSceneSelection, pruneSceneSelection, type SceneClickMode } from '@engine/sceneSelection';
 import { create } from 'zustand';
 import { getFilmLookPreset } from '@engine/presets/filmLookPresets';
 import { getMotionTemplate } from '@engine/presets/motionTemplates';
@@ -189,6 +190,15 @@ interface AppState {
   pasteSceneSettings: (sceneId: string, parts: SceneSettingPart[]) => boolean;
   duplicateScene: (sceneId: string) => void;
   removeScene: (sceneId: string) => void;
+  /** Scene cards picked with Shift / Ctrl + click (not saved, not in undo history). */
+  selectedSceneIds: string[];
+  sceneSelectAnchor: string | null;
+  /** Click on a scene card: plain = select it, Shift = range from the anchor, Ctrl = add / remove. */
+  clickScene: (sceneId: string, mode: SceneClickMode) => void;
+  /** Back to only the active scene selected. */
+  clearSceneSelection: () => void;
+  /** Deletes several scenes in one undo step (deleting all leaves one empty scene). */
+  removeScenes: (sceneIds: string[]) => void;
   moveScene: (sceneId: string, dir: -1 | 1) => void;
   reorderScene: (fromSceneId: string, toSceneId: string) => void;
   randomizeSceneTransitions: (seed?: number) => void;
@@ -604,6 +614,56 @@ export const useAppStore = create<AppState>((set, get) => ({
         activeSlotIndex: clampedSlot,
         frameIndex: targetFrame,
         isPlaying: false,
+        selectedSceneIds: [sceneId],
+        sceneSelectAnchor: sceneId,
+      };
+    }),
+
+  clickScene: (sceneId, mode) => {
+    const before = get();
+    const next = clickSceneSelection(
+      before.scenes.map((sc) => sc.id),
+      {
+        selected: pruneSceneSelection(
+          before.scenes.map((sc) => sc.id),
+          before.selectedSceneIds.length ? before.selectedSceneIds : before.activeSceneId ? [before.activeSceneId] : []
+        ),
+        anchor: before.sceneSelectAnchor ?? before.activeSceneId,
+      },
+      sceneId,
+      mode
+    );
+    get().selectSceneAndSeek(sceneId, 0);
+    set({ selectedSceneIds: next.selected, sceneSelectAnchor: next.anchor });
+  },
+
+  clearSceneSelection: () =>
+    set((s) => ({
+      selectedSceneIds: s.activeSceneId ? [s.activeSceneId] : [],
+      sceneSelectAnchor: s.activeSceneId,
+    })),
+
+  removeScenes: (sceneIds) =>
+    set((s) => {
+      const drop = new Set(sceneIds);
+      if (!s.scenes.some((sc) => drop.has(sc.id))) return s;
+      let nextScenes = s.scenes.filter((sc) => !drop.has(sc.id));
+      if (nextScenes.length === 0) {
+        nextScenes = [
+          createEmptyScene('single', s.renderParams.defaultSlideDurationSec, s.renderParams.transitionType),
+        ];
+      }
+      // Select the scene that now sits where the first deleted one was.
+      const firstIdx = s.scenes.findIndex((sc) => drop.has(sc.id));
+      const active = nextScenes[Math.min(firstIdx, nextScenes.length - 1)];
+      return {
+        ...pushPast(s),
+        scenes: nextScenes,
+        activeSceneId: active.id,
+        activeSlotIndex: 0,
+        selectedSceneIds: [active.id],
+        sceneSelectAnchor: active.id,
+        frameIndex: 0,
       };
     }),
 
@@ -643,6 +703,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     }),
 
   sceneClipboard: null,
+  selectedSceneIds: [],
+  sceneSelectAnchor: null,
   inspectorScope: 'project',
   setInspectorScope: (inspectorScope) => set({ inspectorScope }),
 
