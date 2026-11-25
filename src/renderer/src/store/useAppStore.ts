@@ -14,8 +14,16 @@ import { clamp } from '@engine/num';
 import { DEFAULT_STAGGER, normalizeStagger } from '@engine/stagger';
 import { clampTextOffset } from '@engine/textAnimation';
 import {
+  applySceneStyle as applySceneStyleTo,
+  BUILT_IN_SCENE_STYLES,
+  sceneStyleFromScene,
+  type SceneStyle,
+} from '@engine/sceneStyles';
+import {
   MAX_HISTORY,
+  loadSceneStyles,
   loadUserPresets,
+  persistSceneStyles,
   mergeRenderParams,
   persistUserPresets,
   restoreSnapshot,
@@ -174,6 +182,13 @@ interface AppState {
   setSceneCardStyle: (sceneId: string, style: SceneCardStyle | null) => void;
   /** Turn on / change (merged) or turn off (null) photos entering one after another. */
   setSceneStagger: (sceneId: string, stagger: Partial<SceneStagger> | null) => void;
+
+  // Scene Styles (built-in + saved on this computer)
+  sceneStyles: SceneStyle[];
+  /** Saves the scene's look as a reusable style; returns false when the name is empty. */
+  saveSceneStyle: (sceneId: string, name: string) => boolean;
+  deleteSceneStyle: (styleId: string) => void;
+  applySceneStyle: (sceneId: string, styleId: string) => boolean;
   setSceneMotionDirection: (sceneId: string, motionDirection: MotionDirection) => void;
   /** Own Motion Template for one scene; `null` = follow the project's template. */
   setSceneMotionTemplate: (sceneId: string, template: MotionTemplateId | null) => void;
@@ -703,6 +718,38 @@ export const useAppStore = create<AppState>((set, get) => ({
         withOptional(sc, 'transitionDurationSec', durationSec === null ? null : clamp(durationSec, 0.2, 2.5))
       ),
     })),
+
+  sceneStyles: loadSceneStyles(),
+
+  saveSceneStyle: (sceneId, name) => {
+    const s = get();
+    const sc = s.scenes.find((x) => x.id === sceneId);
+    if (!sc || !name.trim()) return false;
+    const style = sceneStyleFromScene(sc, name, `ss_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`);
+    const next = [style, ...s.sceneStyles].slice(0, 40);
+    persistSceneStyles(next);
+    set({ sceneStyles: next });
+    return true;
+  },
+
+  deleteSceneStyle: (styleId) =>
+    set((s) => {
+      const next = s.sceneStyles.filter((x) => x.id !== styleId);
+      persistSceneStyles(next);
+      return { sceneStyles: next };
+    }),
+
+  applySceneStyle: (sceneId, styleId) => {
+    const s = get();
+    const style = [...BUILT_IN_SCENE_STYLES, ...s.sceneStyles].find((x) => x.id === styleId);
+    if (!style || !s.scenes.some((x) => x.id === sceneId)) return false;
+    set({
+      ...pushPast(s),
+      scenes: mapById(s.scenes, sceneId, (sc) => applySceneStyleTo(sc, style)),
+      activeSceneId: sceneId,
+    });
+    return true;
+  },
 
   setSceneStagger: (sceneId, stagger) =>
     set((s) => ({

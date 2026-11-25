@@ -56,3 +56,7 @@ File này lưu lại các quyết định quan trọng về sản phẩm và k�
 - **Quyết định:** Kiểu chuyển động chữ (Mờ vào / Gõ máy chữ / Trượt lên) chọn một lần ở tab Chữ cho cả dự án. Chú thích riêng từng scene có thể có thời điểm hiện/ẩn và vị trí kéo riêng; nếu không thì theo vị trí của dự án. Vị trí lưu dạng độ lệch so với chỗ gốc của kiểu chữ (tỷ lệ khung), giới hạn ±45%.
 - **Lý do:** B-roll cần chữ đồng bộ phong cách cả clip; thời điểm và chỗ đặt chữ thì phụ thuộc ảnh từng scene. Dời chữ bằng shader nên kéo mượt và không tốn CPU vẽ lại.
 
+
+### D24. Scene Style lưu trên máy, không mang nội dung chữ (Đợt 4)
+- **Quyết định:** "Scene Style" gom bố cục, thời lượng, chuyển động (kể cả ảnh xuất hiện lần lượt), nền, khung ảnh, chuyển cảnh, look riêng và thời điểm/vị trí chữ của một scene. Áp style giữ nguyên ảnh và nội dung chữ của scene đích. Style của người dùng lưu trong localStorage của máy (giống preset Look), không nằm trong file dự án. Có sẵn 4 style: Mở đầu, Kết thúc, Chân dung đôi, Lưới kỷ niệm.
+- **Lý do:** Style là thói quen dựng của người dùng, dùng lại qua nhiều dự án; chữ là nội dung riêng của từng đám cưới/sự kiện nên không được chép theo.

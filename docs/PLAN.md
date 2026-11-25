@@ -107,6 +107,6 @@
 ### Đợt 4: Scene sống động hơn
 - [x] 4.1 **S7:** ảnh trong scene 2–4 ảnh xuất hiện lần lượt (Mờ dần / Trượt lên / Phóng ra; độ trễ giữa các ảnh, thời gian hiện). (`SceneItem.stagger` + `src/engine/stagger.ts`; thời gian tính từ lúc scene bắt đầu hiện (`TimelineState.sceneTimeA/B`), nên preview và xuất khớp; uniform `uStaggerA/B`, không thêm điểm gọi `compositeCard`; đi theo phần "Chuyển động" khi sao chép/dán và khi nhân bản scene.)
 - [x] 4.2 **S8:** chữ có chuyển động riêng (mờ vào, gõ máy chữ, trượt lên), kéo vị trí trên khung xem, thời điểm vào/ra trong scene. (`TextOverlayConfig.animation` + `offset`; `SceneItem.captionTiming` + `captionOffset` cho chú thích riêng từng scene; logic thuần `src/engine/textAnimation.ts`; gõ máy chữ vẽ lại chữ chỉ khi số ký tự đổi, cắt theo cả chữ cái nên dấu tiếng Việt không vỡ; vị trí kéo và trượt lên dời chữ trong shader (`uTextOffset`) nên không phải vẽ lại; tab Chữ có "Chuyển động khi chữ hiện ra" và nút "✥ Kéo chữ trên khung xem"; bảng Scene có "Chữ hiện từ giây / ẩn lúc giây". Mặc định "Mờ vào" giữ đúng cách hiện chữ cũ.)
-- [ ] 4.3 **S9:** Scene Style: lưu scene thành mẫu (bố cục + chuyển động + nền + chữ) áp cho scene khác; mẫu có sẵn Mở đầu, Kết thúc, Chân dung đôi, Lưới kỷ niệm.
+- [x] 4.3 **S9:** Scene Style: lưu scene thành mẫu (bố cục + chuyển động + nền + chữ) áp cho scene khác; mẫu có sẵn Mở đầu, Kết thúc, Chân dung đôi, Lưới kỷ niệm.
 - [ ] 4.4 **U9:** Template & Look có hình xem trước khi rê chuột; lưới 2 cột.
 
