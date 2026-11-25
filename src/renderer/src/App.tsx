@@ -4,6 +4,7 @@ import { getExportResolution, resolvePreviewResolution } from '@engine/capabilit
 import { computeProjectDurationSec, getTotalFrames } from '@engine/timeline';
 import { PhotoBin } from './components/PhotoBin';
 import { PhotoTransformOverlay } from './components/PhotoTransformOverlay';
+import { PhotoCropOverlay } from './components/PhotoCropOverlay';
 import { Splitter } from './components/Splitter';
 import { ScenePanel } from './components/ScenePanel';
 import { PhotoPanel } from './components/PhotoPanel';
@@ -48,6 +49,7 @@ export default function App() {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [focalPickMode, setFocalPickMode] = useState(false);
   const [transformEditMode, setTransformEditMode] = useState(false);
+  const [cropMode, setCropMode] = useState(false);
   const [textDragMode, setTextDragMode] = useState(false);
   const [isFullscreenPreview, setIsFullscreenPreview] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
@@ -100,7 +102,16 @@ export default function App() {
     setIsPlaying(false);
     setFocalPickMode(false);
     setTextDragMode(false);
+    setCropMode(false);
     setTransformEditMode(true);
+  };
+
+  const startCrop = () => {
+    setIsPlaying(false);
+    setFocalPickMode(false);
+    setTextDragMode(false);
+    setTransformEditMode(false);
+    setCropMode(true);
   };
 
   const flashNotice = useCallback((msg: string) => {
@@ -112,6 +123,7 @@ export default function App() {
   useEffect(() => {
     const onFocalPick = () => {
       setTransformEditMode(false);
+      setCropMode(false);
       setFocalPickMode(true);
     };
     window.addEventListener('frameslide:focal-pick', onFocalPick);
@@ -125,7 +137,10 @@ export default function App() {
 
   // Starting playback leaves the photo editor (handles would not follow the motion).
   useEffect(() => {
-    if (isPlaying) setTransformEditMode(false);
+    if (isPlaying) {
+      setTransformEditMode(false);
+      setCropMode(false);
+    }
   }, [isPlaying]);
 
   const activeSceneIndex = useMemo(
@@ -196,7 +211,10 @@ export default function App() {
       setShowExportDialog(false);
       setFocalPickMode(false);
       setTextDragMode(false);
-      if (!inInput) setTransformEditMode(false);
+      if (!inInput) {
+        setTransformEditMode(false);
+        setCropMode(false);
+      }
     },
     onSave: () => void handleSaveProject(),
     onToggleFullscreen: () => setIsFullscreenPreview((v) => !v),
@@ -334,9 +352,12 @@ export default function App() {
                 disabled={isExporting || textDragMode}
                 focalPickMode={focalPickMode}
                 editMode={transformEditMode}
+                cropMode={cropMode}
                 onEdit={() => (transformEditMode ? setTransformEditMode(false) : startTransformEdit())}
+                onCrop={() => (cropMode ? setCropMode(false) : startCrop())}
                 onToggleFocalPick={() => {
                   setTransformEditMode(false);
+                  setCropMode(false);
                   setFocalPickMode(!focalPickMode);
                 }}
                 onToolSlot={setPhotoToolSlot}
@@ -391,6 +412,10 @@ export default function App() {
 
               {textDragMode && !isExporting && scenes.length > 0 && (
                 <TextDragOverlay onClose={() => setTextDragMode(false)} />
+              )}
+
+              {cropMode && !isExporting && scenes.length > 0 && (
+                <PhotoCropOverlay canvasRef={canvasRef} toolSlot={photoToolSlot} onClose={() => setCropMode(false)} />
               )}
 
               {transformEditMode && !isExporting && scenes.length > 0 && (
