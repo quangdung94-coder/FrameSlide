@@ -52,3 +52,7 @@ File này lưu lại các quyết định quan trọng về sản phẩm và k�
 - **Quyết định:** Ảnh xuất hiện lần lượt (S7) và các hiệu ứng vào/ra theo thời gian khác được tính bằng hàm thuần TypeScript từ thời gian của scene (`sceneTimeA/B` của `evaluateTimeline`, suy ra từ `frameIndex`), rồi gửi vào shader dưới dạng uniform (vd. `uStaggerA` = mức hiện của 4 ô). Không thêm điểm gọi hàm nặng trong shader.
 - **Lý do:** Giữ preview và export khớp 100% (D06), test được bằng vitest, và tránh shader D3D trên Windows bị nở to (bài học từ việc gom tap list).
 
+### D23. Chữ chuyển động: một kiểu cho cả dự án, thời điểm và vị trí riêng từng scene (Đợt 4)
+- **Quyết định:** Kiểu chuyển động chữ (Mờ vào / Gõ máy chữ / Trượt lên) chọn một lần ở tab Chữ cho cả dự án. Chú thích riêng từng scene có thể có thời điểm hiện/ẩn và vị trí kéo riêng; nếu không thì theo vị trí của dự án. Vị trí lưu dạng độ lệch so với chỗ gốc của kiểu chữ (tỷ lệ khung), giới hạn ±45%.
+- **Lý do:** B-roll cần chữ đồng bộ phong cách cả clip; thời điểm và chỗ đặt chữ thì phụ thuộc ảnh từng scene. Dời chữ bằng shader nên kéo mượt và không tốn CPU vẽ lại.
+

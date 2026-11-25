@@ -1,4 +1,5 @@
-import type { TextStyleId, TextTimingMode } from '@shared/types';
+import { TEXT_ANIMATIONS } from '@engine/textAnimation';
+import type { TextAnimationId, TextStyleId, TextTimingMode } from '@shared/types';
 import { useAppStore } from '../../store/useAppStore';
 import { CheckField, Group, SelectField, SliderRow, TextField, type SelectOption } from '../ui';
 
@@ -18,8 +19,16 @@ const TIMING_OPTIONS: SelectOption<TextTimingMode>[] = [
   { value: 'per-scene', label: 'Chú thích riêng từng Scene' },
 ];
 
-/** Project › Chữ tab: title / subtitle / date stamp overlay. */
-export function TextTab({ disabled }: { disabled: boolean }) {
+const ANIMATION_OPTIONS: SelectOption<TextAnimationId>[] = TEXT_ANIMATIONS.map((a) => ({ value: a.id, label: a.label }));
+
+interface Props {
+  disabled: boolean;
+  textDragMode: boolean;
+  onToggleTextDrag: () => void;
+}
+
+/** Project › Chữ tab: title / subtitle / date stamp overlay, entry animation and position. */
+export function TextTab({ disabled, textDragMode, onToggleTextDrag }: Props) {
   const textOverlay = useAppStore((s) => s.renderParams.textOverlay);
   const updateTextOverlay = useAppStore((s) => s.updateTextOverlay);
   const setInspectorScope = useAppStore((s) => s.setInspectorScope);
@@ -42,6 +51,41 @@ export function TextTab({ disabled }: { disabled: boolean }) {
         disabled={textOff}
         onChange={(timing) => updateTextOverlay({ timing })}
       />
+
+      <SelectField
+        label="Chuyển động khi chữ hiện ra"
+        value={textOverlay.animation ?? 'fade'}
+        options={ANIMATION_OPTIONS}
+        disabled={textOff}
+        onChange={(animation) => updateTextOverlay({ animation })}
+      />
+
+      <div className="flex gap-1.5">
+        <button
+          type="button"
+          disabled={textOff}
+          onClick={onToggleTextDrag}
+          title="Kéo chữ trực tiếp trên khung xem"
+          className={`h-8 flex-1 rounded border px-2 text-xs disabled:opacity-40 ${
+            textDragMode
+              ? 'border-amber-400 bg-amber-500/20 text-amber-200'
+              : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-amber-400'
+          }`}
+        >
+          ✥ Kéo chữ trên khung xem
+        </button>
+        {textOverlay.offset && (textOverlay.offset.x !== 0 || textOverlay.offset.y !== 0) && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => updateTextOverlay({ offset: undefined })}
+            title="Trả chữ về vị trí gốc của kiểu chữ"
+            className="h-8 rounded border border-zinc-700 px-2 text-xs text-zinc-300 hover:border-amber-400 disabled:opacity-40"
+          >
+            ⟲ Vị trí
+          </button>
+        )}
+      </div>
 
       {textOverlay.timing === 'per-scene' ? (
         <div className="flex items-center justify-between gap-2 rounded border border-amber-500/40 bg-amber-950/20 p-2 text-xs text-amber-200">

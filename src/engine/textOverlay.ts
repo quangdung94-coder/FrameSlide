@@ -6,6 +6,22 @@ export interface TextRenderOverrides {
   height?: number;
   titleOverride?: string;
   dateOverride?: string;
+  /** Typewriter: how many characters are visible (title first, then subtitle). */
+  revealChars?: number;
+}
+
+const chars = (t: string) => Array.from(t);
+
+/** Characters the typewriter types for a style: the date for the date stamp, else title + subtitle. */
+export function typewriterCharCount(config: TextOverlayConfig, title: string, date: string): number {
+  if (config.style === 'date-stamp-90s') return chars(date).length;
+  return chars(title).length + chars(config.subtitle.trim()).length;
+}
+
+/** First `n` characters of `text` (whole letters, so Vietnamese accents never split). */
+export function revealText(text: string, n: number): string {
+  if (!Number.isFinite(n)) return text;
+  return chars(text).slice(0, Math.max(0, Math.floor(n))).join('');
 }
 
 /**
@@ -35,10 +51,17 @@ export class TextOverlayRenderer {
   public update(config: TextOverlayConfig, overrides: TextRenderOverrides = {}): boolean {
     const w = Math.max(320, Math.round(overrides.width ?? 1920));
     const h = Math.max(320, Math.round(overrides.height ?? 1080));
-    const activeTitle = (overrides.titleOverride ?? config.title).trim();
-    const activeDate = (overrides.dateOverride ?? config.dateText).trim() || "'26 11 24";
+    const fullTitle = (overrides.titleOverride ?? config.title).trim();
+    const fullDate = (overrides.dateOverride ?? config.dateText).trim() || "'26 11 24";
+    const reveal = overrides.revealChars ?? Infinity;
+    const isStamp = config.style === 'date-stamp-90s';
+    const activeTitle = isStamp ? fullTitle : revealText(fullTitle, reveal);
+    const activeDate = isStamp ? revealText(fullDate, reveal) : fullDate;
+    const subtitle = isStamp
+      ? config.subtitle
+      : revealText(config.subtitle.trim(), reveal - chars(fullTitle).length);
 
-    const key = `${w}x${h}|${config.style}|${activeTitle}|${config.subtitle}|${activeDate}|${config.opacity}`;
+    const key = `${w}x${h}|${config.style}|${activeTitle}|${subtitle}|${activeDate}|${config.opacity}`;
     if (key === this.lastKey) {
       return config.style !== 'none';
     }
@@ -93,10 +116,10 @@ export class TextOverlayRenderer {
         ctx.font = `300 ${Math.round(60 * base)}px "Be Vietnam Pro", "Segoe UI", sans-serif`;
         ctx.fillText(activeTitle, w * 0.5, h * 0.47, w * 0.86);
 
-        if (config.subtitle.trim()) {
+        if (subtitle.trim()) {
           ctx.fillStyle = 'rgba(244, 240, 232, 0.85)';
           ctx.font = `400 ${Math.round(26 * base)}px "Be Vietnam Pro", "Segoe UI", sans-serif`;
-          ctx.fillText(config.subtitle.trim().toUpperCase(), w * 0.5, h * 0.54, w * 0.86);
+          ctx.fillText(subtitle.trim().toUpperCase(), w * 0.5, h * 0.54, w * 0.86);
         }
         break;
       }
@@ -117,10 +140,10 @@ export class TextOverlayRenderer {
         ctx.lineTo(w * 0.57, h * 0.52);
         ctx.stroke();
 
-        if (config.subtitle.trim()) {
+        if (subtitle.trim()) {
           ctx.fillStyle = 'rgba(251, 247, 239, 0.88)';
           ctx.font = `400 ${Math.round(24 * base)}px "Be Vietnam Pro", "Segoe UI", sans-serif`;
-          ctx.fillText(config.subtitle.trim(), w * 0.5, h * 0.565, w * 0.86);
+          ctx.fillText(subtitle.trim(), w * 0.5, h * 0.565, w * 0.86);
         }
         break;
       }
@@ -156,10 +179,10 @@ export class TextOverlayRenderer {
         ctx.font = `600 ${Math.round(38 * base)}px "Be Vietnam Pro", "Segoe UI", sans-serif`;
         ctx.fillText(activeTitle, padX + 22 * base, baseY - 44 * base, w - padX * 2);
 
-        if (config.subtitle.trim()) {
+        if (subtitle.trim()) {
           ctx.fillStyle = 'rgba(235, 230, 220, 0.85)';
           ctx.font = `400 ${Math.round(23 * base)}px "Be Vietnam Pro", "Segoe UI", sans-serif`;
-          ctx.fillText(config.subtitle.trim(), padX + 22 * base, baseY + 6 * base, w - padX * 2);
+          ctx.fillText(subtitle.trim(), padX + 22 * base, baseY + 6 * base, w - padX * 2);
         }
         break;
       }

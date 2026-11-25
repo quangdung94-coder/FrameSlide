@@ -12,6 +12,7 @@ import {
 import { mapById, omitKeys, withOptional } from '@engine/objectUtils';
 import { clamp } from '@engine/num';
 import { DEFAULT_STAGGER, normalizeStagger } from '@engine/stagger';
+import { clampTextOffset } from '@engine/textAnimation';
 import {
   MAX_HISTORY,
   loadUserPresets,
@@ -40,6 +41,8 @@ import {
   type PhotoAdjust,
   type SceneCardStyle,
   type SceneStagger,
+  type CaptionTiming,
+  type TextOffset,
   type PhotoKeyframeEase,
   type PhotoTransform,
   type SceneBackground,
@@ -175,6 +178,10 @@ interface AppState {
   /** Own Motion Template for one scene; `null` = follow the project's template. */
   setSceneMotionTemplate: (sceneId: string, template: MotionTemplateId | null) => void;
   setSceneCaption: (sceneId: string, caption: string) => void;
+  /** When the scene's caption shows (null = whole scene). */
+  setSceneCaptionTiming: (sceneId: string, timing: CaptionTiming | null) => void;
+  /** Own caption position for this scene (null = use the project's text position). */
+  setSceneCaptionOffset: (sceneId: string, offset: TextOffset | null) => void;
   assignPhotoToSlot: (sceneId: string, slotIndex: number, photoId: string | null) => void;
   swapSceneSlots: (srcSceneId: string, srcIdx: number, dstSceneId: string, dstIdx: number) => void;
   autoFillScenes: () => void;
@@ -730,6 +737,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({
       ...pushPast(s),
       scenes: mapById(s.scenes, sceneId, (sc) => withOptional(sc, 'motionTemplate', template || null)),
+    })),
+
+  setSceneCaptionTiming: (sceneId, timing) =>
+    set((s) => ({
+      ...pushPast(s),
+      scenes: mapById(s.scenes, sceneId, (sc) =>
+        withOptional(sc, 'captionTiming', timing && (timing.inSec !== undefined || timing.outSec !== undefined) ? { ...timing } : null)
+      ),
+    })),
+
+  setSceneCaptionOffset: (sceneId, offset) =>
+    set((s) => ({
+      scenes: mapById(s.scenes, sceneId, (sc) =>
+        withOptional(sc, 'captionOffset', offset ? clampTextOffset(offset) : null)
+      ),
     })),
 
   setSceneCaption: (sceneId, caption) =>

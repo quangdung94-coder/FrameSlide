@@ -15,6 +15,7 @@ import { ExportDialog } from './components/ExportDialog';
 import { ShortcutsModal } from './components/ShortcutsModal';
 import { StatusFooter } from './components/StatusFooter';
 import { TopToolbar } from './components/TopToolbar';
+import { TextDragOverlay } from './components/TextDragOverlay';
 import { InspectorNav, type InspectorTab } from './components/inspector/InspectorNav';
 import { LookTab } from './components/inspector/LookTab';
 import { TemplateTab } from './components/inspector/TemplateTab';
@@ -45,6 +46,7 @@ export default function App() {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [focalPickMode, setFocalPickMode] = useState(false);
   const [transformEditMode, setTransformEditMode] = useState(false);
+  const [textDragMode, setTextDragMode] = useState(false);
   const [isFullscreenPreview, setIsFullscreenPreview] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
@@ -82,6 +84,7 @@ export default function App() {
   const startTransformEdit = () => {
     setIsPlaying(false);
     setFocalPickMode(false);
+    setTextDragMode(false);
     setTransformEditMode(true);
   };
 
@@ -176,6 +179,7 @@ export default function App() {
       setShowShortcutsModal(false);
       setShowExportDialog(false);
       setFocalPickMode(false);
+      setTextDragMode(false);
       if (!inInput) setTransformEditMode(false);
     },
     onSave: () => void handleSaveProject(),
@@ -351,6 +355,10 @@ export default function App() {
                 )}
               </div>
 
+              {textDragMode && !isExporting && scenes.length > 0 && (
+                <TextDragOverlay onClose={() => setTextDragMode(false)} />
+              )}
+
               {transformEditMode && !isExporting && scenes.length > 0 && (
                 <PhotoTransformOverlay
                   canvasRef={canvasRef}
@@ -358,7 +366,7 @@ export default function App() {
                 />
               )}
 
-              {!isFullscreenPreview && scenes.length > 0 && !transformEditMode && focalTargetPhoto && (
+              {!isFullscreenPreview && scenes.length > 0 && !transformEditMode && !textDragMode && focalTargetPhoto && (
                 <PhotoQuickBar
                   photo={focalTargetPhoto}
                   disabled={isExporting}
@@ -477,7 +485,17 @@ export default function App() {
                 onClearLut={handleClearLut}
               />
             )}
-            {inspectorScope === 'project' && activeTab === 'text' && <TextTab disabled={isExporting} />}
+            {inspectorScope === 'project' && activeTab === 'text' && (
+              <TextTab
+                disabled={isExporting}
+                textDragMode={textDragMode}
+                onToggleTextDrag={() => {
+                  setTransformEditMode(false);
+                  setFocalPickMode(false);
+                  setTextDragMode((v) => !v);
+                }}
+              />
+            )}
 
           </div>
         </aside>

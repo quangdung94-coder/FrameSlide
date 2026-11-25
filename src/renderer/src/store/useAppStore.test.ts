@@ -493,5 +493,22 @@ describe('scene frame style', () => {
     useAppStore.getState().setSceneStagger(a, null);
     expect('stagger' in useAppStore.getState().scenes[0]).toBe(false);
   });
+
+  it('S8: caption timing / position per scene travel with paste and duplicate', () => {
+    useAppStore.setState({ scenes: [] });
+    useAppStore.getState().addScene('single');
+    useAppStore.getState().addScene('single');
+    const [a, b] = useAppStore.getState().scenes.map((s) => s.id);
+    useAppStore.getState().setSceneCaptionTiming(a, { inSec: 1, outSec: 2 });
+    useAppStore.getState().setSceneCaptionOffset(a, { x: 0.9, y: 0.1 });
+    expect(useAppStore.getState().scenes[0].captionOffset).toEqual({ x: 0.45, y: 0.1 });
+    useAppStore.getState().copySceneSettings(a);
+    useAppStore.getState().pasteSceneSettings(b, ['caption']);
+    expect(useAppStore.getState().scenes[1].captionTiming).toEqual({ inSec: 1, outSec: 2 });
+    useAppStore.getState().setSceneCaptionTiming(a, null);
+    useAppStore.getState().setSceneCaptionOffset(a, null);
+    expect('captionTiming' in useAppStore.getState().scenes[0]).toBe(false);
+    expect('captionOffset' in useAppStore.getState().scenes[0]).toBe(false);
+  });
 });
 
