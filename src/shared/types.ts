@@ -290,6 +290,38 @@ export const DEFAULT_SUPER8_PARAMS: FilmLookParams = {
 /** How the text enters: fade (default), typewriter (letters one by one), slide up. */
 export type TextAnimationId = 'fade' | 'typewriter' | 'slide-up';
 
+export type TextFontId =
+  | 'be-vietnam-pro'
+  | 'montserrat'
+  | 'playfair-display'
+  | 'lora'
+  | 'dancing-script'
+  | 'great-vibes'
+  | 'jetbrains-mono';
+
+export type TextShadowMode = 'none' | 'soft' | 'hard';
+
+/**
+ * Typography on top of a text style (Đợt 5.4b, like Premiere Essential Graphics / CapCut).
+ * Every field is optional: missing = what the style itself does.
+ */
+export interface TextLook {
+  font?: TextFontId;
+  /** Size as % of the style's size (100 = unchanged). */
+  sizePct?: number;
+  bold?: boolean;
+  italic?: boolean;
+  align?: 'left' | 'center' | 'right';
+  /** Extra space between letters, px at 1080p. */
+  letterSpacing?: number;
+  /** Text colour '#rrggbb'. */
+  color?: string;
+  /** Outline width, px at 1080p (0 = none). */
+  outline?: number;
+  outlineColor?: string;
+  shadow?: TextShadowMode;
+}
+
 /** Position offset of the text, as a fraction of the frame (x right, y down). */
 export interface TextOffset {
   x: number;
@@ -308,6 +340,8 @@ export interface TextOverlayConfig {
   animation?: TextAnimationId;
   /** Dragged position offset (missing = the style's own position). */
   offset?: TextOffset;
+  /** Font, size, colour, outline… on top of the style (missing = the style's own look). */
+  look?: TextLook;
   title: string;
   subtitle: string;
   dateText: string;
@@ -328,6 +362,8 @@ export interface SceneTextOverride {
   animation?: TextAnimationId;
   title?: string;
   subtitle?: string;
+  /** Own typography ('own' only; missing = the style's own look). */
+  look?: TextLook;
 }
 
 export const DEFAULT_TEXT_OVERLAY: TextOverlayConfig = {

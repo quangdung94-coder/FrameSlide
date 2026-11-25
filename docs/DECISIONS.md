@@ -73,3 +73,7 @@ File này lưu lại các quyết định quan trọng về sản phẩm và k�
 - **Quyết định:** Chữ của dự án vẫn là mặc định cho mọi scene, nhưng mỗi scene có thể "Tắt chữ" hoặc có chữ "Riêng" (kiểu chữ, chuyển động, tiêu đề, phụ đề) lưu trong `SceneItem.text`; thiếu trường này là theo dự án. Chữ riêng dùng thời điểm hiện/ẩn và vị trí riêng của scene như chú thích. Engine vẫn một texture chữ, lấy theo scene A (giống chú thích trước đây), không cần cặp A/B. Dán thiết lập "Chữ" và Scene Style chỉ mang kiểu, scene đích giữ chữ của nó (giữ D24).
 - **Lý do:** Phim cưới/sự kiện cần tiêu đề khác kiểu ở vài cảnh (mở đầu, lễ vu quy, kết) mà vẫn giữ chữ đồng bộ cho phần còn lại. Bỏ ý cũ "một kiểu chữ cho cả dự án" của D23.
 
+### D28. Thêm 4 font tiêu đề tiếng Việt, chỉnh chữ là lớp phủ lên kiểu chữ (Đợt 5.4b)
+- **Quyết định:** Thêm `@fontsource/montserrat`, `lora`, `dancing-script`, `great-vibes` (OFL, chỉ là file font, có bộ chữ tiếng Việt) bên cạnh 3 font của D26; nạp các độ đậm 400/700 và nghiêng nếu font có. Bảng chữ lưu `look` (font, cỡ %, đậm, nghiêng, canh lề, khoảng cách chữ, màu, viền, bóng); trường nào thiếu thì theo kiểu chữ gốc, nên dự án cũ và 5 kiểu chữ có sẵn không đổi. Không cho chọn font cài trên máy.
+- **Lý do:** Video xuất ra phải giống nhau trên mọi máy bạn bè dùng; font hệ thống thiếu dấu tiếng Việt hoặc khác nhau giữa máy. 7 font đủ cho phim cưới/sự kiện (không chân, có chân, viết tay, đơn cách) mà bản build chỉ nặng thêm khoảng 700 KB (chỉ nạp bộ chữ Latin + tiếng Việt).
+

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import type { TextOverlayConfig } from '@shared/types';
+import type { TextLook, TextOverlayConfig } from '@shared/types';
+import { hexToRgba, lookAlign, lookFont, normalizeTextLook, textFontFaces, type FaceDefaults } from './textLook';
 
 export interface TextRenderOverrides {
   width?: number;
@@ -24,15 +25,8 @@ export function revealText(text: string, n: number): string {
   return chars(text).slice(0, Math.max(0, Math.floor(n))).join('');
 }
 
-/** Font faces the text styles draw with (bundled with the app, Đợt 5.3a). */
-export const TEXT_FONT_FACES = [
-  '300 60px "Be Vietnam Pro"',
-  '400 26px "Be Vietnam Pro"',
-  '600 38px "Be Vietnam Pro"',
-  '600 22px "JetBrains Mono"',
-  '700 44px "JetBrains Mono"',
-  'italic 500 72px "Playfair Display"',
-] as const;
+/** Font faces the text styles and the font picker draw with (bundled with the app, D26 / D28). */
+export const TEXT_FONT_FACES: readonly string[] = textFontFaces();
 
 /** Bumped once the text fonts finish loading, so text drawn earlier with a fallback font is redrawn. */
 let fontEpoch = 0;
@@ -52,6 +46,75 @@ export function loadTextFonts(): Promise<void> {
     fontEpoch++;
   });
   return fontsPromise;
+}
+
+interface StyleShadow {
+  color: string;
+  /** Blur in px at 1080p. */
+  blur: number;
+}
+
+/**
+ * Draws one line: letter spacing, shadow (the style's own, or the user's none / soft / hard),
+ * outline under the fill, then the fill.
+ */
+function drawStyledLine(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  def: FaceDefaults,
+  look: TextLook | undefined,
+  base: number,
+  o: {
+    align: 'left' | 'center' | 'right';
+    x: number;
+    y: number;
+    baseline: CanvasTextBaseline;
+    fill: string;
+    shadow?: StyleShadow;
+    maxWidth?: number;
+  }
+): void {
+  ctx.save();
+  ctx.font = lookFont(def, look, base);
+  ctx.textAlign = o.align;
+  ctx.textBaseline = o.baseline;
+  // Canvas letterSpacing (Chromium / Electron); ignored where unsupported.
+  (ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${(look?.letterSpacing ?? 0) * base}px`;
+
+  const mode = look?.shadow;
+  if (mode === 'none') {
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+  } else if (mode === 'soft') {
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+    ctx.shadowBlur = 18 * base;
+  } else if (mode === 'hard') {
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 3 * base;
+    ctx.shadowOffsetY = 3 * base;
+  } else if (o.shadow) {
+    ctx.shadowColor = o.shadow.color;
+    ctx.shadowBlur = o.shadow.blur * base;
+  } else {
+    ctx.shadowColor = 'transparent';
+  }
+
+  const outline = look?.outline ?? 0;
+  if (outline > 0) {
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = outline * 2 * base;
+    ctx.strokeStyle = look?.outlineColor ?? '#000000';
+    if (o.maxWidth !== undefined) ctx.strokeText(text, o.x, o.y, o.maxWidth);
+    else ctx.strokeText(text, o.x, o.y);
+    // The shadow belongs under the outline only, not again under the fill.
+    ctx.shadowColor = 'transparent';
+  }
+  ctx.fillStyle = o.fill;
+  // An explicit `undefined` maxWidth would draw nothing, so only pass it when set.
+  if (o.maxWidth !== undefined) ctx.fillText(text, o.x, o.y, o.maxWidth);
+  else ctx.fillText(text, o.x, o.y);
+  ctx.restore();
 }
 
 /**
@@ -92,7 +155,8 @@ export class TextOverlayRenderer {
       ? config.subtitle
       : revealText(config.subtitle.trim(), reveal - chars(fullTitle).length);
 
-    const key = `${fontEpoch}|${w}x${h}|${config.style}|${activeTitle}|${subtitle}|${activeDate}|${config.opacity}`;
+    const look = normalizeTextLook(config.look);
+    const key = `${fontEpoch}|${w}x${h}|${config.style}|${activeTitle}|${subtitle}|${activeDate}|${config.opacity}|${JSON.stringify(look ?? null)}`;
     if (key === this.lastKey) {
       return config.style !== 'none';
     }
@@ -119,62 +183,98 @@ export class TextOverlayRenderer {
 
     // Scale typography proportionally for 16:9, 9:16, 1:1
     const base = Math.min(w, h) / 1080;
+    const SANS = '"Be Vietnam Pro", "Segoe UI", sans-serif';
+    const MONO = '"JetBrains Mono", "Consolas", monospace';
+    const SERIF = '"Playfair Display", "Georgia", serif';
+    const face = (family: string, weight: number, sizePx: number, italic = false): FaceDefaults => ({
+      family,
+      weight,
+      sizePx,
+      italic,
+    });
+    const softShadow = (alpha: number, blur: number): StyleShadow => ({ color: `rgba(0, 0, 0, ${alpha})`, blur });
+    /** One line of text with the user's look (font, size, colour, spacing, outline, shadow). */
+    const line = (
+      text: string,
+      def: FaceDefaults,
+      opts: {
+        align: 'left' | 'center' | 'right';
+        x: number;
+        y: number;
+        baseline: CanvasTextBaseline;
+        fill: string;
+        /** Alpha of this line relative to the main colour (subtitles are a little dimmer). */
+        colorAlpha?: number;
+        shadow?: StyleShadow;
+        maxWidth?: number;
+        margin?: number;
+      }
+    ) => {
+      if (!text) return;
+      const pos = lookAlign(opts.align, opts.x, look, w, opts.margin ?? 72 * base);
+      drawStyledLine(ctx, text, def, look, base, {
+        ...opts,
+        align: pos.align,
+        x: pos.x,
+        fill: look?.color ? hexToRgba(look.color, opts.colorAlpha ?? 1) : opts.fill,
+      });
+    };
 
     ctx.save();
     ctx.globalAlpha = Math.max(0, Math.min(1, config.opacity));
 
     switch (config.style) {
       case 'date-stamp-90s': {
-        ctx.font = `700 ${Math.round(44 * base)}px "JetBrains Mono", "Consolas", monospace`;
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'bottom';
-        ctx.shadowColor = 'rgba(255, 85, 10, 0.9)';
-        ctx.shadowBlur = 18 * base;
-        ctx.fillStyle = '#ff6d1f';
-        ctx.fillText(activeDate, w - 72 * base, h - 64 * base);
-        ctx.shadowBlur = 4 * base;
-        ctx.fillStyle = '#ffb56b';
-        ctx.fillText(activeDate, w - 72 * base, h - 64 * base);
+        const def = face(MONO, 700, 44);
+        const at = { align: 'right' as const, x: w - 72 * base, y: h - 64 * base, baseline: 'bottom' as const };
+        if (look?.color || look?.shadow) {
+          line(activeDate, def, { ...at, fill: '#ffb56b', shadow: { color: 'rgba(255, 85, 10, 0.9)', blur: 18 } });
+        } else {
+          // The glowing orange LED look: a blurred pass under a sharp one.
+          line(activeDate, def, { ...at, fill: '#ff6d1f', shadow: { color: 'rgba(255, 85, 10, 0.9)', blur: 18 } });
+          line(activeDate, def, { ...at, fill: '#ffb56b', shadow: { color: 'rgba(255, 85, 10, 0.9)', blur: 4 } });
+        }
         break;
       }
 
       case 'minimal-fade': {
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
-        ctx.shadowBlur = 16 * base;
-        ctx.fillStyle = '#f8f6f2';
-        ctx.font = `300 ${Math.round(60 * base)}px "Be Vietnam Pro", "Segoe UI", sans-serif`;
-        ctx.fillText(activeTitle, w * 0.5, h * 0.47, w * 0.86);
-
+        line(activeTitle, face(SANS, 300, 60), {
+          align: 'center', x: w * 0.5, y: h * 0.47, baseline: 'middle', fill: '#f8f6f2',
+          shadow: softShadow(0.55, 16), maxWidth: w * 0.86,
+        });
         if (subtitle.trim()) {
-          ctx.fillStyle = 'rgba(244, 240, 232, 0.85)';
-          ctx.font = `400 ${Math.round(26 * base)}px "Be Vietnam Pro", "Segoe UI", sans-serif`;
-          ctx.fillText(subtitle.trim().toUpperCase(), w * 0.5, h * 0.54, w * 0.86);
+          line(subtitle.trim().toUpperCase(), face(SANS, 400, 26), {
+            align: 'center', x: w * 0.5, y: h * 0.54, baseline: 'middle', fill: 'rgba(244, 240, 232, 0.85)',
+            colorAlpha: 0.85, shadow: softShadow(0.55, 16), maxWidth: w * 0.86,
+          });
         }
         break;
       }
 
       case 'editorial-serif': {
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-        ctx.shadowBlur = 18 * base;
-        ctx.fillStyle = '#fbf7ef';
-        ctx.font = `italic 500 ${Math.round(72 * base)}px "Playfair Display", "Georgia", serif`;
-        ctx.fillText(activeTitle, w * 0.5, h * 0.46, w * 0.86);
+        line(activeTitle, face(SERIF, 500, 72, true), {
+          align: 'center', x: w * 0.5, y: h * 0.46, baseline: 'middle', fill: '#fbf7ef',
+          shadow: softShadow(0.5, 18), maxWidth: w * 0.86,
+        });
 
-        ctx.strokeStyle = 'rgba(251, 247, 239, 0.55)';
+        const rule = lookAlign('center', w * 0.5, look, w, 72 * base);
+        const half = w * 0.07;
+        const cx = rule.align === 'left' ? rule.x + half : rule.align === 'right' ? rule.x - half : rule.x;
+        ctx.save();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = look?.color ? hexToRgba(look.color, 0.55) : 'rgba(251, 247, 239, 0.55)';
         ctx.lineWidth = Math.max(1.5, 2 * base);
         ctx.beginPath();
-        ctx.moveTo(w * 0.43, h * 0.52);
-        ctx.lineTo(w * 0.57, h * 0.52);
+        ctx.moveTo(cx - half, h * 0.52);
+        ctx.lineTo(cx + half, h * 0.52);
         ctx.stroke();
+        ctx.restore();
 
         if (subtitle.trim()) {
-          ctx.fillStyle = 'rgba(251, 247, 239, 0.88)';
-          ctx.font = `400 ${Math.round(24 * base)}px "Be Vietnam Pro", "Segoe UI", sans-serif`;
-          ctx.fillText(subtitle.trim(), w * 0.5, h * 0.565, w * 0.86);
+          line(subtitle.trim(), face(SANS, 400, 24), {
+            align: 'center', x: w * 0.5, y: h * 0.565, baseline: 'middle', fill: 'rgba(251, 247, 239, 0.88)',
+            colorAlpha: 0.88, shadow: softShadow(0.5, 18), maxWidth: w * 0.86,
+          });
         }
         break;
       }
@@ -183,37 +283,35 @@ export class TextOverlayRenderer {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
         ctx.fillStyle = 'rgba(255, 224, 150, 0.82)';
-        ctx.font = `600 ${Math.round(22 * base)}px "JetBrains Mono", "Consolas", monospace`;
-        const topLabel = `KODAK 50D  •  ${activeDate}`;
-        ctx.fillText(topLabel, 56 * base, 42 * base);
+        ctx.font = `600 ${Math.round(22 * base)}px ${MONO}`;
+        ctx.fillText(`KODAK 50D  •  ${activeDate}`, 56 * base, 42 * base);
 
-        if (activeTitle) {
-          ctx.textBaseline = 'bottom';
-          ctx.fillStyle = 'rgba(255, 245, 225, 0.82)';
-          ctx.font = `400 ${Math.round(24 * base)}px "Be Vietnam Pro", "Segoe UI", sans-serif`;
-          ctx.fillText(activeTitle, 56 * base, h - 42 * base, w * 0.85);
-        }
+        line(activeTitle, face(SANS, 400, 24), {
+          align: 'left', x: 56 * base, y: h - 42 * base, baseline: 'bottom', fill: 'rgba(255, 245, 225, 0.82)',
+          colorAlpha: 0.82, maxWidth: w * 0.85, margin: 56 * base,
+        });
         break;
       }
 
       case 'lower-third': {
         const padX = 72 * base;
         const baseY = h - 98 * base;
-        ctx.fillStyle = 'rgba(245, 158, 11, 0.9)';
-        ctx.fillRect(padX, baseY - 42 * base, Math.max(4, 5 * base), 72 * base);
-
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
-        ctx.shadowBlur = 12 * base;
-        ctx.fillStyle = '#faf8f5';
-        ctx.font = `600 ${Math.round(38 * base)}px "Be Vietnam Pro", "Segoe UI", sans-serif`;
-        ctx.fillText(activeTitle, padX + 22 * base, baseY - 44 * base, w - padX * 2);
-
+        const pos = lookAlign('left', padX, look, w, padX);
+        const barX = pos.align === 'right' ? w - padX - Math.max(4, 5 * base) : pos.align === 'center' ? -1 : padX;
+        if (barX >= 0) {
+          ctx.fillStyle = 'rgba(245, 158, 11, 0.9)';
+          ctx.fillRect(barX, baseY - 42 * base, Math.max(4, 5 * base), 72 * base);
+        }
+        const textX = pos.align === 'left' ? padX + 22 * base : pos.align === 'right' ? w - padX - 22 * base : w / 2;
+        const at = { align: pos.align, x: textX, margin: padX + 22 * base, maxWidth: w - padX * 2 };
+        line(activeTitle, face(SANS, 600, 38), {
+          ...at, y: baseY - 44 * base, baseline: 'top', fill: '#faf8f5', shadow: softShadow(0.65, 12),
+        });
         if (subtitle.trim()) {
-          ctx.fillStyle = 'rgba(235, 230, 220, 0.85)';
-          ctx.font = `400 ${Math.round(23 * base)}px "Be Vietnam Pro", "Segoe UI", sans-serif`;
-          ctx.fillText(subtitle.trim(), padX + 22 * base, baseY + 6 * base, w - padX * 2);
+          line(subtitle.trim(), face(SANS, 400, 23), {
+            ...at, y: baseY + 6 * base, baseline: 'top', fill: 'rgba(235, 230, 220, 0.85)', colorAlpha: 0.85,
+            shadow: softShadow(0.65, 12),
+          });
         }
         break;
       }
