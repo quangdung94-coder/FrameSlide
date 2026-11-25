@@ -130,6 +130,7 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
   const reorderScene = useAppStore((s) => s.reorderScene);
   const randomizeSceneTransitions = useAppStore((s) => s.randomizeSceneTransitions);
   const applyAutoMotion = useAppStore((s) => s.applyAutoMotion);
+  const setMarkRange = useAppStore((s) => s.setMarkRange);
   const clearAutoMotion = useAppStore((s) => s.clearAutoMotion);
   const autoMotionCount = scenes.filter((sc) => sc.motionAuto).length;
   const setSceneLayout = useAppStore((s) => s.setSceneLayout);
@@ -289,6 +290,13 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
         label: 'Dịch sang phải',
         onClick: () => moveScene(sceneId, 1),
         disabled: disabled || idx === scenes.length - 1,
+      },
+      {
+        label: 'Đặt In / Out theo scene này',
+        onClick: () => {
+          const r = sceneFrameRanges[idx];
+          if (r) setMarkRange(r.start, r.end);
+        },
       },
       { separator: true, label: '' },
       { label: 'Sao chép thiết lập scene', hint: 'Ctrl+Shift+C', onClick: () => copySceneSettings(sceneId) },

@@ -105,7 +105,15 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions): void {
       // in a dropdown), so it only runs when no control has focus.
       if (targetKind === 'control') return;
 
-      if (e.key === '\\' && !e.repeat) {
+      if (plain && !e.shiftKey && (key === 'i' || key === 'o')) {
+        // In / Out at the playhead (Premiere / Resolve keys).
+        e.preventDefault();
+        if (key === 'i') s.setMarkIn(s.frameIndex);
+        else s.setMarkOut(s.frameIndex);
+      } else if (e.altKey && !ctrl && key === 'x') {
+        e.preventDefault();
+        s.clearMarks();
+      } else if (e.key === '\\' && !e.repeat) {
         e.preventDefault();
         prevCompareBeforeHold = s.compareMode;
         s.setCompareMode('before');

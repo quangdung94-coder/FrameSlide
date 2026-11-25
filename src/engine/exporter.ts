@@ -3,6 +3,7 @@ import type { ExportCodec, FrameSlideAPI, RenderParams, SceneItem, SlideAsset } 
 import { getExportResolution } from './capabilities';
 import type { FrameSlideEngine } from './FrameSlideEngine';
 import { computeProjectDurationSec, getTotalFrames } from './timeline';
+import { rangeFrameCount, type FrameRange } from './frameRange';
 
 export interface ExportProgressInfo {
   currentFrame: number;
@@ -82,10 +83,23 @@ function getEffectiveDurationAndFrames(
   };
 }
 
+/**
+ * Frames to export: the whole clip, or only `range` (In/Out, one scene). Frames keep their
+ * project index so the film grain etc. match the preview; only the file timestamps restart at 0.
+ */
+function resolveFrameSpan(totalFrames: number, range?: FrameRange | null): FrameRange {
+  if (!range) return { start: 0, end: totalFrames };
+  const end = Math.max(0, Math.min(totalFrames, Math.round(range.end)));
+  const start = Math.max(0, Math.min(end, Math.round(range.start)));
+  return end > start ? { start, end } : { start: 0, end: totalFrames };
+}
+
 export async function exportMp4WebCodecs(opts: {
   engine: FrameSlideEngine;
   fps: number;
   params: RenderParams;
+  /** Export only these frames (In/Out or one scene). Missing = whole clip. */
+  range?: FrameRange | null;
   onProgress?: (info: ExportProgressInfo) => void;
   signal?: AbortSignal;
 }): Promise<{ data: Uint8Array; summary: ExportSummary }> {
@@ -94,11 +108,10 @@ export async function exportMp4WebCodecs(opts: {
   }
 
   const { width, height } = getExportResolution(opts.params.outputAspect);
-  const { effectiveDurationSec, totalFrames } = getEffectiveDurationAndFrames(
-    opts.engine,
-    opts.fps,
-    opts.params
-  );
+  const { totalFrames: clipFrames } = getEffectiveDurationAndFrames(opts.engine, opts.fps, opts.params);
+  const span = resolveFrameSpan(clipFrames, opts.range);
+  const totalFrames = rangeFrameCount(span);
+  const effectiveDurationSec = totalFrames / opts.fps;
   await opts.engine.whenReady();
   const prevSize = opts.engine.getSize();
 
@@ -148,7 +161,8 @@ export async function exportMp4WebCodecs(opts: {
     opts.engine.resize(width, height);
     const canvas = opts.engine.getCanvas();
 
-    for (let i = 0; i < totalFrames; i++) {
+    for (let n = 0; n < totalFrames; n++) {
+      const i = span.start + n; // project frame index (deterministic grain etc.)
       if (opts.signal?.aborted) throw new ExportCanceledError();
       if (encodeError) throw encodeError;
 
@@ -161,20 +175,20 @@ export async function exportMp4WebCodecs(opts: {
       await opts.engine.ensureFrameTextures(i, opts.fps, opts.params);
       opts.engine.renderFrame(i, opts.fps, opts.params, 'normal');
 
-      const timestampUs = Math.round((i / opts.fps) * 1_000_000);
+      const timestampUs = Math.round((n / opts.fps) * 1_000_000);
       const videoFrame = new VideoFrame(canvas, {
         timestamp: timestampUs,
         duration: frameDurationUs,
       });
 
-      encoder.encode(videoFrame, { keyFrame: i % keyFrameInterval === 0 });
+      encoder.encode(videoFrame, { keyFrame: n % keyFrameInterval === 0 });
       videoFrame.close();
 
-      if (i % 6 === 0 || i === totalFrames - 1) {
+      if (n % 6 === 0 || n === totalFrames - 1) {
         opts.onProgress?.({
-          currentFrame: i + 1,
+          currentFrame: n + 1,
           totalFrames,
-          percent: Math.round(((i + 1) / totalFrames) * 100),
+          percent: Math.round(((n + 1) / totalFrames) * 100),
         });
         await new Promise((r) => setTimeout(r, 0));
       }
@@ -217,15 +231,16 @@ export async function exportViaFfmpeg(opts: {
   params: RenderParams;
   defaultName: string;
   directFilePath?: string;
+  /** Export only these frames (In/Out or one scene). Missing = whole clip. */
+  range?: FrameRange | null;
   onProgress?: (info: ExportProgressInfo) => void;
   signal?: AbortSignal;
 }): Promise<ExportSummary | null> {
   const { width, height } = getExportResolution(opts.params.outputAspect);
-  const { effectiveDurationSec, totalFrames } = getEffectiveDurationAndFrames(
-    opts.engine,
-    opts.fps,
-    opts.params
-  );
+  const { totalFrames: clipFrames } = getEffectiveDurationAndFrames(opts.engine, opts.fps, opts.params);
+  const span = resolveFrameSpan(clipFrames, opts.range);
+  const totalFrames = rangeFrameCount(span);
+  const effectiveDurationSec = totalFrames / opts.fps;
   await opts.engine.whenReady();
   const prevSize = opts.engine.getSize();
 
@@ -259,7 +274,8 @@ export async function exportViaFfmpeg(opts: {
   try {
     opts.engine.resize(width, height);
 
-    for (let i = 0; i < totalFrames; i++) {
+    for (let n = 0; n < totalFrames; n++) {
+      const i = span.start + n;
       if (opts.signal?.aborted) {
         await opts.api.ffmpegExportCancel(jobId);
         throw new ExportCanceledError();
@@ -269,11 +285,11 @@ export async function exportViaFfmpeg(opts: {
       opts.engine.renderFrameToBuffer(i, opts.fps, opts.params, rgbaBuffer);
       await opts.api.ffmpegExportFrame(jobId, rgbaBuffer);
 
-      if (i % 4 === 0 || i === totalFrames - 1) {
+      if (n % 4 === 0 || n === totalFrames - 1) {
         opts.onProgress?.({
-          currentFrame: i + 1,
+          currentFrame: n + 1,
           totalFrames,
-          percent: Math.round(((i + 1) / totalFrames) * 100),
+          percent: Math.round(((n + 1) / totalFrames) * 100),
         });
       }
     }
