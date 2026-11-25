@@ -18,7 +18,7 @@ import {
 import { isIdentityTransform, normalizePhotoTransform } from '@engine/photoTransform';
 import { isNeutralCardStyle, normalizeCardStyle } from '@engine/cardStyle';
 import { isIdentityPhotoAdjust, normalizePhotoAdjust } from '@engine/photoAdjust';
-import { resolveSlideDurations } from '@engine/timeline';
+import { projectDurationInput, resolveSlideDurations } from '@engine/timeline';
 import {
   DEFAULT_SUPER8_PARAMS,
   DEFAULT_TEXT_OVERLAY,
@@ -254,13 +254,7 @@ export function getSceneTimeRange(
   s: Pick<AppState, 'scenes' | 'renderParams'>,
   idx: number
 ): { startSec: number; durationSec: number } {
-  const durations = resolveSlideDurations(s.scenes.length, {
-    durationMode: s.renderParams.durationMode,
-    totalDurationSec: s.renderParams.totalDurationSec,
-    defaultSlideDurationSec: s.renderParams.defaultSlideDurationSec,
-    slideDurations: s.scenes.map((item) => item.durationSec),
-    handlesSec: s.renderParams.handlesSec,
-  });
+  const durations = resolveSlideDurations(s.scenes.length, projectDurationInput(s.scenes, s.renderParams));
   let startSec = 0;
   for (let i = 0; i < idx; i++) startSec += durations[i];
   return { startSec, durationSec: durations[idx] ?? 0 };

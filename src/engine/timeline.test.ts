@@ -5,6 +5,7 @@ import {
   getTotalFrames,
   resolveSlideDurations,
 } from './timeline';
+import { computeProjectDurationSec } from './timeline';
 
 describe('timeline evaluator', () => {
   it('computes total frames accurately', () => {
@@ -138,5 +139,14 @@ describe('timeline evaluator', () => {
     // 45% of 5s = 2.25s, so it starts at 2.75s: (2.9 - 2.75) / 2.25 ≈ 0.067
     expect(capped.isInTransition).toBe(true);
     expect(capped.transitionProgress).toBeCloseTo(0.067, 2);
+  });
+});
+
+describe('computeProjectDurationSec', () => {
+  it('matches computeEffectiveTotalDurationSec with the project settings', () => {
+    const scenes = [{ durationSec: 2 }, {}, { durationSec: 4 }];
+    const params = { durationMode: 'per-slide' as const, totalDurationSec: 15, defaultSlideDurationSec: 3, handlesSec: 0.5 };
+    expect(computeProjectDurationSec(scenes, params)).toBeCloseTo(2 + 3 + 4 + 1, 5);
+    expect(computeProjectDurationSec(scenes, { ...params, durationMode: 'fixed-total' })).toBeCloseTo(16, 5);
   });
 });

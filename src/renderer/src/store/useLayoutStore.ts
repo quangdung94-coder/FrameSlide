@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { clamp } from '@engine/num';
 
 /** Sizes of the resizable work areas. Saved per computer (localStorage), not in the project file. */
 export interface LayoutPrefs {
@@ -26,7 +27,7 @@ export const LAYOUT_LIMITS = {
 export function clampLayout<K extends keyof LayoutPrefs>(key: K, value: number): number {
   const [lo, hi] = LAYOUT_LIMITS[key];
   if (!Number.isFinite(value)) return DEFAULT_LAYOUT[key];
-  return Math.min(hi, Math.max(lo, value));
+  return clamp(value, lo, hi);
 }
 
 interface LayoutState extends LayoutPrefs {

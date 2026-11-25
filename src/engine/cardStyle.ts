@@ -1,4 +1,5 @@
 import type { SceneCardStyle } from '@shared/types';
+import { isNearDefaults, normalizeByLimits } from './num';
 
 export const CARD_STYLE_LIMITS = {
   corner: [0, 1],
@@ -9,24 +10,12 @@ export const CARD_STYLE_LIMITS = {
 
 export const NEUTRAL_CARD_STYLE: Required<SceneCardStyle> = { corner: 0, shadow: 1, border: 1, feather: 0 };
 
-const num = (v: unknown, fallback: number, [lo, hi]: readonly [number, number]) =>
-  typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : fallback;
-
 export function normalizeCardStyle(s: SceneCardStyle | undefined | null): Required<SceneCardStyle> {
-  const L = CARD_STYLE_LIMITS;
-  return {
-    corner: num(s?.corner, 0, L.corner),
-    shadow: num(s?.shadow, 1, L.shadow),
-    border: num(s?.border, 1, L.border),
-    feather: num(s?.feather, 0, L.feather),
-  };
+  return normalizeByLimits(s, NEUTRAL_CARD_STYLE, CARD_STYLE_LIMITS);
 }
 
 export function isNeutralCardStyle(s: SceneCardStyle | undefined | null): boolean {
-  const n = normalizeCardStyle(s);
-  return (
-    n.corner < 1e-4 && Math.abs(n.shadow - 1) < 1e-4 && Math.abs(n.border - 1) < 1e-4 && n.feather < 1e-4
-  );
+  return isNearDefaults(normalizeCardStyle(s), NEUTRAL_CARD_STYLE);
 }
 
 /** [corner, shadow, border, feather] for the shader's per-scene uniform. */
