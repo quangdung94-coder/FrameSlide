@@ -47,21 +47,35 @@ export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSiz
       initialState.renderParams.outputAspect
     );
 
-    const engine = new FrameSlideEngine({
-      canvas,
-      width: initialSize.width,
-      height: initialSize.height,
-      onContextLost: () => setContextLost(true),
-      onShadersReady: () => {
-        const s = useAppStore.getState();
-        engineRef.current?.renderFrame(s.frameIndex, s.fps, s.renderParams, s.compareMode);
-      },
-      onContextRestored: () => {
-        setContextLost(false);
-        const s = useAppStore.getState();
-        engine.renderFrame(s.frameIndex, s.fps, s.renderParams, s.compareMode);
-      },
-    });
+    let engine: FrameSlideEngine;
+    try {
+      engine = new FrameSlideEngine({
+        canvas,
+        width: initialSize.width,
+        height: initialSize.height,
+        onContextLost: () => setContextLost(true),
+        onShadersReady: () => {
+          const s = useAppStore.getState();
+          engineRef.current?.renderFrame(s.frameIndex, s.fps, s.renderParams, s.compareMode);
+        },
+        onContextRestored: () => {
+          setContextLost(false);
+          const s = useAppStore.getState();
+          engine.renderFrame(s.frameIndex, s.fps, s.renderParams, s.compareMode);
+        },
+      });
+    } catch (err) {
+      // No WebGL2 at all (driver blocked / too old): keep the editor open and let GpuNotice explain.
+      console.error('FrameSlide: cannot start the WebGL2 engine', err);
+      setEngineCapabilities({
+        webgl2: false,
+        halfFloatRenderTarget: false,
+        rendererInfo: err instanceof Error ? err.message.slice(0, 200) : String(err),
+        maxTextureSize: 0,
+        gpuTier: 'unknown',
+      });
+      return;
+    }
 
     engineRef.current = engine;
     const caps = engine.getCapabilities();

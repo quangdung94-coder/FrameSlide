@@ -22,7 +22,8 @@ import {
   cancelAllFfmpegJobs,
   cancelFfmpegJob,
   finishFfmpegJob,
-  isFfmpegAvailable,
+  checkFfmpegAvailable,
+  resolveFfmpegPath,
   startFfmpegJob,
   writeFfmpegFrame,
 } from './ffmpegExport';
@@ -36,12 +37,20 @@ import {
   setProxyMaxEdge,
 } from './proxyService';
 import { nextFreeFileName } from '@shared/exportPath';
+import { runSmokeTest, smokeTestOutput } from './smokeTest';
 import { clearCacheFiles, getCacheStats, readAppSettings, writeAppSettings } from './appSettings';
 
 const isDev = Boolean(process.env['ELECTRON_RENDERER_URL']);
 
 // Laptops/desktops with both Intel and NVIDIA/AMD GPUs: render on the dedicated card.
 app.commandLine.appendSwitch('force_high_performance_gpu');
+// Bước 6: when the graphics driver is blocked or missing, fall back to software WebGL (slow, the app
+// shows a warning) instead of a blank window. The app only loads its own local pages.
+app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+if (smokeTestOutput()) {
+  // CI machines have no GPU: let the self-check run on the software renderer.
+  app.commandLine.appendSwitch('ignore-gpu-blocklist');
+}
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -157,13 +166,14 @@ app.whenReady().then(() => {
     return net.fetch(pathToFileURL(filePath).toString());
   });
 
-  const ffmpegReady = isFfmpegAvailable();
+  // Checked in the background so the window opens without waiting for FFmpeg (Bước 6).
+  const ffmpegReady = checkFfmpegAvailable();
 
-  ipcMain.handle('app:getInfo', (): AppInfo => ({
+  ipcMain.handle('app:getInfo', async (): Promise<AppInfo> => ({
     version: app.getVersion(),
     electron: process.versions.electron,
     platform: process.platform,
-    ffmpegAvailable: ffmpegReady,
+    ffmpegAvailable: await ffmpegReady,
   }));
 
   ipcMain.handle('media:loadSamples', async (): Promise<SlideAsset[]> => {
@@ -417,7 +427,16 @@ app.whenReady().then(() => {
     await cancelFfmpegJob(jobId);
   });
 
-  createWindow();
+  const mainWindow = createWindow();
+
+  const smokeOut = smokeTestOutput();
+  if (smokeOut) {
+    void runSmokeTest(mainWindow, smokeOut, {
+      samples: () => ensureSamplePhotos(cacheDir),
+      ffmpeg: ffmpegReady,
+      ffmpegPath: resolveFfmpegPath(),
+    });
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

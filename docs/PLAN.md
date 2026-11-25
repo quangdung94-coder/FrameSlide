@@ -57,8 +57,8 @@
 ---
 
 ## Bước 6: Đóng gói & Thử nghiệm thực tế
-- [ ] Cấu hình `electron-builder` tạo bộ cài `.exe` (NSIS) kèm sẵn FFmpeg binary
-- [ ] Thêm kiểm tra GPU/Driver lần đầu mở app & cảnh báo thân thiện
+- [x] Cấu hình `electron-builder` tạo bộ cài `.exe` (NSIS) kèm sẵn FFmpeg binary (thêm bản chạy liền Portable, icon, workflow `release.yml` đóng gói + tự kiểm tra trên Windows CI, cập nhật GitHub Release "bản mới nhất"; hướng dẫn: `docs/HUONG_DAN_CAI_DAT.md`)
+- [x] Thêm kiểm tra GPU/Driver lần đầu mở app & cảnh báo thân thiện (`GpuNotice`: không WebGL2 / vẽ bằng CPU / không 16-bit / card tích hợp, mỗi loại hiện một lần)
 - [ ] Thử nghiệm trên máy chính và ít nhất 1 máy cấu hình yếu hơn
 - [ ] Sửa lỗi phát sinh và phát hành bản v1.0 dùng thực tế
 

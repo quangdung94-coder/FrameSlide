@@ -22,6 +22,6 @@ Chọn các font từ **Google Fonts** (giấy phép **SIL Open Font License - O
 - **Ưu tiên 2:** Tự quay/chụp hoặc dùng các gói overlay CC0 / miễn phí bản quyền cho phần mềm, nén thành texture atlas hoặc chuỗi frame tối ưu dung lượng.
 
 ## 4. Phần mềm đóng gói kèm
-- **FFmpeg:** Dùng bản build Windows tĩnh (`ffmpeg.exe`) để xuất ProRes 422 / DNxHR HQ.
+- **FFmpeg:** Dùng bản build Windows tĩnh (`ffmpeg.exe`, GPL, https://ffmpeg.org) để xuất ProRes 422 / DNxHR HQ. CI tải bản "release essentials" của gyan.dev (dự phòng: BtbN/FFmpeg-Builds) vào `vendor/ffmpeg/` rồi đóng vào `resources/ffmpeg/` của app, kèm file LICENSE và README ghi nguồn. Không lưu ffmpeg.exe trong repo.
 - **Sharp:** Thư viện Node.js xử lý ảnh tốc độ cao (Apache-2.0).
 - **mp4-muxer:** Thư viện TypeScript mux luồng WebCodecs thành MP4 (MIT).
