@@ -4,6 +4,7 @@ import type { SceneTextOverride, TextStyleId } from '@shared/types';
 import { getSceneTimeRange, useAppStore } from '../store/useAppStore';
 import { TEXT_ANIMATION_OPTIONS, TEXT_STYLE_OPTIONS } from './inspector/textOptions';
 import { Group, SelectField, SliderRow, TextField } from './ui';
+import { TextLookEditor } from './TextLookEditor';
 
 const FIELD = 'h-8 w-full rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100 disabled:opacity-40';
 const SMALL_BTN =
@@ -150,6 +151,10 @@ export function SceneTextGroup({ sceneId, disabled }: { sceneId: string; disable
             disabled={disabled}
             onChange={(subtitle) => updateSceneText(scene.id, { subtitle })}
           />
+          <div className="rounded border border-zinc-800 p-2">
+            <p className="mb-2 text-xs font-semibold text-zinc-300">Font, màu, viền riêng</p>
+            <TextLookEditor look={own.look} disabled={disabled} onChange={(look) => updateSceneText(scene.id, { look })} />
+          </div>
         </>
       )}
 

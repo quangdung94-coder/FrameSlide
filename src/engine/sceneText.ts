@@ -29,6 +29,7 @@ export function resolveSceneText(project: TextOverlayConfig, scene: SceneItem | 
       title: own.title ?? '',
       subtitle: own.subtitle ?? '',
       timing: 'per-scene',
+      look: own.look,
     };
     const hasWords =
       config.style === 'date-stamp-90s' || Boolean(config.title.trim()) || Boolean(config.subtitle.trim());
@@ -64,6 +65,7 @@ export function textStyleOnly(
   if (source.mode === 'own') {
     if (source.style) out.style = source.style;
     if (source.animation) out.animation = source.animation;
+    if (source.look) out.look = { ...source.look };
     if (target?.title) out.title = target.title;
     if (target?.subtitle) out.subtitle = target.subtitle;
   }

@@ -2,6 +2,7 @@ import type { TextTimingMode } from '@shared/types';
 import { useAppStore } from '../../store/useAppStore';
 import { CheckField, Group, SelectField, SliderRow, TextField, type SelectOption } from '../ui';
 import { TEXT_ANIMATION_OPTIONS, TEXT_STYLE_OPTIONS } from './textOptions';
+import { TextLookEditor } from '../TextLookEditor';
 
 const TIMING_OPTIONS: SelectOption<TextTimingMode>[] = [
   { value: 'always', label: 'Suốt clip (Hợp Date Stamp)' },
@@ -26,6 +27,7 @@ export function TextTab({ disabled, textDragMode, onToggleTextDrag }: Props) {
   const sceneOwnText = useAppStore((s) => s.scenes.find((sc) => sc.id === s.activeSceneId)?.text?.mode === 'own');
 
   return (
+    <>
     <Group id="text-main" title="Chữ & Date Stamp (Tiếng Việt)" accent>
       <SelectField
         label="Kiểu hiển thị"
@@ -130,5 +132,10 @@ export function TextTab({ disabled, textDragMode, onToggleTextDrag }: Props) {
         onChange={(opacity) => updateTextOverlay({ opacity })}
       />
     </Group>
+
+    <Group id="text-look" title="Font · cỡ · màu · viền · bóng">
+      <TextLookEditor look={textOverlay.look} disabled={textOff} onChange={(look) => updateTextOverlay({ look })} />
+    </Group>
+    </>
   );
 }

@@ -134,5 +134,5 @@
 
 ### Đợt 5.4: Chữ và nền (anh Dũng duyệt 25/11/2026)
 - [x] 5.4a **Chữ riêng từng scene:** bảng Scene › "Chữ của scene" chọn Theo dự án / Riêng / Tắt chữ. "Riêng" có kiểu chữ, chuyển động, tiêu đề, phụ đề riêng, hiện trong scene đó với thời điểm và vị trí riêng (kéo chữ được), kể cả khi chữ dự án đang tắt. Dán thiết lập "Chữ" và Scene Style mang theo kiểu chữ, không mang nội dung. (Logic `engine/sceneText.ts`, `SceneItem.text`; D27 sửa D23.)
-- [ ] 5.4b **Bảng chữ kiểu Premiere/CapCut:** font, cỡ, đậm/nghiêng, canh lề, khoảng cách chữ, màu, viền, bóng.
+- [x] 5.4b **Bảng chữ kiểu Premiere/CapCut:** nhóm "Font · cỡ · màu · viền · bóng" ở tab Chữ (cả dự án) và trong chữ "Riêng" của scene: 7 font tiếng Việt đóng gói (mỗi tên hiện bằng chính font đó), cỡ 40–250%, đậm/nghiêng, canh trái/giữa/phải, khoảng cách chữ, màu (ô màu, mã hex, 8 màu nhanh), viền + màu viền, bóng Theo kiểu/Không/Mềm/Đậm; mọi mục có "theo kiểu". (Logic `engine/textLook.ts`, `TextOverlayConfig.look`, `SceneTextOverride.look`; D28.)
 - [ ] 5.4c **Nền mờ:** độ mờ, độ tối, phóng nền, 5 kiểu mờ.

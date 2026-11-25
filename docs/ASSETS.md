@@ -15,6 +15,7 @@ Chọn các font từ **Google Fonts** (giấy phép **SIL Open Font License - O
 - **Không chân hiện đại (Sans-serif):** `Inter`, `Be Vietnam Pro`, `Plus Jakarta Sans`
 - **Có chân thanh lịch (Serif – hợp phim cưới):** `Playfair Display`, `Cormorant Garamond`, `Lora`
 - **Kiểu đánh máy / Date Stamp:** `JetBrains Mono`, `Share Tech Mono` (hoặc font kiểu LED/7-segment hỗ trợ số và dấu)
+- **Đang đóng gói trong app (D26, D28):** Be Vietnam Pro, Montserrat, Playfair Display, Lora, Dancing Script, Great Vibes, JetBrains Mono, qua các gói `@fontsource/*` (OFL 1.1; giấy phép nằm trong từng gói).
 
 ## 3. Overlay & Texture (Light Leak, Film Burn, Paper)
 - **Ưu tiên 1:** Tự tạo bằng Procedural Shader (không tốn dung lượng bộ cài).
