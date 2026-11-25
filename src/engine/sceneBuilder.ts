@@ -41,6 +41,30 @@ export function createEmptyScene(
   };
 }
 
+/** Deep copy of a scene with a fresh id (used by "Nhân bản scene"). */
+export function cloneScene(src: SceneItem): SceneItem {
+  return { ...structuredClone(src), id: createSceneId() };
+}
+
+/** The project settings `buildScenesFromPhotos` needs (same names as in RenderParams). */
+export interface SceneBuildParams {
+  portraitMode: PortraitMode;
+  motionTemplate?: MotionTemplateId;
+  defaultSlideDurationSec?: number;
+  transitionType?: TransitionType;
+}
+
+/** `buildScenesFromPhotos` with the project's render settings. */
+export function buildScenesForProject(photos: SlideAsset[], params: SceneBuildParams): SceneItem[] {
+  return buildScenesFromPhotos({
+    photos,
+    portraitMode: params.portraitMode,
+    motionTemplate: params.motionTemplate,
+    defaultDurationSec: params.defaultSlideDurationSec,
+    defaultTransition: params.transitionType,
+  });
+}
+
 /**
  * Automatically builds a clean Scene list from raw photos according to portraitMode
  * or a chosen MotionTemplate's layout pattern.

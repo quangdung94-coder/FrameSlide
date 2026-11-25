@@ -6,6 +6,7 @@ import {
   createEmptyScene,
   resizeSceneSlots,
 } from './sceneBuilder';
+import { cloneScene } from './sceneBuilder';
 
 function mockPhoto(id: string, orientation: 'landscape' | 'portrait'): SlideAsset {
   return {
@@ -60,5 +61,22 @@ describe('sceneBuilder', () => {
     const empty = [createEmptyScene('triptych')];
     const filled = autoFillScenesWithPhotos(empty, photos);
     expect(filled[0].slots).toEqual(['A', 'B', 'C']);
+  });
+});
+
+describe('cloneScene', () => {
+  it('copies every setting deeply with a new id', () => {
+    const src = {
+      ...createEmptyScene('diptych', 4, 'film-dissolve'),
+      slots: ['a', null],
+      caption: 'Hi',
+      cardStyle: { corner: 0.5 },
+      filmLookOff: true,
+    };
+    const copy = cloneScene(src);
+    expect(copy.id).not.toBe(src.id);
+    expect({ ...copy, id: src.id }).toEqual(src);
+    expect(copy.slots).not.toBe(src.slots);
+    expect(copy.cardStyle).not.toBe(src.cardStyle);
   });
 });
