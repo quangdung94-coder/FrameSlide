@@ -141,6 +141,8 @@ export const PlaybackBar = memo(function PlaybackBar({
             setIsPlaying(false);
             setFrameIndex(Number(e.target.value));
           }}
+          // Hand the keyboard back after a drag so ← → and the other shortcuts work right away.
+          onPointerUp={(e) => e.currentTarget.blur()}
           className="relative z-10 h-1.5 w-full cursor-pointer accent-amber-400"
         />
       </div>
