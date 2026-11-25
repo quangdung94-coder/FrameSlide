@@ -7,6 +7,7 @@ import {
   type SupportedFps,
   type UserPreset,
 } from '@shared/types';
+import type { SceneStyle } from '@engine/sceneStyles';
 
 /** The part of the project that undo / redo restores. */
 export interface HistorySnapshot {
@@ -53,26 +54,33 @@ export function mergeRenderParams(defaults: RenderParams, saved: RenderParams): 
   };
 }
 
-const USER_PRESETS_KEY = 'frameslide_user_presets_v1';
-
-export function loadUserPresets(): UserPreset[] {
+/** Reads a JSON list saved on this computer (not in the project file); [] when missing or broken. */
+export function loadLocalList<T>(key: string): T[] {
   try {
     if (typeof window === 'undefined' || !window.localStorage) return [];
-    const raw = window.localStorage.getItem(USER_PRESETS_KEY);
+    const raw = window.localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as UserPreset[]) : [];
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
   } catch {
     return [];
   }
 }
 
-export function persistUserPresets(presets: UserPreset[]): void {
+export function saveLocalList<T>(key: string, list: T[]): void {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(USER_PRESETS_KEY, JSON.stringify(presets));
+      window.localStorage.setItem(key, JSON.stringify(list));
     }
   } catch {
     // ignore storage quota errors
   }
 }
+
+const USER_PRESETS_KEY = 'frameslide_user_presets_v1';
+const SCENE_STYLES_KEY = 'frameslide_scene_styles_v1';
+
+export const loadUserPresets = () => loadLocalList<UserPreset>(USER_PRESETS_KEY);
+export const persistUserPresets = (presets: UserPreset[]) => saveLocalList(USER_PRESETS_KEY, presets);
+export const loadSceneStyles = () => loadLocalList<SceneStyle>(SCENE_STYLES_KEY);
+export const persistSceneStyles = (styles: SceneStyle[]) => saveLocalList(SCENE_STYLES_KEY, styles);

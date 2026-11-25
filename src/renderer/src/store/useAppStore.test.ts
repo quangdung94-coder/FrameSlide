@@ -510,5 +510,23 @@ describe('scene frame style', () => {
     expect('captionTiming' in useAppStore.getState().scenes[0]).toBe(false);
     expect('captionOffset' in useAppStore.getState().scenes[0]).toBe(false);
   });
+
+  it('S9: save / apply / delete scene styles (built-in and mine)', () => {
+    useAppStore.setState({ scenes: [], sceneStyles: [] });
+    useAppStore.getState().addScene('single');
+    useAppStore.getState().addScene('single');
+    const [a, b] = useAppStore.getState().scenes.map((s) => s.id);
+    expect(useAppStore.getState().applySceneStyle(a, 'builtin-memory-grid')).toBe(true);
+    expect(useAppStore.getState().scenes[0].layout).toBe('mosaic4');
+    expect(useAppStore.getState().saveSceneStyle(a, '   ')).toBe(false);
+    expect(useAppStore.getState().saveSceneStyle(a, 'Lưới của tôi')).toBe(true);
+    const mine = useAppStore.getState().sceneStyles[0];
+    expect(useAppStore.getState().applySceneStyle(b, mine.id)).toBe(true);
+    expect(useAppStore.getState().scenes[1].layout).toBe('mosaic4');
+    useAppStore.getState().undo();
+    expect(useAppStore.getState().scenes[1].layout).toBe('single');
+    useAppStore.getState().deleteSceneStyle(mine.id);
+    expect(useAppStore.getState().sceneStyles).toEqual([]);
+  });
 });
 

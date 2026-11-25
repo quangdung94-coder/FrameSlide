@@ -9,6 +9,7 @@ import { BackgroundPanel } from './BackgroundPanel';
 import { normalizeCardStyle } from '@engine/cardStyle';
 import { DEFAULT_STAGGER, normalizeStagger, STAGGER_STYLES, staggerTotalSec } from '@engine/stagger';
 import { Group, SliderRow } from './ui';
+import { SceneStylesGroup } from './SceneStylesGroup';
 
 const FIELD =
   'h-8 w-full rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100 disabled:opacity-40';
@@ -49,6 +50,8 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
 
   return (
     <>
+      <SceneStylesGroup sceneId={scene.id} disabled={disabled} onNotice={onNotice} />
+
       <Group id="scene-layout" title="Bố cục & thời lượng" accent>
         <div className="grid grid-cols-4 gap-1">
           {LAYOUTS.map((lay, i) => (
