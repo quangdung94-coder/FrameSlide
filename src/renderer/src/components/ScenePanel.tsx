@@ -3,7 +3,8 @@ import { TRANSITION_PRESETS } from '@engine/presets/transitions';
 import { LAYOUT_LABELS } from '@engine/sceneBuilder';
 import { SCENE_SETTING_PARTS } from '@engine/sceneSettings';
 import type { MotionDirection, MotionTemplateId, SceneLayoutId } from '@shared/types';
-import { useAppStore } from '../store/useAppStore';
+import { getSceneTimeRange, useAppStore } from '../store/useAppStore';
+import { resolveCaptionWindow } from '@engine/textAnimation';
 import { BackgroundPanel } from './BackgroundPanel';
 import { normalizeCardStyle } from '@engine/cardStyle';
 import { DEFAULT_STAGGER, normalizeStagger, STAGGER_STYLES, staggerTotalSec } from '@engine/stagger';
@@ -30,6 +31,8 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
   const setSceneFilmLookOff = useAppStore((s) => s.setSceneFilmLookOff);
   const setSceneTransitionDuration = useAppStore((s) => s.setSceneTransitionDuration);
   const setSceneCaption = useAppStore((s) => s.setSceneCaption);
+  const setSceneCaptionTiming = useAppStore((s) => s.setSceneCaptionTiming);
+  const setSceneCaptionOffset = useAppStore((s) => s.setSceneCaptionOffset);
   const setSceneBackground = useAppStore((s) => s.setSceneBackground);
   const updateTextOverlay = useAppStore((s) => s.updateTextOverlay);
   const copySceneSettings = useAppStore((s) => s.copySceneSettings);
@@ -271,6 +274,31 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
           placeholder="Nhập chữ riêng cho scene này…"
           className={FIELD}
         />
+        {captionActive && (() => {
+          const dur = getSceneTimeRange({ scenes, renderParams }, idx).durationSec;
+          const [inSec, outSec] = resolveCaptionWindow(scene.captionTiming, dur);
+          return (
+            <>
+              <SliderRow label="Chữ hiện từ giây" value={inSec} min={0} max={Math.max(0.1, dur - 0.2)} step={0.1} disabled={disabled} onChange={(v) => setSceneCaptionTiming(scene.id, { inSec: v, outSec: Math.max(outSec, v + 0.2) })} />
+              <SliderRow label="Chữ ẩn lúc giây" value={outSec} min={0.2} max={Math.max(0.2, dur)} step={0.1} disabled={disabled} onChange={(v) => setSceneCaptionTiming(scene.id, { inSec: Math.min(inSec, v - 0.2), outSec: v })} />
+              <div className="flex flex-wrap gap-1.5">
+                {scene.captionTiming && (
+                  <button type="button" disabled={disabled} onClick={() => setSceneCaptionTiming(scene.id, null)} className="h-8 rounded border border-zinc-700 px-2 text-xs text-zinc-300 hover:border-amber-400 disabled:opacity-40">
+                    ⟲ Hiện suốt scene
+                  </button>
+                )}
+                {scene.captionOffset && (
+                  <button type="button" disabled={disabled} onClick={() => setSceneCaptionOffset(scene.id, null)} className="h-8 rounded border border-zinc-700 px-2 text-xs text-zinc-300 hover:border-amber-400 disabled:opacity-40">
+                    ⟲ Vị trí theo dự án
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-zinc-500">
+                Kéo chữ trên khung xem bằng nút "✥ Kéo chữ" ở tab Chữ; vị trí kéo khi đang ở scene này chỉ áp cho scene này.
+              </p>
+            </>
+          );
+        })()}
         {!captionActive && (
           <div className="space-y-1.5 rounded border border-zinc-800 bg-zinc-900/60 p-2 text-xs text-zinc-400">
             <p>Chữ riêng chỉ hiện khi kiểu chữ đang bật và thời điểm là "Chú thích riêng từng Scene".</p>

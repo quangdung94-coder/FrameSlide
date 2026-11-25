@@ -51,6 +51,7 @@ export const SUPER8_LOOK_FRAGMENT_SHADER = /* glsl */ `
   uniform vec3 uLutDomainMax;
   uniform float uHasText;        // 0 or 1
   uniform float uTextAlpha;      // 0..1
+  uniform vec2 uTextOffset;      // dragged position + slide-up, in uv units (y up)
   uniform float uVideoFade;      // 0..1
   uniform int uCompareMode;      // 0=normal, 1=before(clean), 2=split-screen
 
@@ -271,8 +272,11 @@ export const SUPER8_LOOK_FRAGMENT_SHADER = /* glsl */ `
 
     // Vietnamese Text / Date Stamp Overlay with smooth Fade
     if (uHasText > 0.5 && uTextAlpha > 0.001) {
-      vec4 txt = texture2D(uTextTex, vUv);
-      finalCol = mix(finalCol, txt.rgb, txt.a * uTextAlpha);
+      vec2 tUv = vUv - uTextOffset;
+      if (tUv.x >= 0.0 && tUv.x <= 1.0 && tUv.y >= 0.0 && tUv.y <= 1.0) {
+        vec4 txt = texture2D(uTextTex, tUv);
+        finalCol = mix(finalCol, txt.rgb, txt.a * uTextAlpha);
+      }
     }
 
     // Split-Screen divider line in Compare Mode

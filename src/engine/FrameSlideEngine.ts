@@ -26,9 +26,10 @@ import { createLutStripTexture, parseCubeLut } from './cubeLutParser';
 import { MOTION_STYLE_CODE_MAP } from './presets/motionTemplates';
 import { TRANSITION_CODE_MAP } from './presets/transitions';
 import { buildScenesFromPhotos } from './sceneBuilder';
-import { TextOverlayRenderer } from './textOverlay';
+import { TextOverlayRenderer, typewriterCharCount } from './textOverlay';
+import { clampTextOffset, computeTextAnim } from './textAnimation';
 import { TextureWindowCache } from './TextureWindowCache';
-import { computeProjectDurationSec, evaluateTimeline, projectDurationInput } from './timeline';
+import { computeProjectDurationSec, evaluateTimeline, projectDurationInput, resolveSlideDurations } from './timeline';
 import {
   FULLSCREEN_VERTEX_SHADER,
   SCENE_TRANSITION_FRAGMENT_SHADER,
@@ -377,6 +378,7 @@ export class FrameSlideEngine {
         uLutDomainMax: { value: new THREE.Vector3(1, 1, 1) },
         uHasText: { value: 0 },
         uTextAlpha: { value: 1 },
+        uTextOffset: { value: new THREE.Vector2(0, 0) },
         uVideoFade: { value: 1 },
         uCompareMode: { value: 0 },
       },
@@ -777,50 +779,45 @@ export class FrameSlideEngine {
     this.pass2Mat.uniforms['uHalation'].value = look.halation * look.intensity * lookMix;
     this.pass2Mat.uniforms['uBloom'].value = look.bloom * look.intensity * lookMix;
 
-    // Text Timing (always / intro / outro / per-scene) + smooth fade + EXIF Auto Date Stamp
+    // Text Timing (always / intro / outro / per-scene) + entry animation + EXIF Auto Date Stamp
     const textCfg = params?.textOverlay ?? DEFAULT_TEXT_OVERLAY;
     const timing = textCfg.timing ?? 'always';
-    let textAlpha = 1.0;
-    if (timing === 'intro') {
-      if (state.slideAIndex > 0) {
-        textAlpha = 0;
-      } else {
-        const fadeIn = Math.min(1, state.slideAProgress / 0.18);
-        const fadeOut = Math.min(1, (1 - state.slideAProgress) / 0.2);
-        textAlpha = Math.max(0, Math.min(fadeIn, fadeOut));
-      }
-    } else if (timing === 'outro') {
-      const lastIdx = Math.max(0, this.scenes.length - 1);
-      if (state.slideAIndex < lastIdx) {
-        textAlpha = 0;
-      } else {
-        const fadeIn = Math.min(1, state.slideAProgress / 0.2);
-        const fadeOut = Math.min(1, (1 - state.slideAProgress) / 0.18);
-        textAlpha = Math.max(0, Math.min(fadeIn, fadeOut));
-      }
-    } else if (timing === 'per-scene') {
-      const fadeIn = Math.min(1, state.slideAProgress / 0.15);
-      const fadeOut = Math.min(1, (1 - state.slideAProgress) / 0.18);
-      textAlpha = Math.max(0, Math.min(fadeIn, fadeOut));
-    }
+    const perScene = timing === 'per-scene';
 
     const firstPid = sceneA?.slots.find((id) => id !== null) ?? null;
     const firstPhoto = firstPid ? this.photoMap.get(firstPid) : undefined;
     const dateOverride =
       textCfg.autoExifDate && firstPhoto ? formatExifDateStamp(firstPhoto.takenAtMs) : undefined;
-    const titleOverride =
-      timing === 'per-scene'
-        ? (sceneA?.caption?.trim() ?? '')
-        : undefined;
+    const titleOverride = perScene ? (sceneA?.caption?.trim() ?? '') : undefined;
+
+    const slotSec = resolveSlideDurations(this.scenes.length, projectDurationInput(this.scenes, params))[state.slideAIndex] ?? 0;
+    const anim = computeTextAnim({
+      animation: textCfg.animation,
+      timing,
+      sceneIndex: state.slideAIndex,
+      sceneCount: this.scenes.length,
+      sceneLocalSec: state.slideAProgress * slotSec,
+      slotSec,
+      timeSec: state.timeSec,
+      captionTiming: perScene ? sceneA?.captionTiming : undefined,
+      charCount: typewriterCharCount(
+        textCfg,
+        (titleOverride ?? textCfg.title).trim(),
+        (dateOverride ?? textCfg.dateText).trim()
+      ),
+    });
+    const textAlpha = anim.alpha;
+    const offset = clampTextOffset(perScene && sceneA?.captionOffset ? sceneA.captionOffset : textCfg.offset);
 
     const hasText =
       textAlpha > 0.001 &&
-      (timing !== 'per-scene' || Boolean(titleOverride) || textCfg.style === 'date-stamp-90s') &&
+      (!perScene || Boolean(titleOverride) || textCfg.style === 'date-stamp-90s') &&
       this.textRenderer.update(textCfg, {
         width: this.width,
         height: this.height,
         titleOverride,
         dateOverride,
+        revealChars: anim.revealChars,
       });
 
     // Video Fade In / Fade Out multiplier
@@ -865,6 +862,8 @@ export class FrameSlideEngine {
     this.pass3Mat.uniforms['uLutSize'].value = this.customLutSize;
     this.pass3Mat.uniforms['uHasText'].value = hasText ? 1 : 0;
     this.pass3Mat.uniforms['uTextAlpha'].value = textAlpha;
+    // UI offsets are y-down; texture coordinates are y-up.
+    (this.pass3Mat.uniforms['uTextOffset'].value as THREE.Vector2).set(offset.x, -(offset.y + anim.slideY));
     this.pass3Mat.uniforms['uVideoFade'].value = videoFade;
     this.pass3Mat.uniforms['uCompareMode'].value = COMPARE_MODE_CODE[compareMode] ?? 0;
 

@@ -216,6 +216,10 @@ export interface SceneItem {
   /** Own Motion Template for this scene (undefined = follow the project's template). */
   motionTemplate?: MotionTemplateId;
   caption?: string;
+  /** When this scene's caption appears / disappears (per-scene captions only). */
+  captionTiming?: CaptionTiming;
+  /** Own caption position (per-scene captions only; otherwise the project's text position). */
+  captionOffset?: TextOffset;
   /** Own background for this scene (otherwise the project background is used). */
   background?: SceneBackground;
   /** Photo IDs from `slides` (null = empty slot waiting for photo) */
@@ -279,8 +283,27 @@ export const DEFAULT_SUPER8_PARAMS: FilmLookParams = {
   simulate18fps: true,
 };
 
+/** How the text enters: fade (default), typewriter (letters one by one), slide up. */
+export type TextAnimationId = 'fade' | 'typewriter' | 'slide-up';
+
+/** Position offset of the text, as a fraction of the frame (x right, y down). */
+export interface TextOffset {
+  x: number;
+  y: number;
+}
+
+/** When a scene's caption shows, in seconds from the start of the scene (missing = whole scene). */
+export interface CaptionTiming {
+  inSec?: number;
+  outSec?: number;
+}
+
 export interface TextOverlayConfig {
   style: TextStyleId;
+  /** Entry animation (missing = fade, the original behaviour). */
+  animation?: TextAnimationId;
+  /** Dragged position offset (missing = the style's own position). */
+  offset?: TextOffset;
   title: string;
   subtitle: string;
   dateText: string;

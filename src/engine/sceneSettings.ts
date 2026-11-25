@@ -7,6 +7,8 @@ import type {
   SceneLayoutId,
   SceneStagger,
   TransitionType,
+  CaptionTiming,
+  TextOffset,
 } from '@shared/types';
 import { resizeSceneSlots } from './sceneBuilder';
 
@@ -43,6 +45,8 @@ export interface SceneSettings {
   stagger?: SceneStagger;
   background?: SceneBackground;
   caption?: string;
+  captionTiming?: CaptionTiming;
+  captionOffset?: TextOffset;
   cardStyle?: SceneCardStyle;
   filmLookOff?: boolean;
 }
@@ -58,6 +62,8 @@ export function copySceneSettings(scene: SceneItem): SceneSettings {
     stagger: scene.stagger ? { ...scene.stagger } : undefined,
     background: scene.background ? { ...scene.background } : undefined,
     caption: scene.caption,
+    captionTiming: scene.captionTiming ? { ...scene.captionTiming } : undefined,
+    captionOffset: scene.captionOffset ? { ...scene.captionOffset } : undefined,
     cardStyle: scene.cardStyle ? { ...scene.cardStyle } : undefined,
     filmLookOff: scene.filmLookOff,
   };
@@ -92,6 +98,8 @@ export function applySceneSettings(
         break;
       case 'caption':
         next.caption = settings.caption;
+        next.captionTiming = settings.captionTiming ? { ...settings.captionTiming } : undefined;
+        next.captionOffset = settings.captionOffset ? { ...settings.captionOffset } : undefined;
         break;
       case 'frame':
         next.cardStyle = settings.cardStyle ? { ...settings.cardStyle } : undefined;
