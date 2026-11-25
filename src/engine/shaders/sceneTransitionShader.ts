@@ -121,6 +121,12 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
   uniform float uBokeh;        // 0..1
   uniform float uTimeSec;
   uniform int uBlurTaps;       // always 9; a uniform so the blur stays a real loop on D3D
+  // "Ảnh mờ" background (D29): pre-blurred small copy of the scene's first photo, read once.
+  uniform sampler2D uBgTexA;
+  uniform sampler2D uBgTexB;
+  // x = blurred copy ready (1/0), y = brightness, z = zoom, w = edge darkening
+  uniform vec4 uBgBlurA;
+  uniform vec4 uBgBlurB;
 
   float easeInOutSine(float x) {
     return -(cos(3.14159265 * clamp(x, 0.0, 1.0)) - 1.0) * 0.5;
@@ -437,7 +443,19 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     float asp0 = effSz.x / max(1.0, effSz.y);
     vec2 bgPan = vec2(mix(-0.025, 0.025, easeP), 0.0) * (parallax ? 1.8 : 0.7) * uMotionIntensity;
     vec2 bgUv = coverUvWithFocal(screenUv + bgPan, asp0, canvasAspect, vec2(0.5, 0.5));
-    return sampleBlurredSlot(slot0, (bgUv - 0.5) / 1.18 + 0.5) * (filmstrip ? 0.14 : 0.24);
+    vec4 bb = scene == 0 ? uBgBlurA : uBgBlurB;
+    vec2 zUv = (bgUv - 0.5) / max(1.0, bb.z) + 0.5;
+    float bright = bb.y * (filmstrip ? 0.58 : 1.0);
+    float edge = 1.0 - bb.w * smoothstep(0.2, 0.75, length(screenUv - 0.5));
+    vec3 blurred;
+    if (bb.x > 0.5) {
+      vec2 ruv = rotateUv90(clamp(zUv, 0.001, 0.999), slotRot(slot0));
+      blurred = (scene == 0 ? textureLod(uBgTexA, ruv, 0.0).rgb : textureLod(uBgTexB, ruv, 0.0).rgb) * slotExp(slot0);
+    } else {
+      // Blurred copy not made yet (photo still loading): the light 3x3 blur.
+      blurred = sampleBlurredSlot(slot0, zUv);
+    }
+    return blurred * bright * edge;
   }
 
   // Draws one 2D or True-3D perspective photo card onto baseCol

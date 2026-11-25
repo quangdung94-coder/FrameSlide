@@ -28,6 +28,8 @@ import { TRANSITION_CODE_MAP } from './presets/transitions';
 import { buildScenesFromPhotos } from './sceneBuilder';
 import { TextOverlayRenderer, typewriterCharCount } from './textOverlay';
 import { resolveSceneText } from './sceneText';
+import { BlurredBackgroundCache } from './BlurredBackgroundCache';
+import { blurShaderParams, resolveBlurSettings } from './backgroundBlur';
 import { clampTextOffset, computeTextAnim } from './textAnimation';
 import { TextureWindowCache } from './TextureWindowCache';
 import { computeProjectDurationSec, evaluateTimeline, projectDurationInput, resolveSlideDurations } from './timeline';
@@ -132,6 +134,7 @@ export class FrameSlideEngine {
 
   private readonly fallbackTex: THREE.DataTexture;
   private readonly textureCache: TextureWindowCache;
+  private readonly blurCache = new BlurredBackgroundCache(16);
   private readonly textRenderer: TextOverlayRenderer;
 
   private customLutTex: THREE.DataTexture | null = null;
@@ -177,6 +180,7 @@ export class FrameSlideEngine {
     }
     this.textRenderer.invalidate();
     this.textureCache.clear();
+    this.blurCache.clear();
     void this.preloadAroundSceneIndex(this.lastSceneIndex).then(() => {
       this.onContextRestoredCallback?.();
     });
@@ -317,6 +321,10 @@ export class FrameSlideEngine {
         // Always 9 (3x3 background blur). Passed as a uniform so Windows/D3D keeps the
         // blur as a real loop instead of unrolling it 9x (see sceneTransitionShader.ts).
         uBlurTaps: { value: 9 },
+        uBgTexA: { value: null },
+        uBgTexB: { value: null },
+        uBgBlurA: { value: new THREE.Vector4(0, 0.24, 1.18, 0) },
+        uBgBlurB: { value: new THREE.Vector4(0, 0.24, 1.18, 0) },
       },
     });
     this.pass1Scene = new THREE.Scene();
@@ -637,8 +645,20 @@ export class FrameSlideEngine {
     (this.pass3Mat.uniforms['uResolution'].value as THREE.Vector2).set(this.width, this.height);
   }
 
-  private applyBackgroundUniforms(prefix: 'A' | 'B', bg: SceneBackground): void {
+  private applyBackgroundUniforms(prefix: 'A' | 'B', bg: SceneBackground, scene?: SceneItem): void {
     const u = this.pass1Mat.uniforms;
+    // "Ảnh mờ": small pre-blurred copy of the scene's first slot photo (the shader's slot0).
+    const blur = resolveBlurSettings(bg);
+    const sp = blurShaderParams(blur);
+    let blurTex: THREE.Texture | null = null;
+    if (bg.style === 'blur') {
+      const pid = scene?.slots[0];
+      const asset = pid ? this.photoMap.get(pid) : undefined;
+      const src = asset ? this.textureCache.get(asset.proxyUrl) : null;
+      if (asset && src) blurTex = this.blurCache.get(asset.proxyUrl, src.image, blur.kind, blur.amount);
+    }
+    u[`uBgTex${prefix}`].value = blurTex ?? this.fallbackTex;
+    (u[`uBgBlur${prefix}`].value as THREE.Vector4).set(blurTex ? 1 : 0, sp.brightness, sp.zoom, sp.vignette);
     u[`uBgStyle${prefix}`].value = BG_STYLE_CODE[bg.style] ?? 0;
     (u[`uBgCol1${prefix}`].value as THREE.Vector3).set(...hexToLinearRgb(bg.color1));
     (u[`uBgCol2${prefix}`].value as THREE.Vector3).set(...hexToLinearRgb(bg.color2));
@@ -760,8 +780,8 @@ export class FrameSlideEngine {
     this.pass1Mat.uniforms['uMotionStyle'].value = motionCode;
     this.pass1Mat.uniforms['uMotionStyleB'].value = motionCodeB;
     this.pass1Mat.uniforms['uMotionIntensity'].value = params?.motionIntensity ?? 1.0;
-    this.applyBackgroundUniforms('A', resolveSceneBackground(params, sceneA));
-    this.applyBackgroundUniforms('B', resolveSceneBackground(params, sceneB));
+    this.applyBackgroundUniforms('A', resolveSceneBackground(params, sceneA), sceneA);
+    this.applyBackgroundUniforms('B', resolveSceneBackground(params, sceneB), sceneB);
     this.pass1Mat.uniforms['uBorderStyle'].value =
       BORDER_STYLE_CODE[params?.frameBorderStyle ?? 'auto'] ?? 0;
     this.pass1Mat.uniforms['uPortraitMode'].value = portraitMode === 'safe-top-third' ? 1 : 0;
@@ -931,6 +951,7 @@ export class FrameSlideEngine {
 
   private releaseGpuResources(): void {
     this.textureCache.dispose();
+    this.blurCache.clear();
     this.textRenderer.dispose();
     this.customLutTex?.dispose();
     this.fallbackTex.dispose();

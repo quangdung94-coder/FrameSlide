@@ -46,8 +46,9 @@ describe('GLSL ES 3.00 shader sources', () => {
     expect(count('fetchSlot')).toBe(2); // definition + samplePhotoSlot
     expect(count('evalA')).toBe(0);
     expect(count('evalB')).toBe(0);
-    // texture reads only inside fetchSlot (8 photo slots)
-    expect((SCENE_TRANSITION_FRAGMENT_SHADER.match(/\btextureLod\(/g) ?? []).length).toBe(8);
+    // texture reads: 8 inside fetchSlot (photo slots) + 2 pre-blurred backgrounds (D29, read once)
+    expect((SCENE_TRANSITION_FRAGMENT_SHADER.match(/\btextureLod\(/g) ?? []).length).toBe(10);
+    expect((SCENE_TRANSITION_FRAGMENT_SHADER.match(/\btextureLod\(uBgTex[AB]/g) ?? []).length).toBe(2);
     expect(SCENE_TRANSITION_FRAGMENT_SHADER).not.toMatch(/\btexture2D\(/);
   });
 

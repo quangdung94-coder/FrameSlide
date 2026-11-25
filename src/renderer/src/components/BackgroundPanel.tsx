@@ -6,8 +6,10 @@ import {
   GRADIENT_PRESETS,
   resolveSceneBackground,
 } from '@engine/background';
+import { BLUR_KINDS, DEFAULT_BLUR, resolveBlurSettings } from '@engine/backgroundBlur';
 import type { BackgroundPattern, BackgroundStyle, SceneBackground } from '@shared/types';
 import { useAppStore } from '../store/useAppStore';
+import { SliderRow } from './ui';
 
 const STYLE_ORDER: BackgroundStyle[] = [
   'blur',
@@ -150,6 +152,59 @@ export function BackgroundPanel({
         ))}
       </div>
 
+      {current.style === 'blur' && (() => {
+        const b = resolveBlurSettings(current);
+        const touched =
+          current.blurKind !== undefined ||
+          current.blurAmount !== undefined ||
+          current.blurDarkness !== undefined ||
+          current.blurZoom !== undefined;
+        return (
+          <div className="space-y-1.5">
+            <div className="grid grid-cols-3 gap-1" role="radiogroup" aria-label="Kiểu mờ">
+              {BLUR_KINDS.map((k) => (
+                <button
+                  key={k.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={b.kind === k.id}
+                  disabled={disabled}
+                  title={k.hint}
+                  onClick={() => update({ blurKind: k.id })}
+                  className={`rounded border px-1 py-1 text-xs transition disabled:opacity-40 ${
+                    b.kind === k.id
+                      ? 'border-amber-400 bg-amber-500/15 font-semibold text-amber-300'
+                      : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-600'
+                  }`}
+                >
+                  {k.label}
+                </button>
+              ))}
+            </div>
+            <SliderRow label="Độ mờ" value={b.amount} min={0} max={100} step={1} disabled={disabled} onChange={(blurAmount) => update({ blurAmount })} />
+            <SliderRow label="Độ tối" value={b.darkness} min={0} max={100} step={1} disabled={disabled} onChange={(blurDarkness) => update({ blurDarkness })} />
+            <SliderRow label="Phóng nền (%)" value={b.zoom} min={100} max={160} step={1} disabled={disabled} onChange={(blurZoom) => update({ blurZoom })} />
+            {touched && (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() =>
+                  update({
+                    blurKind: DEFAULT_BLUR.kind,
+                    blurAmount: DEFAULT_BLUR.amount,
+                    blurDarkness: DEFAULT_BLUR.darkness,
+                    blurZoom: DEFAULT_BLUR.zoom,
+                  })
+                }
+                className="rounded border border-zinc-700 px-1.5 py-0.5 text-xs text-zinc-300 hover:border-amber-400 hover:text-amber-300 disabled:opacity-40"
+              >
+                ⟲ Mờ mặc định
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
       {current.style === 'solid' && (
         <ColorField
           label="Màu nền"
@@ -285,6 +340,10 @@ export function BackgroundPanel({
                 color2: current.color2,
                 angleDeg: current.angleDeg,
                 pattern: current.pattern,
+                blurKind: current.blurKind,
+                blurAmount: current.blurAmount,
+                blurDarkness: current.blurDarkness,
+                blurZoom: current.blurZoom,
               });
               clearAllSceneBackgrounds();
             }}
