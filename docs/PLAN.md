@@ -121,8 +121,10 @@
 - [x] 5.1b **J/K/L, tốc độ, lặp:** J phát lùi, K dừng, L phát tới, bấm lại để tăng 2× → 4×; giữ K + J/L đi từng frame; ô tốc độ 0.25×–4×; nút lặp (bật sẵn như cũ; tắt thì phát hết clip sẽ dừng). Chỉ ảnh hưởng xem trước. (Logic thuần `engine/playback.ts`; `playbackRate`/`playDirection`/`loopPlayback` trong store, không lưu vào file dự án; file xuất vẫn render từng frame theo thứ tự.)
 - [x] 5.1c **Thanh phát và thời gian:** nút ▶ tròn to, nút về đầu/cuối, thời gian một dòng (phút:giây:frame), scene đang phát, thước chia giây. (Biểu tượng nút là SVG nên không bị Windows đổi thành emoji; bấm vào đồng hồ để đổi phút:giây:frame ↔ phút:giây; thước tự chọn bước 1/2/5/10… giây, tối đa 12 nhãn; logic `engine/timecode.ts`.)
 
-### Đợt 5.2: Làm nhanh nhiều scene (chờ duyệt)
-- [ ] Motion tự động cho mọi scene · Dải scene Ctrl+lăn chuột zoom, xếp ngang/lưới · In/Out xuất một đoạn.
+### Đợt 5.2: Làm nhanh nhiều scene (anh Dũng duyệt 25/11/2026)
+- [x] 5.2a **Motion tự động:** nút "🎬 Motion tự động ▾" trên dải scene: Theo bố cục (đề xuất) / Xoay vòng / Ngẫu nhiên; không lặp cùng mẫu ở 2 scene liền nhau; giữ nguyên scene đã chọn tay; Ctrl+Z hoàn tác; có lệnh đưa scene tự động về "Theo dự án". (Logic thuần `engine/autoMotion.ts`; scene do máy chọn có `SceneItem.motionAuto`, chọn tay hoặc dán thiết lập thì bỏ cờ này. Kết quả ghi vào `motionTemplate` nên xem trước và xuất khớp.)
+- [ ] 5.2b **Dải scene:** Ctrl + lăn chuột để zoom; chế độ Hàng ngang / Lưới xuống dòng / Vừa khung.
+- [ ] 5.2c **In/Out:** phím I / O đặt điểm vào/ra, Alt+X xóa; hộp thoại Xuất chọn Toàn bộ / Đoạn In–Out / Scene đang chọn.
 
 ### Đợt 5.3: Giao diện gọn (chờ duyệt)
 - [ ] Đồng bộ font và cỡ chữ · Nút ⚙ Cài đặt · Thanh chỉnh ảnh ra ngoài khung xem + crop có lưới.

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { AUTO_MOTION_MODES } from '@engine/autoMotion';
 import {
   getTransitionName,
   TRANSITION_PRESETS,
@@ -122,6 +123,9 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
   const moveScene = useAppStore((s) => s.moveScene);
   const reorderScene = useAppStore((s) => s.reorderScene);
   const randomizeSceneTransitions = useAppStore((s) => s.randomizeSceneTransitions);
+  const applyAutoMotion = useAppStore((s) => s.applyAutoMotion);
+  const clearAutoMotion = useAppStore((s) => s.clearAutoMotion);
+  const autoMotionCount = scenes.filter((sc) => sc.motionAuto).length;
   const setSceneLayout = useAppStore((s) => s.setSceneLayout);
   const setSceneDuration = useAppStore((s) => s.setSceneDuration);
   const setSceneTransition = useAppStore((s) => s.setSceneTransition);
@@ -334,6 +338,29 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
             className="rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-xs text-zinc-200 hover:border-amber-400 disabled:opacity-40"
           >
             🎲 Trộn chuyển cảnh
+          </button>
+          <button
+            type="button"
+            disabled={disabled || scenes.length === 0}
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              openAt({ clientX: r.left, clientY: r.bottom + 4 }, [
+                ...AUTO_MOTION_MODES.map((m) => ({
+                  label: m.label,
+                  onClick: () => applyAutoMotion(m.id),
+                })),
+                { label: '', separator: true },
+                {
+                  label: `Đưa ${autoMotionCount} scene tự động về "Theo dự án"`,
+                  disabled: autoMotionCount === 0,
+                  onClick: () => clearAutoMotion(),
+                },
+              ]);
+            }}
+            title="Tự chọn Motion Template cho mọi scene (giữ nguyên scene anh đã chọn tay; Ctrl+Z để hoàn tác)"
+            className="rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-xs text-zinc-200 hover:border-amber-400 disabled:opacity-40"
+          >
+            🎬 Motion tự động ▾
           </button>
           <button
             type="button"
