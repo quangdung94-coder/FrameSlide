@@ -4,10 +4,22 @@ import { getMotionTemplate } from '@engine/presets/motionTemplates';
 import { CINEMATIC_RANDOM_TRANSITIONS } from '@engine/presets/transitions';
 import {
   autoFillScenesWithPhotos,
-  buildScenesFromPhotos,
+  buildScenesForProject,
+  cloneScene,
   createEmptyScene,
   resizeSceneSlots,
 } from '@engine/sceneBuilder';
+import { mapById, omitKeys, withOptional } from '@engine/objectUtils';
+import { clamp } from '@engine/num';
+import {
+  MAX_HISTORY,
+  loadUserPresets,
+  mergeRenderParams,
+  persistUserPresets,
+  restoreSnapshot,
+  takeSnapshot,
+  type HistorySnapshot,
+} from './storeHelpers';
 import { DEFAULT_BACKGROUND_OPTIONS } from '@engine/background';
 import {
   applySceneSettings,
@@ -53,38 +65,6 @@ import {
   type TransitionType,
   type UserPreset,
 } from '@shared/types';
-
-interface HistorySnapshot {
-  fps: SupportedFps;
-  slides: SlideAsset[];
-  scenes: SceneItem[];
-  renderParams: RenderParams;
-}
-
-const MAX_HISTORY = 40;
-const USER_PRESETS_KEY = 'frameslide_user_presets_v1';
-
-function loadUserPresets(): UserPreset[] {
-  try {
-    if (typeof window === 'undefined' || !window.localStorage) return [];
-    const raw = window.localStorage.getItem(USER_PRESETS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as UserPreset[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function persistUserPresets(presets: UserPreset[]): void {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(USER_PRESETS_KEY, JSON.stringify(presets));
-    }
-  } catch {
-    // ignore storage quota errors
-  }
-}
 
 interface AppState {
   fps: SupportedFps;
@@ -236,19 +216,6 @@ interface AppState {
   setEngineCapabilities: (caps: EngineCapabilities) => void;
 }
 
-function takeSnapshot(state: AppState): HistorySnapshot {
-  return {
-    fps: state.fps,
-    slides: state.slides.map((s) => ({ ...s, focalPoint: { ...s.focalPoint } })),
-    scenes: state.scenes.map((sc) => ({ ...sc, slots: [...sc.slots] })),
-    renderParams: {
-      ...state.renderParams,
-      super8: { ...state.renderParams.super8 },
-      textOverlay: { ...state.renderParams.textOverlay },
-    },
-  };
-}
-
 /** Start time and length (seconds) of scene `idx`, using the same rules as the render timeline. */
 export function getSceneTimeRange(
   s: Pick<AppState, 'scenes' | 'renderParams'>,
@@ -317,13 +284,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setSlides: (slides, recordHistory = false) =>
     set((s) => {
-      const builtScenes = buildScenesFromPhotos({
-        photos: slides,
-        portraitMode: s.renderParams.portraitMode,
-        motionTemplate: s.renderParams.motionTemplate,
-        defaultDurationSec: s.renderParams.defaultSlideDurationSec,
-        defaultTransition: s.renderParams.transitionType,
-      });
+      const builtScenes = buildScenesForProject(slides, s.renderParams);
       return {
         ...(recordHistory ? pushPast(s) : {}),
         slides,
@@ -354,13 +315,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const wanted = new Set(photoIds);
     const photos = s.slides.filter((p) => wanted.has(p.id));
     if (photos.length === 0) return 0;
-    const extraScenes = buildScenesFromPhotos({
-      photos,
-      portraitMode: s.renderParams.portraitMode,
-      motionTemplate: s.renderParams.motionTemplate,
-      defaultDurationSec: s.renderParams.defaultSlideDurationSec,
-      defaultTransition: s.renderParams.transitionType,
-    });
+    const extraScenes = buildScenesForProject(photos, s.renderParams);
     if (extraScenes.length === 0) return 0;
     set({
       ...pushPast(s),
@@ -420,14 +375,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   updatePhotoFocalPoint: (photoId, focalPoint) =>
     set((s) => ({
       ...pushPast(s),
-      slides: s.slides.map((item) => (item.id === photoId ? { ...item, focalPoint } : item)),
+      slides: mapById(s.slides, photoId, (item) => ({ ...item, focalPoint })),
     })),
 
   rotatePhoto90: (photoId) =>
     set((s) => ({
       ...pushPast(s),
-      slides: s.slides.map((item) => {
-        if (item.id !== photoId) return item;
+      slides: mapById(s.slides, photoId, (item) => {
         const nextRot = (((item.rotationDeg ?? 0) + 90) % 360) as 0 | 90 | 180 | 270;
         return { ...item, rotationDeg: nextRot };
       }),
@@ -435,30 +389,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setPhotoExposure: (photoId, exposure) =>
     set((s) => ({
-      slides: s.slides.map((item) =>
-        item.id === photoId
-          ? { ...item, exposure: Math.max(-1.5, Math.min(1.5, exposure)) }
-          : item
-      ),
+      slides: mapById(s.slides, photoId, (item) => ({ ...item, exposure: Math.max(-1.5, Math.min(1.5, exposure)) })),
     })),
 
   setPhotoTransform: (photoId, transform, recordHistory = true) =>
     set((s) => ({
       ...(recordHistory ? pushPast(s) : {}),
-      slides: s.slides.map((item) => {
-        if (item.id !== photoId) return item;
-        if (!transform) {
-          const { transform: _drop, ...rest } = item;
-          void _drop;
-          return rest;
-        }
-        const next = normalizePhotoTransform({ ...item.transform, ...transform });
-        if (isIdentityTransform(next)) {
-          const { transform: _drop, ...rest } = item;
-          void _drop;
-          return rest;
-        }
-        return { ...item, transform: next };
+      slides: mapById(s.slides, photoId, (item) => {
+        const next = transform ? normalizePhotoTransform({ ...item.transform, ...transform }) : null;
+        return withOptional(item, 'transform', next && !isIdentityTransform(next) ? next : null);
       }),
     })),
 
@@ -467,15 +406,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   setPhotoAdjust: (photoId, adjust, recordHistory = true) =>
     set((s) => ({
       ...(recordHistory ? pushPast(s) : {}),
-      slides: s.slides.map((item) => {
-        if (item.id !== photoId) return item;
+      slides: mapById(s.slides, photoId, (item) => {
         const merged = adjust ? { ...item.adjust, ...adjust } : null;
-        if (!merged || isIdentityPhotoAdjust(merged)) {
-          const { adjust: _drop, ...rest } = item;
-          void _drop;
-          return rest;
-        }
-        return { ...item, adjust: normalizePhotoAdjust(merged) };
+        return withOptional(
+          item,
+          'adjust',
+          merged && !isIdentityPhotoAdjust(merged) ? normalizePhotoAdjust(merged) : null
+        );
       }),
     })),
 
@@ -485,14 +422,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setPhotoTransformEnd: (photoId, transform, recordHistory = true) =>
     set((s) => ({
       ...(recordHistory ? pushPast(s) : {}),
-      slides: s.slides.map((item) => {
-        if (item.id !== photoId) return item;
-        if (!transform) {
-          const { transformEnd: _a, keyframeEase: _b, ...rest } = item;
-          void _a;
-          void _b;
-          return rest;
-        }
+      slides: mapById(s.slides, photoId, (item) => {
+        if (!transform) return omitKeys(item, 'transformEnd', 'keyframeEase');
         return {
           ...item,
           transformEnd: normalizePhotoTransform({ ...(item.transformEnd ?? item.transform), ...transform }),
@@ -517,7 +448,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setPhotoKeyframeEase: (photoId, ease) =>
     set((s) => ({
       ...pushPast(s),
-      slides: s.slides.map((item) => (item.id === photoId ? { ...item, keyframeEase: ease } : item)),
+      slides: mapById(s.slides, photoId, (item) => ({ ...item, keyframeEase: ease })),
     })),
 
   swapPhotoKeyframes: (photoId) =>
@@ -642,7 +573,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!get().scenes.some((x) => x.id === sceneId)) return false;
     set((s) => ({
       ...pushPast(s),
-      scenes: s.scenes.map((sc) => (sc.id === sceneId ? applySceneSettings(sc, clip, parts) : sc)),
+      scenes: mapById(s.scenes, sceneId, (sc) => applySceneSettings(sc, clip, parts)),
       activeSceneId: sceneId,
     }));
     return true;
@@ -666,17 +597,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const idx = s.scenes.findIndex((sc) => sc.id === sceneId);
       if (idx < 0) return s;
       const src = s.scenes[idx];
-      const cloned: SceneItem = {
-        ...createEmptyScene(src.layout, src.durationSec, src.transitionType),
-        slots: [...src.slots],
-        motionDirection: src.motionDirection,
-        motionTemplate: src.motionTemplate,
-        transitionDurationSec: src.transitionDurationSec,
-        filmLookOff: src.filmLookOff,
-        cardStyle: src.cardStyle ? { ...src.cardStyle } : undefined,
-        caption: src.caption,
-        background: src.background ? { ...src.background } : undefined,
-      };
+      const cloned = cloneScene(src);
       const nextScenes = [...s.scenes];
       nextScenes.splice(idx + 1, 0, cloned);
       return {
@@ -748,88 +669,66 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSceneLayout: (sceneId, layout) =>
     set((s) => ({
       ...pushPast(s),
-      scenes: s.scenes.map((sc) => (sc.id === sceneId ? resizeSceneSlots(sc, layout) : sc)),
+      scenes: mapById(s.scenes, sceneId, (sc) => resizeSceneSlots(sc, layout)),
       activeSceneId: sceneId,
     })),
 
   setSceneDuration: (sceneId, durationSec) =>
     set((s) => ({
       ...pushPast(s),
-      scenes: s.scenes.map((sc) =>
-        sc.id === sceneId ? { ...sc, durationSec: Math.max(0.5, Math.min(20, durationSec)) } : sc
-      ),
+      scenes: mapById(s.scenes, sceneId, (sc) => ({ ...sc, durationSec: Math.max(0.5, Math.min(20, durationSec)) })),
     })),
 
   setSceneTransition: (sceneId, transitionType) =>
     set((s) => ({
       ...pushPast(s),
-      scenes: s.scenes.map((sc) => (sc.id === sceneId ? { ...sc, transitionType } : sc)),
+      scenes: mapById(s.scenes, sceneId, (sc) => ({ ...sc, transitionType })),
     })),
 
   setSceneTransitionDuration: (sceneId, durationSec) =>
     set((s) => ({
       ...pushPast(s),
-      scenes: s.scenes.map((sc) => {
-        if (sc.id !== sceneId) return sc;
-        const { transitionDurationSec: _drop, ...rest } = sc;
-        void _drop;
-        return durationSec === null
-          ? rest
-          : { ...rest, transitionDurationSec: Math.max(0.2, Math.min(2.5, durationSec)) };
-      }),
+      scenes: mapById(s.scenes, sceneId, (sc) =>
+        withOptional(sc, 'transitionDurationSec', durationSec === null ? null : clamp(durationSec, 0.2, 2.5))
+      ),
     })),
 
   setSceneCardStyle: (sceneId, style) =>
     set((s) => ({
       ...pushPast(s),
-      scenes: s.scenes.map((sc) => {
-        if (sc.id !== sceneId) return sc;
-        const { cardStyle: _drop, ...rest } = sc;
-        void _drop;
+      scenes: mapById(s.scenes, sceneId, (sc) => {
         const merged = style ? { ...sc.cardStyle, ...style } : null;
-        return !merged || isNeutralCardStyle(merged)
-          ? rest
-          : { ...rest, cardStyle: normalizeCardStyle(merged) };
+        return withOptional(sc, 'cardStyle', merged && !isNeutralCardStyle(merged) ? normalizeCardStyle(merged) : null);
       }),
     })),
 
   setSceneFilmLookOff: (sceneId, off) =>
     set((s) => ({
       ...pushPast(s),
-      scenes: s.scenes.map((sc) => {
-        if (sc.id !== sceneId) return sc;
-        const { filmLookOff: _drop, ...rest } = sc;
-        void _drop;
-        return off ? { ...rest, filmLookOff: true } : rest;
-      }),
+      scenes: mapById(s.scenes, sceneId, (sc) => withOptional(sc, 'filmLookOff', off ? true : null)),
     })),
 
   setSceneMotionDirection: (sceneId, motionDirection) =>
     set((s) => ({
       ...pushPast(s),
-      scenes: s.scenes.map((sc) => (sc.id === sceneId ? { ...sc, motionDirection } : sc)),
+      scenes: mapById(s.scenes, sceneId, (sc) => ({ ...sc, motionDirection })),
     })),
 
   setSceneMotionTemplate: (sceneId, template) =>
     set((s) => ({
       ...pushPast(s),
-      scenes: s.scenes.map((sc) => {
-        if (sc.id !== sceneId) return sc;
-        const { motionTemplate: _drop, ...rest } = sc;
-        return template ? { ...rest, motionTemplate: template } : rest;
-      }),
+      scenes: mapById(s.scenes, sceneId, (sc) => withOptional(sc, 'motionTemplate', template || null)),
     })),
 
   setSceneCaption: (sceneId, caption) =>
     set((s) => ({
-      scenes: s.scenes.map((sc) => (sc.id === sceneId ? { ...sc, caption } : sc)),
+      scenes: mapById(s.scenes, sceneId, (sc) => ({ ...sc, caption })),
     })),
 
   assignPhotoToSlot: (sceneId, slotIndex, photoId) =>
     set((s) => ({
       ...pushPast(s),
-      scenes: s.scenes.map((sc) => {
-        if (sc.id !== sceneId) return sc;
+      scenes: mapById(s.scenes, sceneId, (sc) => {
         const nextSlots = [...sc.slots];
         if (slotIndex >= 0 && slotIndex < nextSlots.length) {
           nextSlots[slotIndex] = photoId;
@@ -875,13 +774,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   rebuildScenesFromPhotos: () =>
     set((s) => {
-      const rebuilt = buildScenesFromPhotos({
-        photos: s.slides,
-        portraitMode: s.renderParams.portraitMode,
-        motionTemplate: s.renderParams.motionTemplate,
-        defaultDurationSec: s.renderParams.defaultSlideDurationSec,
-        defaultTransition: s.renderParams.transitionType,
-      });
+      const rebuilt = buildScenesForProject(s.slides, s.renderParams);
       return {
         ...pushPast(s),
         scenes: rebuilt,
@@ -903,13 +796,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
 
       const nextScenes = rebuildLayout
-        ? buildScenesFromPhotos({
-            photos: s.slides,
-            portraitMode: nextParams.portraitMode,
-            motionTemplate: templateId,
-            defaultDurationSec: nextParams.defaultSlideDurationSec,
-            defaultTransition: tpl.recommendedTransition,
-          })
+        ? buildScenesForProject(s.slides, nextParams)
         : s.scenes.map((sc) => ({ ...sc, transitionType: tpl.recommendedTransition }));
 
       return {
@@ -957,15 +844,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSceneBackground: (sceneId, background) =>
     set((s) => ({
       ...pushPast(s),
-      scenes: s.scenes.map((sc) => {
-        if (sc.id !== sceneId) return sc;
-        if (!background) {
-          const { background: _drop, ...rest } = sc;
-          void _drop;
-          return rest;
-        }
-        return { ...sc, background: { ...background } };
-      }),
+      scenes: mapById(s.scenes, sceneId, (sc) =>
+        withOptional(sc, 'background', background ? { ...background } : null)
+      ),
     })),
 
   clearAllSceneBackgrounds: () =>
@@ -973,12 +854,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (!s.scenes.some((sc) => sc.background)) return s;
       return {
         ...pushPast(s),
-        scenes: s.scenes.map((sc) => {
-          if (!sc.background) return sc;
-          const { background: _drop, ...rest } = sc;
-          void _drop;
-          return rest;
-        }),
+        scenes: s.scenes.map((sc) => (sc.background ? omitKeys(sc, 'background') : sc)),
       };
     }),
 
@@ -1105,12 +981,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => {
       const found = s.userPresets.find((p) => p.id === id);
       if (!found) return s;
-      const merged: RenderParams = {
-        ...INITIAL_RENDER_PARAMS,
-        ...found.renderParams,
-        super8: { ...DEFAULT_SUPER8_PARAMS, ...found.renderParams.super8 },
-        textOverlay: { ...DEFAULT_TEXT_OVERLAY, ...found.renderParams.textOverlay },
-      };
+      const merged = mergeRenderParams(INITIAL_RENDER_PARAMS, found.renderParams);
       return {
         ...pushPast(s),
         renderParams: merged,
@@ -1122,22 +993,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   loadProjectData: (data, filePath) =>
     set(() => {
-      const mergedParams: RenderParams = {
-        ...INITIAL_RENDER_PARAMS,
-        ...data.renderParams,
-        super8: { ...DEFAULT_SUPER8_PARAMS, ...data.renderParams.super8 },
-        textOverlay: { ...DEFAULT_TEXT_OVERLAY, ...data.renderParams.textOverlay },
-      };
+      const mergedParams = mergeRenderParams(INITIAL_RENDER_PARAMS, data.renderParams);
       const loadedScenes =
         data.scenes && data.scenes.length > 0
           ? data.scenes
-          : buildScenesFromPhotos({
-              photos: data.slides,
-              portraitMode: mergedParams.portraitMode,
-              motionTemplate: mergedParams.motionTemplate,
-              defaultDurationSec: mergedParams.defaultSlideDurationSec,
-              defaultTransition: mergedParams.transitionType,
-            });
+          : buildScenesForProject(data.slides, mergedParams);
       return {
         fps: data.fps,
         slides: data.slides,
@@ -1173,16 +1033,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const previous = s.past[s.past.length - 1];
       const nextPast = s.past.slice(0, -1);
       const nextFuture = [takeSnapshot(s), ...s.future].slice(0, MAX_HISTORY);
-      return {
-        fps: previous.fps,
-        slides: previous.slides,
-        scenes: previous.scenes,
-        renderParams: previous.renderParams,
-        activeSceneId: previous.scenes[0]?.id ?? null,
-        past: nextPast,
-        future: nextFuture,
-        frameIndex: 0,
-      };
+      return { ...restoreSnapshot(previous), past: nextPast, future: nextFuture };
     }),
 
   redo: () =>
@@ -1191,16 +1042,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const next = s.future[0];
       const nextFuture = s.future.slice(1);
       const nextPast = [...s.past, takeSnapshot(s)].slice(-MAX_HISTORY);
-      return {
-        fps: next.fps,
-        slides: next.slides,
-        scenes: next.scenes,
-        renderParams: next.renderParams,
-        activeSceneId: next.scenes[0]?.id ?? null,
-        past: nextPast,
-        future: nextFuture,
-        frameIndex: 0,
-      };
+      return { ...restoreSnapshot(next), past: nextPast, future: nextFuture };
     }),
 
   setEngineCapabilities: (engineCapabilities) => set({ engineCapabilities }),
