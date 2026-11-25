@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { clampTextOffset } from '@engine/textAnimation';
+import { sceneTextIsPerScene } from '@engine/sceneText';
 import type { TextOffset } from '@shared/types';
 import { useAppStore } from '../store/useAppStore';
 
@@ -9,7 +10,10 @@ import { useAppStore } from '../store/useAppStore';
  */
 export function TextDragOverlay({ onClose }: { onClose: () => void }) {
   const drag = useRef<{ x: number; y: number; base: TextOffset; w: number; h: number } | null>(null);
-  const perScene = useAppStore((s) => s.renderParams.textOverlay.timing === 'per-scene');
+  // Per-scene captions and a scene's own text get their own position.
+  const perScene = useAppStore((s) =>
+    sceneTextIsPerScene(s.renderParams.textOverlay, s.scenes.find((sc) => sc.id === s.activeSceneId))
+  );
 
   const currentOffset = (): TextOffset => {
     const s = useAppStore.getState();

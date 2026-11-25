@@ -73,6 +73,7 @@ import {
   type RenderParams,
   type SceneItem,
   type SceneLayoutId,
+  type SceneTextOverride,
   type SlideAsset,
   type SortOrder,
   type SupportedFps,
@@ -221,6 +222,10 @@ interface AppState {
   setSceneCaptionTiming: (sceneId: string, timing: CaptionTiming | null) => void;
   /** Own caption position for this scene (null = use the project's text position). */
   setSceneCaptionOffset: (sceneId: string, offset: TextOffset | null) => void;
+  /** Scene text: follow the project, turn it off, or own text (keeps own words when switching back). */
+  setSceneTextMode: (sceneId: string, mode: 'project' | SceneTextOverride['mode']) => void;
+  /** Change the scene's own text (style / animation / words); does nothing unless the scene has own text. */
+  updateSceneText: (sceneId: string, patch: Partial<Omit<SceneTextOverride, 'mode'>>) => void;
   assignPhotoToSlot: (sceneId: string, slotIndex: number, photoId: string | null) => void;
   swapSceneSlots: (srcSceneId: string, srcIdx: number, dstSceneId: string, dstIdx: number) => void;
   autoFillScenes: () => void;
@@ -880,6 +885,25 @@ export const useAppStore = create<AppState>((set, get) => ({
       scenes: mapById(s.scenes, sceneId, (sc) =>
         withOptional(sc, 'captionOffset', offset ? clampTextOffset(offset) : null)
       ),
+    })),
+
+  setSceneTextMode: (sceneId, mode) =>
+    set((s) => ({
+      ...pushPast(s),
+      scenes: mapById(s.scenes, sceneId, (sc) => {
+        if (mode === 'project') return omitKeys(sc, 'text');
+        // Starting own text from a caption keeps the words the user already typed.
+        const prev = sc.text;
+        const title = prev?.title ?? (sc.caption?.trim() || undefined);
+        const next: SceneTextOverride = { ...prev, mode };
+        if (title) next.title = title;
+        return { ...sc, text: next };
+      }),
+    })),
+
+  updateSceneText: (sceneId, patch) =>
+    set((s) => ({
+      scenes: mapById(s.scenes, sceneId, (sc) => (sc.text?.mode === 'own' ? { ...sc, text: { ...sc.text, ...patch } } : sc)),
     })),
 
   setSceneCaption: (sceneId, caption) =>

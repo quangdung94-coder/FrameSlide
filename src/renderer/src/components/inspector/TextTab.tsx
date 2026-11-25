@@ -1,16 +1,7 @@
-import { TEXT_ANIMATIONS } from '@engine/textAnimation';
-import type { TextAnimationId, TextStyleId, TextTimingMode } from '@shared/types';
+import type { TextTimingMode } from '@shared/types';
 import { useAppStore } from '../../store/useAppStore';
 import { CheckField, Group, SelectField, SliderRow, TextField, type SelectOption } from '../ui';
-
-const STYLE_OPTIONS: SelectOption<TextStyleId>[] = [
-  { value: 'none', label: 'Tắt chữ' },
-  { value: 'date-stamp-90s', label: 'Date Stamp 90s (Cam điện tử)' },
-  { value: 'minimal-fade', label: 'Minimal Title (Hiện đại)' },
-  { value: 'editorial-serif', label: 'Editorial Serif (Phim cưới)' },
-  { value: 'filmstrip-label', label: 'Filmstrip Label (Viền phim)' },
-  { value: 'lower-third', label: 'Lower Third (Góc trái dưới)' },
-];
+import { TEXT_ANIMATION_OPTIONS, TEXT_STYLE_OPTIONS } from './textOptions';
 
 const TIMING_OPTIONS: SelectOption<TextTimingMode>[] = [
   { value: 'always', label: 'Suốt clip (Hợp Date Stamp)' },
@@ -19,7 +10,6 @@ const TIMING_OPTIONS: SelectOption<TextTimingMode>[] = [
   { value: 'per-scene', label: 'Chú thích riêng từng Scene' },
 ];
 
-const ANIMATION_OPTIONS: SelectOption<TextAnimationId>[] = TEXT_ANIMATIONS.map((a) => ({ value: a.id, label: a.label }));
 
 interface Props {
   disabled: boolean;
@@ -33,13 +23,14 @@ export function TextTab({ disabled, textDragMode, onToggleTextDrag }: Props) {
   const updateTextOverlay = useAppStore((s) => s.updateTextOverlay);
   const setInspectorScope = useAppStore((s) => s.setInspectorScope);
   const textOff = textOverlay.style === 'none' || disabled;
+  const sceneOwnText = useAppStore((s) => s.scenes.find((sc) => sc.id === s.activeSceneId)?.text?.mode === 'own');
 
   return (
     <Group id="text-main" title="Chữ & Date Stamp (Tiếng Việt)" accent>
       <SelectField
         label="Kiểu hiển thị"
         value={textOverlay.style}
-        options={STYLE_OPTIONS}
+        options={TEXT_STYLE_OPTIONS}
         disabled={disabled}
         onChange={(style) => updateTextOverlay({ style })}
       />
@@ -55,7 +46,7 @@ export function TextTab({ disabled, textDragMode, onToggleTextDrag }: Props) {
       <SelectField
         label="Chuyển động khi chữ hiện ra"
         value={textOverlay.animation ?? 'fade'}
-        options={ANIMATION_OPTIONS}
+        options={TEXT_ANIMATION_OPTIONS}
         disabled={textOff}
         onChange={(animation) => updateTextOverlay({ animation })}
       />
@@ -63,7 +54,7 @@ export function TextTab({ disabled, textDragMode, onToggleTextDrag }: Props) {
       <div className="flex gap-1.5">
         <button
           type="button"
-          disabled={textOff}
+          disabled={textOff && !(sceneOwnText && !disabled)}
           onClick={onToggleTextDrag}
           title="Kéo chữ trực tiếp trên khung xem"
           className={`h-8 flex-1 rounded border px-2 text-xs disabled:opacity-40 ${

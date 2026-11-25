@@ -68,3 +68,8 @@ File này lưu lại các quyết định quan trọng về sản phẩm và k�
 ### D26. Font đóng gói trong app, một thang cỡ chữ (Đợt 5.3a)
 - **Quyết định:** Font Be Vietnam Pro, JetBrains Mono, Playfair Display lấy từ gói `@fontsource/*` (giấy phép OFL, chỉ là file font, không có code chạy), Vite gom vào bản build; bỏ link Google Fonts. Giao diện dùng Be Vietnam Pro, số/thời gian dùng JetBrains Mono. Thang cỡ chữ duy nhất trong `index.css`: `text-2xs` 11px, `text-xs` 12px, `text-sm` 13px, `text-title` 15px; cấm `text-[Npx]` (có test). Trước khi vẽ chữ vào video, engine chờ font tải xong (`loadTextFonts`).
 - **Lý do:** Máy không có mạng thì chữ trong video bị đổi sang font khác; giao diện trước đó dùng font hệ thống và cỡ chữ lẫn lộn 8–18px.
+
+### D27. Chữ riêng từng scene (Đợt 5.4a, sửa D23)
+- **Quyết định:** Chữ của dự án vẫn là mặc định cho mọi scene, nhưng mỗi scene có thể "Tắt chữ" hoặc có chữ "Riêng" (kiểu chữ, chuyển động, tiêu đề, phụ đề) lưu trong `SceneItem.text`; thiếu trường này là theo dự án. Chữ riêng dùng thời điểm hiện/ẩn và vị trí riêng của scene như chú thích. Engine vẫn một texture chữ, lấy theo scene A (giống chú thích trước đây), không cần cặp A/B. Dán thiết lập "Chữ" và Scene Style chỉ mang kiểu, scene đích giữ chữ của nó (giữ D24).
+- **Lý do:** Phim cưới/sự kiện cần tiêu đề khác kiểu ở vài cảnh (mở đầu, lễ vu quy, kết) mà vẫn giữ chữ đồng bộ cho phần còn lại. Bỏ ý cũ "một kiểu chữ cho cả dự án" của D23.
+

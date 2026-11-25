@@ -3,13 +3,13 @@ import { TRANSITION_PRESETS } from '@engine/presets/transitions';
 import { LAYOUT_LABELS } from '@engine/sceneBuilder';
 import { SCENE_SETTING_PARTS } from '@engine/sceneSettings';
 import type { MotionDirection, MotionTemplateId, SceneLayoutId } from '@shared/types';
-import { getSceneTimeRange, useAppStore } from '../store/useAppStore';
-import { resolveCaptionWindow } from '@engine/textAnimation';
+import { useAppStore } from '../store/useAppStore';
 import { BackgroundPanel } from './BackgroundPanel';
 import { normalizeCardStyle } from '@engine/cardStyle';
 import { DEFAULT_STAGGER, normalizeStagger, STAGGER_STYLES, staggerTotalSec } from '@engine/stagger';
 import { Group, SliderRow } from './ui';
 import { SceneStylesGroup } from './SceneStylesGroup';
+import { SceneTextGroup } from './SceneTextGroup';
 
 const FIELD =
   'h-8 w-full rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100 disabled:opacity-40';
@@ -31,11 +31,7 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
   const setSceneStagger = useAppStore((s) => s.setSceneStagger);
   const setSceneFilmLookOff = useAppStore((s) => s.setSceneFilmLookOff);
   const setSceneTransitionDuration = useAppStore((s) => s.setSceneTransitionDuration);
-  const setSceneCaption = useAppStore((s) => s.setSceneCaption);
-  const setSceneCaptionTiming = useAppStore((s) => s.setSceneCaptionTiming);
-  const setSceneCaptionOffset = useAppStore((s) => s.setSceneCaptionOffset);
   const setSceneBackground = useAppStore((s) => s.setSceneBackground);
-  const updateTextOverlay = useAppStore((s) => s.updateTextOverlay);
   const copySceneSettings = useAppStore((s) => s.copySceneSettings);
   const pasteSceneSettings = useAppStore((s) => s.pasteSceneSettings);
 
@@ -45,8 +41,6 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
     return <p className="text-xs text-zinc-500">Chưa có scene nào. Thêm scene ở dải Scene bên dưới.</p>;
   }
   const isLast = idx === scenes.length - 1;
-  const text = renderParams.textOverlay;
-  const captionActive = text.style !== 'none' && text.timing === 'per-scene';
 
   return (
     <>
@@ -266,66 +260,7 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
         </Group>
       )}
 
-      <Group
-        id="scene-caption"
-        title="Chữ riêng của scene"
-        defaultOpen={false}
-        disabled={disabled}
-        onReset={() => setSceneCaption(scene.id, '')}
-        resetTitle="Xóa chữ của scene"
-      >
-        <input
-          type="text"
-          value={scene.caption ?? ''}
-          disabled={disabled}
-          onChange={(e) => setSceneCaption(scene.id, e.target.value)}
-          placeholder="Nhập chữ riêng cho scene này…"
-          className={FIELD}
-        />
-        {captionActive && (() => {
-          const dur = getSceneTimeRange({ scenes, renderParams }, idx).durationSec;
-          const [inSec, outSec] = resolveCaptionWindow(scene.captionTiming, dur);
-          return (
-            <>
-              <SliderRow label="Chữ hiện từ giây" value={inSec} min={0} max={Math.max(0.1, dur - 0.2)} step={0.1} disabled={disabled} onChange={(v) => setSceneCaptionTiming(scene.id, { inSec: v, outSec: Math.max(outSec, v + 0.2) })} />
-              <SliderRow label="Chữ ẩn lúc giây" value={outSec} min={0.2} max={Math.max(0.2, dur)} step={0.1} disabled={disabled} onChange={(v) => setSceneCaptionTiming(scene.id, { inSec: Math.min(inSec, v - 0.2), outSec: v })} />
-              <div className="flex flex-wrap gap-1.5">
-                {scene.captionTiming && (
-                  <button type="button" disabled={disabled} onClick={() => setSceneCaptionTiming(scene.id, null)} className="h-8 rounded border border-zinc-700 px-2 text-xs text-zinc-300 hover:border-amber-400 disabled:opacity-40">
-                    ⟲ Hiện suốt scene
-                  </button>
-                )}
-                {scene.captionOffset && (
-                  <button type="button" disabled={disabled} onClick={() => setSceneCaptionOffset(scene.id, null)} className="h-8 rounded border border-zinc-700 px-2 text-xs text-zinc-300 hover:border-amber-400 disabled:opacity-40">
-                    ⟲ Vị trí theo dự án
-                  </button>
-                )}
-              </div>
-              <p className="text-xs text-zinc-500">
-                Kéo chữ trên khung xem bằng nút "✥ Kéo chữ" ở tab Chữ; vị trí kéo khi đang ở scene này chỉ áp cho scene này.
-              </p>
-            </>
-          );
-        })()}
-        {!captionActive && (
-          <div className="space-y-1.5 rounded border border-zinc-800 bg-zinc-900/60 p-2 text-xs text-zinc-400">
-            <p>Chữ riêng chỉ hiện khi kiểu chữ đang bật và thời điểm là "Chú thích riêng từng Scene".</p>
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() =>
-                updateTextOverlay({
-                  style: text.style === 'none' ? 'minimal-fade' : text.style,
-                  timing: 'per-scene',
-                })
-              }
-              className="h-8 rounded border border-zinc-700 bg-zinc-800 px-2 text-zinc-100 hover:border-amber-400 disabled:opacity-40"
-            >
-              Bật chú thích riêng từng scene
-            </button>
-          </div>
-        )}
-      </Group>
+      <SceneTextGroup sceneId={scene.id} disabled={disabled} />
 
       <Group id="scene-copy" title="Sao chép thiết lập" defaultOpen={false}>
         <div className="flex gap-2">
