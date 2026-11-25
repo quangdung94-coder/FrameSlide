@@ -110,6 +110,8 @@ interface AppState {
   future: HistorySnapshot[];
 
   setFps: (fps: SupportedFps) => void;
+  /** Settings "Mặc định dự án mới", applied when the app opens with an empty project (no undo step). */
+  applyStartDefaults: (d: { fps: SupportedFps; aspect: OutputAspectId; sceneSec: number; filmLookOn: boolean }) => void;
   setPreviewQuality: (quality: PreviewQuality) => void;
   setCompareMode: (mode: CompareMode) => void;
   setFrameIndex: (frame: number) => void;
@@ -330,6 +332,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   future: [],
 
   setFps: (fps) => set((s) => ({ ...pushPast(s), fps })),
+  applyStartDefaults: ({ fps, aspect, sceneSec, filmLookOn }) =>
+    set((s) => {
+      if (s.slides.length > 0 || s.projectFilePath) return s;
+      return {
+        fps,
+        renderParams: {
+          ...s.renderParams,
+          outputAspect: aspect,
+          defaultSlideDurationSec: sceneSec,
+          super8: { ...s.renderParams.super8, enabled: filmLookOn && s.renderParams.super8.presetId !== 'clean' },
+        },
+      };
+    }),
   setPreviewQuality: (previewQuality) => set({ previewQuality }),
   setCompareMode: (compareMode) => set({ compareMode }),
   setFrameIndex: (frameIndex) => set({ frameIndex }),

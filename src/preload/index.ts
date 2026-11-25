@@ -8,6 +8,12 @@ import type {
 
 const api: FrameSlideAPI = {
   getAppInfo: () => ipcRenderer.invoke('app:getInfo'),
+  getAppSettings: () => ipcRenderer.invoke('settings:get'),
+  setAppSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
+  getCacheStats: () => ipcRenderer.invoke('cache:stats'),
+  clearCache: (keepUrls: string[]) => ipcRenderer.invoke('cache:clear', keepUrls),
+  openCacheFolder: () => ipcRenderer.invoke('cache:open'),
+  pickCacheFolder: () => ipcRenderer.invoke('cache:pickFolder'),
   pickImages: () => ipcRenderer.invoke('media:pickImages'),
   pickFolderImages: () => ipcRenderer.invoke('media:pickFolderImages'),
   importPaths: (paths: string[]) => ipcRenderer.invoke('media:importPaths', paths),

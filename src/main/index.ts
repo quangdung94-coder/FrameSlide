@@ -5,6 +5,9 @@ import { basename, join } from 'path';
 import { pathToFileURL } from 'url';
 import type {
   AppInfo,
+  AppSettings,
+  AppSettingsInfo,
+  CacheStats,
   FfmpegExportStartDirectOptions,
   FfmpegExportStartOptions,
   FfmpegExportStartResult,
@@ -30,7 +33,9 @@ import {
   decodeMediaUrl,
   ensureSamplePhotos,
   mergeRegeneratedSlide,
+  setProxyMaxEdge,
 } from './proxyService';
+import { clearCacheFiles, getCacheStats, readAppSettings, writeAppSettings } from './appSettings';
 
 const isDev = Boolean(process.env['ELECTRON_RENDERER_URL']);
 
@@ -49,8 +54,17 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-function getCacheDir(): string {
+function getDefaultCacheDir(): string {
   return join(app.getPath('userData'), 'cache');
+}
+
+function getSettingsPath(): string {
+  return join(app.getPath('userData'), 'settings.json');
+}
+
+/** Cache folder for this run: the user's choice from the settings file, else the default. */
+function getCacheDir(): string {
+  return readAppSettings(getSettingsPath()).cacheDir ?? getDefaultCacheDir();
 }
 
 function getAutosavePath(): string {
@@ -95,7 +109,44 @@ app.whenReady().then(() => {
     Menu.setApplicationMenu(null);
   }
 
+  // Read once at start: changing the cache folder takes effect the next time the app opens.
   const cacheDir = getCacheDir();
+  setProxyMaxEdge(readAppSettings(getSettingsPath()).proxyMaxEdge);
+
+  const settingsInfo = (settings: AppSettings): AppSettingsInfo => ({
+    settings,
+    activeCacheDir: cacheDir,
+    defaultCacheDir: getDefaultCacheDir(),
+  });
+
+  ipcMain.handle('settings:get', (): AppSettingsInfo => settingsInfo(readAppSettings(getSettingsPath())));
+
+  ipcMain.handle('settings:set', (_evt, patch: Partial<AppSettings>): AppSettingsInfo => {
+    const next = writeAppSettings(getSettingsPath(), { ...readAppSettings(getSettingsPath()), ...patch });
+    setProxyMaxEdge(next.proxyMaxEdge);
+    return settingsInfo(next);
+  });
+
+  ipcMain.handle('cache:stats', (): Promise<CacheStats> => getCacheStats(cacheDir));
+
+  ipcMain.handle('cache:clear', async (_evt, keepUrls: string[]): Promise<number> => {
+    const keep = (Array.isArray(keepUrls) ? keepUrls : [])
+      .map((u) => decodeMediaUrl(String(u), cacheDir))
+      .filter((p): p is string => Boolean(p));
+    return clearCacheFiles(cacheDir, keep);
+  });
+
+  ipcMain.handle('cache:open', async (): Promise<void> => {
+    await shell.openPath(cacheDir);
+  });
+
+  ipcMain.handle('cache:pickFolder', async (): Promise<string | null> => {
+    const res = await dialog.showOpenDialog({
+      title: 'Chọn thư mục lưu cache ảnh',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    return res.canceled || res.filePaths.length === 0 ? null : res.filePaths[0];
+  });
 
   protocol.handle('frameslide-media', (request) => {
     const filePath = decodeMediaUrl(request.url, cacheDir);

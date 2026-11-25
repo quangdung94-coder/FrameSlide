@@ -128,7 +128,7 @@
 
 ### Đợt 5.3: Giao diện gọn (anh Dũng duyệt 25/11/2026)
 - [x] 5.3a **Đồng bộ font và cỡ chữ:** font đóng gói trong app (D26), thang cỡ chữ 11/12/13/15px, bỏ cỡ lạ 8/10px, ô số rộng hơn cho font số mới; chờ font tải xong mới vẽ chữ vào video.
-- [ ] 5.3b **Nút ⚙ Cài đặt:** thư mục cache, dung lượng, xóa cache; cỡ proxy; mặc định dự án mới.
+- [x] 5.3b **Nút ⚙ Cài đặt:** thư mục cache, dung lượng, xóa cache (giữ ảnh của dự án đang mở); cỡ proxy 2560/2880/3200; mặc định dự án mới (fps, tỷ lệ, thời lượng scene, Film Look) và chu kỳ tự lưu. Đổi thư mục cache có hiệu lực ở lần mở app sau.
 - [ ] 5.3c **Thanh chỉnh ảnh ra ngoài khung xem.**
 - [ ] 5.3d **Crop có lưới kiểu Photoshop.**
 
