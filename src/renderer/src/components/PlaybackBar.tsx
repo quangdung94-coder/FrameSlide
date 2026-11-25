@@ -1,7 +1,8 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState, type ReactNode } from 'react';
 import { resolveSlideDurations } from '@engine/timeline';
+import { applyShuttleKey, formatPlaybackRate, PLAYBACK_RATES } from '@engine/playback';
+import { formatSecondsClock, formatTimecode, rulerMarks, scenePositionAt } from '@engine/timecode';
 import { useAppStore } from '../store/useAppStore';
-import { formatPlaybackRate, PLAYBACK_RATES } from '@engine/playback';
 import type { CompareMode } from '@shared/types';
 
 interface PlaybackBarProps {
@@ -11,17 +12,71 @@ interface PlaybackBarProps {
   onToggleFullscreen: () => void;
 }
 
-function formatTime(sec: number): string {
-  const s = Math.max(0, sec);
-  const mins = Math.floor(s / 60);
-  const rem = s - mins * 60;
-  return `${String(mins).padStart(2, '0')}:${rem.toFixed(1).padStart(4, '0')}`;
+
+/** Transport icons as inline SVG, so they look the same on every Windows font (no emoji). */
+const ICON_PATHS = {
+  start: 'M1.5 3h2v10h-2zM9 3v10L4 8zM15 3v10l-5-5z',
+  end: 'M12.5 3h2v10h-2zM7 3v10l5-5zM1 3v10l5-5z',
+  stepBack: 'M10 3v10L3 8zM11 3h2v10h-2z',
+  stepFwd: 'M6 3v10l7-5zM3 3h2v10H3z',
+  rewind: 'M8 3v10L1 8zM15 3v10L8 8z',
+  ffwd: 'M8 3v10l7-5zM1 3v10l7-5z',
+  play: 'M5 2.5v11L14 8z',
+  pause: 'M4 3h3v10H4zM9 3h3v10H9z',
+} as const;
+
+function Icon({ name, size = 14 }: { name: keyof typeof ICON_PATHS; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d={ICON_PATHS[name]} />
+    </svg>
+  );
+}
+
+function LoopIcon() {
+  return (
+    <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+      <path d="M3 7a4 4 0 0 1 4-4h5M10 1l2 2-2 2M13 9a4 4 0 0 1-4 4H4M6 15l-2-2 2-2" />
+    </svg>
+  );
+}
+
+/** Square 32px transport button with a tooltip. */
+function TransportButton({
+  title,
+  onClick,
+  disabled,
+  active,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  disabled: boolean;
+  active?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex h-8 min-w-8 items-center justify-center rounded-md border px-1.5 text-xs transition disabled:opacity-30 ${
+        active
+          ? 'border-amber-400 bg-amber-500/15 text-amber-300'
+          : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500 hover:text-white'
+      }`}
+    >
+      {children}
+    </button>
+  );
 }
 
 /**
- * Isolated playback bar subscribed to high-frequency `frameIndex` updates
- * with visual Scene tick markers, Handles zone highlight, Frame Step,
- * Before/After Compare toggle, and Fullscreen Preview button.
+ * Transport bar (Đợt 5.1c): transport buttons with a large play button, speed and loop,
+ * a one-line timecode with the current scene, and a seconds ruler over the scrubber
+ * (scene boundaries and Handles shaded). Subscribed to the high-frequency `frameIndex`.
  */
 export const PlaybackBar = memo(function PlaybackBar({
   totalFrames,
@@ -35,7 +90,6 @@ export const PlaybackBar = memo(function PlaybackBar({
   const scenes = useAppStore((s) => s.scenes);
   const renderParams = useAppStore((s) => s.renderParams);
   const compareMode = useAppStore((s) => s.compareMode);
-
   const playbackRate = useAppStore((s) => s.playbackRate);
   const playDirection = useAppStore((s) => s.playDirection);
   const loopPlayback = useAppStore((s) => s.loopPlayback);
@@ -47,18 +101,29 @@ export const PlaybackBar = memo(function PlaybackBar({
   const setFrameIndex = useAppStore((s) => s.setFrameIndex);
   const setCompareMode = useAppStore((s) => s.setCompareMode);
 
-  // Compute scene boundary tick positions (percentage 0..100)
-  const { tickPercents, handlePct } = useMemo(() => {
-    if (scenes.length === 0 || effectiveDurationSec <= 0) {
-      return { tickPercents: [] as number[], handlePct: 0 };
-    }
-    const durations = resolveSlideDurations(scenes.length, {
+  /** Timecode (MM:SS:FF) or seconds (MM:SS.s); click the clock to switch. */
+  const [showFrames, setShowFrames] = useState(true);
+
+  const lastFrame = Math.max(0, totalFrames - 1);
+  const shownFrame = Math.min(frameIndex, lastFrame);
+  const timeSec = shownFrame / fps;
+
+  const durations = useMemo(() => {
+    if (scenes.length === 0) return [] as number[];
+    return resolveSlideDurations(scenes.length, {
       durationMode: renderParams.durationMode,
       totalDurationSec: renderParams.totalDurationSec,
       defaultSlideDurationSec: renderParams.defaultSlideDurationSec,
       slideDurations: scenes.map((sc) => sc.durationSec),
       handlesSec: renderParams.handlesSec,
     });
+  }, [scenes, renderParams]);
+
+  // Scene boundary ticks, Handles zones and ruler labels (percent 0..100 of the clip).
+  const { tickPercents, handlePct, marks } = useMemo(() => {
+    if (durations.length === 0 || effectiveDurationSec <= 0) {
+      return { tickPercents: [] as number[], handlePct: 0, marks: [] as number[] };
+    }
     const ticks: number[] = [];
     let acc = 0;
     for (let i = 0; i < durations.length - 1; i++) {
@@ -66,17 +131,20 @@ export const PlaybackBar = memo(function PlaybackBar({
       ticks.push((acc / effectiveDurationSec) * 100);
     }
     const hPct =
-      renderParams.handlesSec > 0
-        ? Math.min(25, (renderParams.handlesSec / effectiveDurationSec) * 100)
-        : 0;
-    return { tickPercents: ticks, handlePct: hPct };
-  }, [scenes, renderParams, effectiveDurationSec]);
+      renderParams.handlesSec > 0 ? Math.min(25, (renderParams.handlesSec / effectiveDurationSec) * 100) : 0;
+    return { tickPercents: ticks, handlePct: hPct, marks: rulerMarks(effectiveDurationSec, 12) };
+  }, [durations, renderParams.handlesSec, effectiveDurationSec]);
 
-  const stepFrame = (delta: number) => {
+  const scenePos = scenePositionAt(timeSec, durations);
+
+  const seek = (frame: number) => {
     setIsPlaying(false);
-    const next = Math.max(0, Math.min(Math.max(0, totalFrames - 1), frameIndex + delta));
-    setFrameIndex(next);
+    setFrameIndex(Math.max(0, Math.min(lastFrame, frame)));
   };
+  const shuttle = (key: 'j' | 'l') =>
+    setTransport(applyShuttleKey({ isPlaying, direction: playDirection, rate: playbackRate }, key));
+  const togglePlay = () =>
+    isPlaying ? setIsPlaying(false) : setTransport({ isPlaying: true, direction: 1, rate: playbackRate });
 
   const cycleCompare = () => {
     const order: CompareMode[] = ['normal', 'split', 'before'];
@@ -84,134 +152,184 @@ export const PlaybackBar = memo(function PlaybackBar({
     setCompareMode(next);
   };
 
+  const reverseActive = isPlaying && playDirection === -1;
+  const forwardShuttle = isPlaying && playDirection === 1 && playbackRate > 1;
+  const pct = (sec: number) => `${(sec / Math.max(1e-6, effectiveDurationSec)) * 100}%`;
+
   return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() =>
-          isPlaying ? setIsPlaying(false) : setTransport({ isPlaying: true, direction: 1, rate: playbackRate })
-        }
-        disabled={disabled}
-        className="w-18 rounded bg-amber-500 px-2.5 py-1 text-xs font-semibold text-zinc-950 hover:bg-amber-400 disabled:opacity-40"
-      >
-        {isPlaying ? 'Tạm dừng' : 'Phát'}
-      </button>
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-3">
+        {/* Transport */}
+        <div className="flex items-center gap-1">
+          <TransportButton title="Về đầu clip (Home)" disabled={disabled} onClick={() => seek(0)}>
+            <Icon name="start" />
+          </TransportButton>
+          <TransportButton title="Lùi 1 frame (← hoặc giữ K + J)" disabled={disabled} onClick={() => seek(shownFrame - 1)}>
+            <Icon name="stepBack" />
+          </TransportButton>
+          <TransportButton
+            title="Phát lùi (J), bấm lại để nhanh 2× → 4×"
+            disabled={disabled}
+            active={reverseActive}
+            onClick={() => shuttle('j')}
+          >
+            <Icon name="rewind" />
+            {reverseActive && <span className="ml-0.5 text-[11px]">{formatPlaybackRate(playbackRate)}</span>}
+          </TransportButton>
+          <button
+            type="button"
+            onClick={togglePlay}
+            disabled={disabled}
+            title={isPlaying ? 'Tạm dừng (Space / K)' : 'Phát (Space)'}
+            aria-label={isPlaying ? 'Tạm dừng' : 'Phát'}
+            className="mx-1 flex h-10 w-10 items-center justify-center rounded-full bg-amber-500 text-base text-zinc-950 shadow hover:bg-amber-400 disabled:opacity-40"
+          >
+            <Icon name={isPlaying ? 'pause' : 'play'} size={16} />
+          </button>
+          <TransportButton
+            title="Phát tới nhanh (L), bấm lại để 2× → 4×"
+            disabled={disabled}
+            active={forwardShuttle}
+            onClick={() => shuttle('l')}
+          >
+            {forwardShuttle && <span className="mr-0.5 text-[11px]">{formatPlaybackRate(playbackRate)}</span>}
+            <Icon name="ffwd" />
+          </TransportButton>
+          <TransportButton title="Tiến 1 frame (→ hoặc giữ K + L)" disabled={disabled} onClick={() => seek(shownFrame + 1)}>
+            <Icon name="stepFwd" />
+          </TransportButton>
+          <TransportButton title="Về cuối clip (End)" disabled={disabled} onClick={() => seek(lastFrame)}>
+            <Icon name="end" />
+          </TransportButton>
+        </div>
 
-      <select
-        value={String(playbackRate)}
-        disabled={disabled}
-        onChange={(e) => setPlaybackRate(Number(e.target.value))}
-        title="Tốc độ xem trước (J / L để phát lùi / tới nhanh hơn). Không ảnh hưởng file xuất."
-        aria-label="Tốc độ xem trước"
-        className="rounded border border-zinc-800 bg-zinc-900 px-1 py-1 text-xs text-zinc-300 disabled:opacity-30"
-      >
-        {PLAYBACK_RATES.map((r) => (
-          <option key={r} value={String(r)}>
-            {playDirection === -1 && isPlaying ? '◀ ' : ''}
-            {formatPlaybackRate(r)}
-          </option>
-        ))}
-      </select>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setLoopPlayback(!loopPlayback)}
-        title={loopPlayback ? 'Đang lặp lại khi hết clip (bấm để tắt)' : 'Phát hết clip thì dừng (bấm để lặp lại)'}
-        aria-pressed={loopPlayback}
-        className={`rounded border px-1.5 py-1 text-xs disabled:opacity-30 ${
-          loopPlayback ? 'border-amber-400 text-amber-300' : 'border-zinc-800 bg-zinc-900 text-zinc-400'
-        }`}
-      >
-        ↻
-      </button>
+        <div className="flex items-center gap-1">
+          <select
+            value={String(playbackRate)}
+            disabled={disabled}
+            onChange={(e) => setPlaybackRate(Number(e.target.value))}
+            title="Tốc độ xem trước (J / L để phát lùi / tới nhanh hơn). Không ảnh hưởng file xuất."
+            aria-label="Tốc độ xem trước"
+            className="h-8 rounded-md border border-zinc-700 bg-zinc-900 px-1.5 text-xs text-zinc-200 disabled:opacity-30"
+          >
+            {PLAYBACK_RATES.map((r) => (
+              <option key={r} value={String(r)}>
+                {formatPlaybackRate(r)}
+              </option>
+            ))}
+          </select>
+          <TransportButton
+            title={loopPlayback ? 'Đang lặp lại khi hết clip (bấm để tắt)' : 'Phát hết clip thì dừng (bấm để lặp lại)'}
+            disabled={disabled}
+            active={loopPlayback}
+            onClick={() => setLoopPlayback(!loopPlayback)}
+          >
+            <LoopIcon />
+          </TransportButton>
+        </div>
 
-      <div className="flex items-center gap-0.5">
+        {/* Clock: one line, current big + total small; scene under the playhead below. */}
         <button
           type="button"
-          disabled={disabled}
-          onClick={() => stepFrame(-1)}
-          title="Lùi 1 frame (←)"
-          className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-300 hover:border-zinc-600 disabled:opacity-30"
+          onClick={() => setShowFrames((v) => !v)}
+          title="Bấm để đổi giữa phút:giây:frame và phút:giây"
+          className="ml-auto flex flex-col items-end rounded px-1 leading-tight hover:bg-zinc-800/60"
         >
-          ◀|
+          <span className="whitespace-nowrap font-mono">
+            <span className="text-base text-zinc-100">
+              {showFrames ? formatTimecode(shownFrame, fps) : formatSecondsClock(timeSec)}
+            </span>
+            <span className="ml-1.5 text-xs text-zinc-500">
+              / {showFrames ? formatTimecode(totalFrames, fps) : formatSecondsClock(effectiveDurationSec)}
+            </span>
+          </span>
+          <span className="whitespace-nowrap text-[11px] text-zinc-400">
+            {scenePos
+              ? `Scene ${scenePos.index + 1}/${durations.length} · ${scenePos.offsetSec.toFixed(1)} / ${scenePos.durationSec.toFixed(1)}s`
+              : 'Chưa có scene'}
+          </span>
         </button>
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => stepFrame(1)}
-          title="Tiến 1 frame (→)"
-          className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-300 hover:border-zinc-600 disabled:opacity-30"
-        >
-          |▶
-        </button>
+
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={cycleCompare}
+            title="So sánh Gốc / Chia đôi / Film Look (hoặc giữ phím \)"
+            className={`h-8 whitespace-nowrap rounded-md border px-2 text-xs font-medium transition disabled:opacity-30 ${
+              compareMode === 'normal'
+                ? 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500'
+                : 'border-amber-400 bg-amber-500/20 text-amber-300'
+            }`}
+          >
+            {compareMode === 'normal' ? 'So sánh' : compareMode === 'split' ? 'Chia đôi' : 'Ảnh gốc'}
+          </button>
+          <TransportButton title="Phóng to xem trước (F)" disabled={disabled} onClick={onToggleFullscreen}>
+            ⛶
+          </TransportButton>
+        </div>
       </div>
 
-      {/* Scrubber with Scene Tick Markers & Handles Highlight */}
-      <div className="relative flex flex-1 items-center py-1">
-        {handlePct > 0 && (
-          <>
+      {/* Ruler (seconds) + scrubber with scene ticks and Handles zones. Inset by the thumb radius
+          so marks line up with where the thumb actually sits. */}
+      <div className="relative mx-[7px]">
+        <div className="relative h-3.5 select-none">
+          {marks.map((t) => (
+            <span
+              key={t}
+              className="absolute top-0 -translate-x-1/2 font-mono text-[11px] leading-none text-zinc-500"
+              style={{ left: pct(t) }}
+            >
+              {t}s
+            </span>
+          ))}
+        </div>
+        <div className="relative flex h-4 items-center">
+          {handlePct > 0 && (
+            <>
+              <div
+                className="pointer-events-none absolute left-0 h-2 rounded-l bg-amber-500/25"
+                style={{ width: `${handlePct}%` }}
+                title="Handles đầu clip"
+              />
+              <div
+                className="pointer-events-none absolute right-0 h-2 rounded-r bg-amber-500/25"
+                style={{ width: `${handlePct}%` }}
+                title="Handles cuối clip"
+              />
+            </>
+          )}
+          {marks.map((t) => (
             <div
-              className="pointer-events-none absolute left-0 h-2 rounded-l bg-amber-500/25"
-              style={{ width: `${handlePct}%` }}
-              title="Handles đầu clip"
+              key={`m${t}`}
+              className="pointer-events-none absolute top-0 h-1 w-px bg-zinc-600"
+              style={{ left: pct(t) }}
             />
+          ))}
+          {tickPercents.map((p, i) => (
             <div
-              className="pointer-events-none absolute right-0 h-2 rounded-r bg-amber-500/25"
-              style={{ width: `${handlePct}%` }}
-              title="Handles cuối clip"
+              key={i}
+              className="pointer-events-none absolute top-0.5 bottom-0.5 w-px bg-zinc-400/70"
+              style={{ left: `${p}%` }}
             />
-          </>
-        )}
-        {tickPercents.map((pct, i) => (
-          <div
-            key={i}
-            className="pointer-events-none absolute top-0.5 bottom-0.5 w-px bg-zinc-500/70"
-            style={{ left: `${pct}%` }}
+          ))}
+          <input
+            type="range"
+            min={0}
+            max={lastFrame}
+            value={shownFrame}
+            disabled={disabled}
+            aria-label="Thanh tua"
+            onChange={(e) => {
+              setIsPlaying(false);
+              setFrameIndex(Number(e.target.value));
+            }}
+            // Hand the keyboard back after a drag so ← → and the other shortcuts work right away.
+            onPointerUp={(e) => e.currentTarget.blur()}
+            className="relative z-10 -mx-[7px] h-1.5 w-[calc(100%+14px)] cursor-pointer accent-amber-400"
           />
-        ))}
-        <input
-          type="range"
-          min={0}
-          max={Math.max(0, totalFrames - 1)}
-          value={Math.min(frameIndex, Math.max(0, totalFrames - 1))}
-          disabled={disabled}
-          onChange={(e) => {
-            setIsPlaying(false);
-            setFrameIndex(Number(e.target.value));
-          }}
-          // Hand the keyboard back after a drag so ← → and the other shortcuts work right away.
-          onPointerUp={(e) => e.currentTarget.blur()}
-          className="relative z-10 h-1.5 w-full cursor-pointer accent-amber-400"
-        />
+        </div>
       </div>
-
-      <span className="w-28 text-right font-mono text-xs text-zinc-300">
-        {formatTime(frameIndex / fps)} / {formatTime(effectiveDurationSec)}
-      </span>
-
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={cycleCompare}
-        title="So sánh Gốc / Chia đôi / Film Look (hoặc giữ phím \)"
-        className={`rounded border px-2 py-1 text-xs font-medium transition disabled:opacity-30 ${
-          compareMode === 'normal'
-            ? 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-600'
-            : 'border-amber-400 bg-amber-500/20 text-amber-300'
-        }`}
-      >
-        {compareMode === 'normal' ? 'So sánh' : compareMode === 'split' ? 'Chia đôi' : 'Ảnh gốc'}
-      </button>
-
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={onToggleFullscreen}
-        title="Phóng to xem trước (Phím F)"
-        className="rounded border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-zinc-300 hover:border-amber-400 hover:text-amber-300 disabled:opacity-30"
-      >
-        ⛶
-      </button>
     </div>
   );
 });
