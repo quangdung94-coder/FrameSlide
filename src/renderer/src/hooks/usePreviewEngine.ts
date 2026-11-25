@@ -2,6 +2,7 @@ import { useEffect, useState, type RefObject } from 'react';
 import { FrameSlideEngine } from '@engine/FrameSlideEngine';
 import { resolvePreviewResolution } from '@engine/capabilities';
 import { computeProjectDurationSec, getTotalFrames } from '@engine/timeline';
+import { computePlaybackFrame, playbackStartFrame } from '@engine/playback';
 import { useAppStore } from '../store/useAppStore';
 
 interface Options {
@@ -25,6 +26,9 @@ export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSiz
   const renderParams = useAppStore((s) => s.renderParams);
   const fps = useAppStore((s) => s.fps);
   const isPlaying = useAppStore((s) => s.isPlaying);
+  const playbackRate = useAppStore((s) => s.playbackRate);
+  const playDirection = useAppStore((s) => s.playDirection);
+  const loopPlayback = useAppStore((s) => s.loopPlayback);
   const compareMode = useAppStore((s) => s.compareMode);
   const setEngineCapabilities = useAppStore((s) => s.setEngineCapabilities);
 
@@ -151,8 +155,16 @@ export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSiz
     }
 
     let rafId = 0;
+    // Restarted whenever speed / direction / loop change, so it always continues from the frame on screen.
     const startWallMs = performance.now();
-    const startFrame = useAppStore.getState().frameIndex;
+    const initial = useAppStore.getState();
+    const startFrame = loopPlayback
+      ? initial.frameIndex
+      : playbackStartFrame(
+          initial.frameIndex,
+          playDirection,
+          getTotalFrames(computeProjectDurationSec(initial.scenes, initial.renderParams), initial.fps)
+        );
     let renderedCount = 0;
     let fpsWindowStart = startWallMs;
 
@@ -160,8 +172,15 @@ export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSiz
       const s = useAppStore.getState();
       const effDur = computeProjectDurationSec(s.scenes, s.renderParams);
       const total = getTotalFrames(effDur, s.fps);
-      const elapsedSec = (now - startWallMs) / 1000;
-      const nextFrame = (startFrame + Math.floor(elapsedSec * s.fps)) % total;
+      const { frame: nextFrame, ended } = computePlaybackFrame({
+        startFrame,
+        elapsedSec: (now - startWallMs) / 1000,
+        fps: s.fps,
+        rate: playbackRate,
+        direction: playDirection,
+        totalFrames: total,
+        loop: loopPlayback,
+      });
 
       const sceneIdx = engineRef.current?.renderFrame(
         nextFrame,
@@ -182,12 +201,16 @@ export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSiz
         fpsWindowStart = now;
       }
 
+      if (ended) {
+        s.setIsPlaying(false);
+        return;
+      }
       rafId = requestAnimationFrame(tick);
     };
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [isPlaying, isExporting, fps, effectiveDurationSec]);
+  }, [isPlaying, isExporting, fps, effectiveDurationSec, playbackRate, playDirection, loopPlayback]);
 
   return { contextLost, liveFps };
 }

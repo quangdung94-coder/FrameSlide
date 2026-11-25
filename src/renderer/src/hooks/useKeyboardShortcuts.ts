@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { SCENE_SETTING_PARTS } from '@engine/sceneSettings';
 import { useAppStore } from '../store/useAppStore';
 import { classifyKeyTarget } from './keyTarget';
+import { applyShuttleKey, type ShuttleKey } from '@engine/playback';
 
 export interface KeyboardShortcutOptions {
   /** Editing shortcuts are ignored while a render is running. */
@@ -29,6 +30,8 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions): void {
 
   useEffect(() => {
     let prevCompareBeforeHold: 'normal' | 'before' | 'split' | null = null;
+    // K held down: J / L step one frame instead of shuttling (Premiere / Resolve behaviour).
+    let kHeld = false;
 
     const onKeyDown = (e: KeyboardEvent) => {
       const o = optsRef.current;
@@ -70,7 +73,26 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions): void {
       // dragging the scrubber). preventDefault also stops Space from clicking a focused button.
       if (e.code === 'Space') {
         e.preventDefault();
-        if (!e.repeat) s.setIsPlaying(!s.isPlaying);
+        if (e.repeat) return;
+        if (s.isPlaying) s.setIsPlaying(false);
+        else s.setTransport({ isPlaying: true, direction: 1, rate: s.playbackRate });
+        return;
+      }
+      if (plain && !e.shiftKey && (key === 'j' || key === 'k' || key === 'l')) {
+        e.preventDefault();
+        if (key === 'k') kHeld = true;
+        if (e.repeat) return;
+        if (kHeld && key !== 'k') {
+          s.setIsPlaying(false);
+          const last = Math.max(0, o.totalFrames - 1);
+          s.setFrameIndex(Math.max(0, Math.min(last, s.frameIndex + (key === 'l' ? 1 : -1))));
+          return;
+        }
+        const next = applyShuttleKey(
+          { isPlaying: s.isPlaying, direction: s.playDirection, rate: s.playbackRate },
+          key as ShuttleKey
+        );
+        s.setTransport(next);
         return;
       }
       if (plain && key === 'f') {
@@ -140,16 +162,23 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions): void {
     const onKeyUp = (e: KeyboardEvent) => {
       // A focused button / checkbox acts on Space key-up; Space belongs to playback instead.
       if (e.code === 'Space' && keyTargetKind(e.target) === 'control') e.preventDefault();
+      if (e.key.toLowerCase() === 'k') kHeld = false;
       if (e.key === '\\' && prevCompareBeforeHold !== null) {
         useAppStore.getState().setCompareMode(prevCompareBeforeHold);
         prevCompareBeforeHold = null;
       }
     };
 
+    const onBlur = () => {
+      kHeld = false;
+    };
+
     window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('blur', onBlur);
     window.addEventListener('keyup', onKeyUp);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('blur', onBlur);
       window.removeEventListener('keyup', onKeyUp);
     };
   }, []);

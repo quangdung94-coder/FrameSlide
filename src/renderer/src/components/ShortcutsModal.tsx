@@ -3,6 +3,9 @@ import { Modal } from './ui';
 /** Every keyboard shortcut, shown in the "?" help dialog. Keep in sync with useKeyboardShortcuts. */
 export const SHORTCUTS: readonly (readonly [string, string])[] = [
   ['Space', 'Phát / Tạm dừng'],
+  ['L / J', 'Phát tới / Phát lùi (bấm lại để tăng 2× → 4×)'],
+  ['K', 'Dừng'],
+  ['Giữ K + J / L', 'Lùi / Tiến từng 1 frame'],
   ['← / →', 'Lùi / Tiến từng 1 frame'],
   ['Shift + ← / →', 'Nhảy sang Scene trước / Scene kế tiếp'],
   ['Giữ phím \\', 'Xem nhanh ảnh gốc (Before / After)'],
