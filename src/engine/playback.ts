@@ -21,6 +21,8 @@ export interface PlaybackFrameInput {
   direction: PlayDirection;
   totalFrames: number;
   loop: boolean;
+  /** Loop only inside this range (In/Out), end exclusive. Used when looping. */
+  loopRange?: { start: number; end: number } | null;
 }
 
 export interface PlaybackFrameResult {
@@ -36,6 +38,11 @@ export function computePlaybackFrame(input: PlaybackFrameInput): PlaybackFrameRe
   const advanced = Math.floor(Math.max(0, input.elapsedSec) * input.fps * rate);
   const raw = Math.round(input.startFrame) + input.direction * advanced;
   if (input.loop) {
+    const r = input.loopRange;
+    if (r && r.end > r.start && r.start >= 0 && r.end <= total) {
+      const len = r.end - r.start;
+      return { frame: r.start + ((((raw - r.start) % len) + len) % len), ended: false };
+    }
     return { frame: ((raw % total) + total) % total, ended: false };
   }
   if (raw >= last && input.direction === 1) return { frame: last, ended: true };

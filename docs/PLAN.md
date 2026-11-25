@@ -124,7 +124,7 @@
 ### Đợt 5.2: Làm nhanh nhiều scene (anh Dũng duyệt 25/11/2026)
 - [x] 5.2a **Motion tự động:** nút "🎬 Motion tự động ▾" trên dải scene: Theo bố cục (đề xuất) / Xoay vòng / Ngẫu nhiên; không lặp cùng mẫu ở 2 scene liền nhau; giữ nguyên scene đã chọn tay; Ctrl+Z hoàn tác; có lệnh đưa scene tự động về "Theo dự án". (Logic thuần `engine/autoMotion.ts`; scene do máy chọn có `SceneItem.motionAuto`, chọn tay hoặc dán thiết lập thì bỏ cờ này. Kết quả ghi vào `motionTemplate` nên xem trước và xuất khớp.)
 - [x] 5.2b **Dải scene:** Ctrl + lăn chuột để zoom; lăn chuột thường cuộn ngang; nút Ngang / Lưới / Vừa khung. (Lưu chế độ trên máy cùng bố cục, `useLayoutStore.sceneTrackMode`; "Vừa khung" chuyển sang Lưới và chọn zoom lớn nhất mà thấy hết scene (`components/sceneTrackFit.ts`); zoom nhỏ thì nút chuyển cảnh chỉ còn ⇄, thẻ không hẹp hơn 156px.)
-- [ ] 5.2c **In/Out:** phím I / O đặt điểm vào/ra, Alt+X xóa; hộp thoại Xuất chọn Toàn bộ / Đoạn In–Out / Scene đang chọn.
+- [x] 5.2c **In/Out:** phím I / O (hoặc nút In / Out trên thanh phát) đặt điểm vào/ra, Alt+X xóa; chuột phải thẻ scene "Đặt In / Out theo scene này"; vùng In–Out tô vàng trên thanh tua, lặp chỉ trong vùng khi playhead ở trong; hộp thoại Xuất chọn Toàn bộ clip / Đoạn In–Out / Scene đang chọn, tên file thêm `_00m06s-00m16s`. (Logic `engine/frameRange.ts`; exporter giữ số frame gốc nên hạt phim/bụi/rung khớp xem trước; In/Out lưu trong file dự án (`markIn`/`markOut`); Fade In/Out vẫn theo đầu/cuối cả clip; Batch Export luôn xuất toàn bộ.)
 
 ### Đợt 5.3: Giao diện gọn (chờ duyệt)
 - [ ] Đồng bộ font và cỡ chữ · Nút ⚙ Cài đặt · Thanh chỉnh ảnh ra ngoài khung xem + crop có lưới.

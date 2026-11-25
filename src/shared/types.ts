@@ -367,6 +367,9 @@ export interface ProjectFileData {
   scenes?: SceneItem[];
   renderParams: RenderParams;
   customLutPath: string | null;
+  /** In / Out marks (frame index), Đợt 5.2c. Missing = not set. */
+  markIn?: number | null;
+  markOut?: number | null;
 }
 
 export interface FfmpegExportStartOptions {

@@ -91,6 +91,9 @@ interface AppState {
   playbackRate: number;
   playDirection: PlayDirection;
   loopPlayback: boolean;
+  /** In / Out marks in frames (null = not set). Saved with the project. */
+  markIn: number | null;
+  markOut: number | null;
   slides: SlideAsset[];
   scenes: SceneItem[];
   activeSceneId: string | null;
@@ -113,6 +116,11 @@ interface AppState {
   setIsPlaying: (playing: boolean) => void;
   setPlaybackRate: (rate: number) => void;
   setLoopPlayback: (loop: boolean) => void;
+  setMarkIn: (frame: number | null) => void;
+  setMarkOut: (frame: number | null) => void;
+  /** Set In and Out together, e.g. to one scene (`end` exclusive). */
+  setMarkRange: (start: number, endExclusive: number) => void;
+  clearMarks: () => void;
   /** Set playing state, direction and speed together (Space, J/K/L). */
   setTransport: (transport: { isPlaying: boolean; direction: PlayDirection; rate: number }) => void;
 
@@ -305,6 +313,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   playbackRate: 1,
   playDirection: 1,
   loopPlayback: true,
+  markIn: null,
+  markOut: null,
   slides: [],
   scenes: [],
   activeSceneId: null,
@@ -326,6 +336,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setPlaybackRate: (rate) => set({ playbackRate: Math.min(MAX_PLAYBACK_RATE, Math.max(0.25, rate)) }),
   setLoopPlayback: (loopPlayback) => set({ loopPlayback }),
+  setMarkIn: (frame) => set({ markIn: frame === null ? null : Math.max(0, Math.round(frame)) }),
+  setMarkOut: (frame) => set({ markOut: frame === null ? null : Math.max(0, Math.round(frame)) }),
+  setMarkRange: (start, endExclusive) =>
+    set({ markIn: Math.max(0, Math.round(start)), markOut: Math.max(0, Math.round(endExclusive) - 1) }),
+  clearMarks: () => set({ markIn: null, markOut: null }),
   setTransport: ({ isPlaying, direction, rate }) =>
     set({
       isPlaying,
@@ -1141,6 +1156,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         projectFilePath: filePath,
         frameIndex: 0,
         isPlaying: false,
+        markIn: typeof data.markIn === 'number' ? data.markIn : null,
+        markOut: typeof data.markOut === 'number' ? data.markOut : null,
         past: [],
         future: [],
       };
@@ -1156,6 +1173,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       scenes: s.scenes,
       renderParams: s.renderParams,
       customLutPath: s.customLut?.filePath ?? null,
+      ...(s.markIn !== null ? { markIn: s.markIn } : {}),
+      ...(s.markOut !== null ? { markOut: s.markOut } : {}),
     };
   },
 

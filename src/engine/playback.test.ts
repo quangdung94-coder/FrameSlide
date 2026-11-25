@@ -21,6 +21,12 @@ describe('computePlaybackFrame', () => {
     expect(computePlaybackFrame({ ...base, loop: false, direction: -1 })).toEqual({ frame: 0, ended: true });
     expect(computePlaybackFrame({ ...base, loop: false })).toEqual({ frame: 40, ended: false });
   });
+  it('loops inside the In/Out range', () => {
+    const r = { start: 30, end: 60 };
+    expect(computePlaybackFrame({ ...base, startFrame: 50, elapsedSec: 0.5, loopRange: r }).frame).toBe(35);
+    expect(computePlaybackFrame({ ...base, startFrame: 31, direction: -1, elapsedSec: 0.1, loopRange: r }).frame).toBe(58);
+    expect(computePlaybackFrame({ ...base, startFrame: 50, elapsedSec: 0.5, loopRange: { start: 0, end: 500 } }).frame).toBe(65);
+  });
   it('survives bad input', () => {
     expect(computePlaybackFrame({ ...base, totalFrames: 0, rate: Number.NaN }).frame).toBe(0);
   });

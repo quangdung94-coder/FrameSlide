@@ -1,5 +1,6 @@
 import type { AppInfo, ExportCodec } from '@shared/types';
-import type { ExportJobs } from '../hooks/useExportJobs';
+import { currentExportRange, type ExportJobs } from '../hooks/useExportJobs';
+import { rangeFrameCount, type ExportRangeMode } from '@engine/frameRange';
 import { useAppStore } from '../store/useAppStore';
 import { Group, Modal, SelectField, SliderRow, type SelectOption } from './ui';
 
@@ -29,6 +30,27 @@ export function ExportDialog({ jobs, appInfo, exportSize, effectiveDurationSec, 
   const setVideoFadeInSec = useAppStore((s) => s.setVideoFadeInSec);
   const setVideoFadeOutSec = useAppStore((s) => s.setVideoFadeOutSec);
   const { isExporting, progress, summary, statusMsg, error } = jobs;
+  const fps = useAppStore((s) => s.fps);
+  // Subscribed so the range labels follow new marks / scene selection while the dialog is open.
+  useAppStore((s) => s.markIn);
+  useAppStore((s) => s.markOut);
+  const activeSceneId = useAppStore((s) => s.activeSceneId);
+  const sceneNo = useAppStore((s) => s.scenes.findIndex((sc) => sc.id === activeSceneId) + 1);
+  const rangeSec = (mode: ExportRangeMode) => {
+    const { range } = currentExportRange(mode);
+    return range ? rangeFrameCount(range) / fps : null;
+  };
+  const inoutSec = rangeSec('inout');
+  const sceneSec = rangeSec('scene');
+  const rangeOptions: { mode: ExportRangeMode; label: string; sec: number | null; hint: string }[] = [
+    { mode: 'all', label: 'Toàn bộ clip', sec: effectiveDurationSec, hint: '' },
+    { mode: 'inout', label: 'Đoạn In–Out', sec: inoutSec, hint: 'Chưa đặt: bấm I / O trên thanh phát' },
+    { mode: 'scene', label: sceneNo > 0 ? `Scene ${sceneNo}` : 'Scene đang chọn', sec: sceneSec, hint: 'Chưa chọn scene' },
+  ];
+  const chosen = rangeOptions.find((o) => o.mode === jobs.rangeMode);
+  // A mode with nothing to export (no marks, no scene) shows and exports the whole clip.
+  const rangeMode: ExportRangeMode = chosen && chosen.sec !== null ? jobs.rangeMode : 'all';
+  const exportSec = rangeOptions.find((o) => o.mode === rangeMode)?.sec ?? effectiveDurationSec;
   const ffmpegOff = !window.frameSlideAPI || !appInfo?.ffmpegAvailable || sceneCount === 0 || isExporting;
 
   return (
@@ -44,10 +66,41 @@ export function ExportDialog({ jobs, appInfo, exportSize, effectiveDurationSec, 
         title={
           <>
             Xuất 1 clip ({exportSize.width}×{exportSize.height} • {sceneCount} Scene •{' '}
-            {effectiveDurationSec.toFixed(1)}s)
+            {exportSec.toFixed(1)}s)
           </>
         }
       >
+        <div className="flex flex-col gap-1 text-xs text-zinc-400">
+          Xuất phần nào
+          <div className="grid grid-cols-3 overflow-hidden rounded border border-zinc-700" role="radiogroup" aria-label="Xuất phần nào">
+            {rangeOptions.map((o) => {
+              const on = rangeMode === o.mode;
+              const off = o.sec === null || isExporting;
+              return (
+                <button
+                  key={o.mode}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  disabled={off}
+                  title={o.sec === null ? o.hint : undefined}
+                  onClick={() => jobs.setRangeMode(o.mode)}
+                  className={`flex flex-col items-center px-1 py-1.5 text-xs disabled:opacity-40 ${
+                    on ? 'bg-amber-500 text-zinc-950' : 'bg-zinc-900 text-zinc-200 hover:bg-zinc-800'
+                  }`}
+                >
+                  <span className="font-semibold">{o.label}</span>
+                  <span className={on ? 'text-zinc-900' : 'text-zinc-500'}>{o.sec === null ? '—' : `${o.sec.toFixed(1)}s`}</span>
+                </button>
+              );
+            })}
+          </div>
+          {rangeMode !== 'all' && (
+            <span className="text-[11px] text-zinc-500">
+              Hạt phim, bụi, rung giữ đúng như khi xem trước. Fade In/Out vẫn tính theo đầu/cuối cả clip. Batch Export luôn xuất toàn bộ.
+            </span>
+          )}
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <SliderRow label="Fade In đầu (s)" value={fadeIn} min={0} max={1.5} step={0.1} disabled={isExporting} onChange={setVideoFadeInSec} />
           <SliderRow label="Fade Out cuối (s)" value={fadeOut} min={0} max={1.5} step={0.1} disabled={isExporting} onChange={setVideoFadeOutSec} />

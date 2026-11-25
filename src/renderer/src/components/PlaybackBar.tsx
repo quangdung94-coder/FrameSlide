@@ -2,6 +2,7 @@ import { memo, useMemo, useState, type ReactNode } from 'react';
 import { resolveSlideDurations } from '@engine/timeline';
 import { applyShuttleKey, formatPlaybackRate, PLAYBACK_RATES } from '@engine/playback';
 import { formatSecondsClock, formatTimecode, rulerMarks, scenePositionAt } from '@engine/timecode';
+import { marksToRange } from '@engine/frameRange';
 import { useAppStore } from '../store/useAppStore';
 import type { CompareMode } from '@shared/types';
 
@@ -93,6 +94,11 @@ export const PlaybackBar = memo(function PlaybackBar({
   const playbackRate = useAppStore((s) => s.playbackRate);
   const playDirection = useAppStore((s) => s.playDirection);
   const loopPlayback = useAppStore((s) => s.loopPlayback);
+  const markIn = useAppStore((s) => s.markIn);
+  const markOut = useAppStore((s) => s.markOut);
+  const setMarkIn = useAppStore((s) => s.setMarkIn);
+  const setMarkOut = useAppStore((s) => s.setMarkOut);
+  const clearMarks = useAppStore((s) => s.clearMarks);
 
   const setIsPlaying = useAppStore((s) => s.setIsPlaying);
   const setTransport = useAppStore((s) => s.setTransport);
@@ -136,6 +142,8 @@ export const PlaybackBar = memo(function PlaybackBar({
   }, [durations, renderParams.handlesSec, effectiveDurationSec]);
 
   const scenePos = scenePositionAt(timeSec, durations);
+  const marked = marksToRange(markIn, markOut, totalFrames);
+  const framePct = (f: number) => `${(f / Math.max(1, lastFrame)) * 100}%`;
 
   const seek = (frame: number) => {
     setIsPlaying(false);
@@ -158,7 +166,8 @@ export const PlaybackBar = memo(function PlaybackBar({
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-3">
+      {/* Wraps onto two lines on narrow windows instead of pushing controls off-screen. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {/* Transport */}
         <div className="flex items-center gap-1">
           <TransportButton title="Về đầu clip (Home)" disabled={disabled} onClick={() => seek(0)}>
@@ -228,6 +237,31 @@ export const PlaybackBar = memo(function PlaybackBar({
           </TransportButton>
         </div>
 
+        {/* In / Out */}
+        <div className="flex items-center gap-1">
+          <TransportButton
+            title="Đặt điểm vào (In) tại playhead (phím I)"
+            disabled={disabled}
+            active={markIn !== null}
+            onClick={() => setMarkIn(shownFrame)}
+          >
+            <span className="font-semibold">In</span>
+          </TransportButton>
+          <TransportButton
+            title="Đặt điểm ra (Out) tại playhead (phím O)"
+            disabled={disabled}
+            active={markOut !== null}
+            onClick={() => setMarkOut(shownFrame)}
+          >
+            <span className="font-semibold">Out</span>
+          </TransportButton>
+          {marked && (
+            <TransportButton title="Xóa In / Out (Alt + X)" disabled={disabled} onClick={clearMarks}>
+              ✕
+            </TransportButton>
+          )}
+        </div>
+
         {/* Clock: one line, current big + total small; scene under the playhead below. */}
         <button
           type="button"
@@ -244,6 +278,11 @@ export const PlaybackBar = memo(function PlaybackBar({
             </span>
           </span>
           <span className="whitespace-nowrap text-[11px] text-zinc-400">
+            {marked && (
+              <span className="mr-1.5 text-amber-300">
+                In–Out {formatTimecode(marked.start, fps)}–{formatTimecode(marked.end - 1, fps)} ·
+              </span>
+            )}
             {scenePos
               ? `Scene ${scenePos.index + 1}/${durations.length} · ${scenePos.offsetSec.toFixed(1)} / ${scenePos.durationSec.toFixed(1)}s`
               : 'Chưa có scene'}
@@ -298,6 +337,13 @@ export const PlaybackBar = memo(function PlaybackBar({
                 title="Handles cuối clip"
               />
             </>
+          )}
+          {marked && (
+            <div
+              className="pointer-events-none absolute top-0 bottom-0 rounded-sm border-x-2 border-amber-400 bg-amber-500/30"
+              style={{ left: framePct(marked.start), width: `calc(${framePct(marked.end - 1)} - ${framePct(marked.start)})` }}
+              title="Đoạn In / Out"
+            />
           )}
           {marks.map((t) => (
             <div

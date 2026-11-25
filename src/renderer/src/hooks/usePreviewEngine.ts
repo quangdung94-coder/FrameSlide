@@ -3,6 +3,7 @@ import { FrameSlideEngine } from '@engine/FrameSlideEngine';
 import { resolvePreviewResolution } from '@engine/capabilities';
 import { computeProjectDurationSec, getTotalFrames } from '@engine/timeline';
 import { computePlaybackFrame, playbackStartFrame } from '@engine/playback';
+import { marksToRange } from '@engine/frameRange';
 import { useAppStore } from '../store/useAppStore';
 
 interface Options {
@@ -29,6 +30,8 @@ export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSiz
   const playbackRate = useAppStore((s) => s.playbackRate);
   const playDirection = useAppStore((s) => s.playDirection);
   const loopPlayback = useAppStore((s) => s.loopPlayback);
+  const markIn = useAppStore((s) => s.markIn);
+  const markOut = useAppStore((s) => s.markOut);
   const compareMode = useAppStore((s) => s.compareMode);
   const setEngineCapabilities = useAppStore((s) => s.setEngineCapabilities);
 
@@ -165,6 +168,15 @@ export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSiz
           playDirection,
           getTotalFrames(computeProjectDurationSec(initial.scenes, initial.renderParams), initial.fps)
         );
+    // With In/Out marked and the playhead inside it, looping stays inside the marked part.
+    const marked = loopPlayback
+      ? marksToRange(
+          initial.markIn,
+          initial.markOut,
+          getTotalFrames(computeProjectDurationSec(initial.scenes, initial.renderParams), initial.fps)
+        )
+      : null;
+    const loopRange = marked && startFrame >= marked.start && startFrame < marked.end ? marked : null;
     let renderedCount = 0;
     let fpsWindowStart = startWallMs;
 
@@ -180,6 +192,7 @@ export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSiz
         direction: playDirection,
         totalFrames: total,
         loop: loopPlayback,
+        loopRange,
       });
 
       const sceneIdx = engineRef.current?.renderFrame(
@@ -210,7 +223,7 @@ export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSiz
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [isPlaying, isExporting, fps, effectiveDurationSec, playbackRate, playDirection, loopPlayback]);
+  }, [isPlaying, isExporting, fps, effectiveDurationSec, playbackRate, playDirection, loopPlayback, markIn, markOut]);
 
   return { contextLost, liveFps };
 }

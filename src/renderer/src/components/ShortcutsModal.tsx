@@ -6,6 +6,8 @@ export const SHORTCUTS: readonly (readonly [string, string])[] = [
   ['L / J', 'Phát tới / Phát lùi (bấm lại để tăng 2× → 4×)'],
   ['K', 'Dừng'],
   ['Giữ K + J / L', 'Lùi / Tiến từng 1 frame'],
+  ['I / O', 'Đặt điểm vào (In) / điểm ra (Out) tại playhead'],
+  ['Alt + X', 'Xóa In / Out'],
   ['← / →', 'Lùi / Tiến từng 1 frame'],
   ['Shift + ← / →', 'Nhảy sang Scene trước / Scene kế tiếp'],
   ['Giữ phím \\', 'Xem nhanh ảnh gốc (Before / After)'],

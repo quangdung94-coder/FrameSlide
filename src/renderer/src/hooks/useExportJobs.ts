@@ -9,7 +9,30 @@ import {
   type ExportSummary,
 } from '@engine/exporter';
 import type { ExportCodec } from '@shared/types';
+import {
+  rangeFileSuffix,
+  resolveExportRange,
+  sceneFrameRange,
+  type ExportRangeMode,
+  type FrameRange,
+} from '@engine/frameRange';
+import { computeProjectDurationSec, getTotalFrames, projectDurationInput, resolveSlideDurations } from '@engine/timeline';
 import { useAppStore } from '../store/useAppStore';
+
+/** Frames the export covers for the chosen mode (null = whole clip) and the file-name suffix. */
+export function currentExportRange(mode: ExportRangeMode): { range: FrameRange | null; suffix: string } {
+  const { scenes, renderParams, fps, markIn, markOut, activeSceneId } = useAppStore.getState();
+  const totalFrames = getTotalFrames(computeProjectDurationSec(scenes, renderParams), fps);
+  const durations = resolveSlideDurations(scenes.length, projectDurationInput(scenes, renderParams));
+  const sceneIdx = scenes.findIndex((sc) => sc.id === activeSceneId);
+  const range = resolveExportRange(mode, {
+    markIn,
+    markOut,
+    totalFrames,
+    sceneRange: sceneFrameRange(sceneIdx, durations, fps),
+  });
+  return { range, suffix: range ? rangeFileSuffix(range, fps) : '' };
+}
 
 function downloadInBrowser(data: Uint8Array, fileName: string): void {
   const blob = new Blob([data.buffer as ArrayBuffer], { type: 'video/mp4' });
@@ -31,6 +54,8 @@ export function useExportJobs(engineRef: RefObject<FrameSlideEngine | null>) {
   const [error, setError] = useState<string | null>(null);
   const [batchSlidesPerClip, setBatchSlidesPerClip] = useState(4);
   const [batchCodec, setBatchCodec] = useState<ExportCodec>('h264');
+  /** Whole clip, the In/Out part, or the selected scene (single-clip exports only). */
+  const [rangeMode, setRangeMode] = useState<ExportRangeMode>('all');
 
   /** Shared wrapper: stop playback, reset messages, run the job with an abort signal, clean up. */
   const runJob = async (
@@ -61,15 +86,17 @@ export function useExportJobs(engineRef: RefObject<FrameSlideEngine | null>) {
   const exportMp4 = async () => {
     const { scenes, fps, renderParams } = useAppStore.getState();
     if (scenes.length === 0) return;
+    const { range, suffix } = currentExportRange(rangeMode);
     await runJob(async (engine, signal) => {
       const { data, summary: done } = await exportMp4WebCodecs({
         engine,
         fps,
         params: renderParams,
+        range,
         signal,
         onProgress: setProgress,
       });
-      const defaultName = `FrameSlide_1080p_${fps}fps.mp4`;
+      const defaultName = `FrameSlide_1080p_${fps}fps${suffix}.mp4`;
       if (!window.frameSlideAPI) {
         downloadInBrowser(data, defaultName);
         return done;
@@ -83,7 +110,8 @@ export function useExportJobs(engineRef: RefObject<FrameSlideEngine | null>) {
     const api = window.frameSlideAPI;
     const { scenes, fps, renderParams } = useAppStore.getState();
     if (!api || scenes.length === 0) return;
-    const suffix = codec === 'prores422' ? 'ProRes422' : 'DNxHR_HQ';
+    const codecName = codec === 'prores422' ? 'ProRes422' : 'DNxHR_HQ';
+    const { range, suffix } = currentExportRange(rangeMode);
     await runJob((engine, signal) =>
       exportViaFfmpeg({
         engine,
@@ -91,7 +119,8 @@ export function useExportJobs(engineRef: RefObject<FrameSlideEngine | null>) {
         codec,
         fps,
         params: renderParams,
-        defaultName: `FrameSlide_1080p_${fps}fps_${suffix}.mov`,
+        range,
+        defaultName: `FrameSlide_1080p_${fps}fps_${codecName}${suffix}.mov`,
         signal,
         onProgress: setProgress,
       })
@@ -133,6 +162,8 @@ export function useExportJobs(engineRef: RefObject<FrameSlideEngine | null>) {
     setBatchSlidesPerClip,
     batchCodec,
     setBatchCodec,
+    rangeMode,
+    setRangeMode,
     cancel: () => abortRef.current?.abort(),
     exportMp4,
     exportFfmpeg,
