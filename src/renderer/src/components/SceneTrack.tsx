@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { fitSceneZoom, wheelZoom } from './sceneTrackFit';
 import { AUTO_MOTION_MODES } from '@engine/autoMotion';
 import {
   getTransitionName,
@@ -101,6 +102,11 @@ function SceneTimeStrip({
   );
 }
 
+/** Card width and mini frame height at zoom 1.0. */
+const CARD_W_PER_ZOOM = 232;
+const MINI_H_PER_ZOOM = 120;
+const MIN_CARD_W = 156;
+
 export function SceneTrack({ disabled }: SceneTrackProps) {
   const slides = useAppStore((s) => s.slides);
   const scenes = useAppStore((s) => s.scenes);
@@ -138,6 +144,57 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
 
   const sceneZoom = useLayoutStore((s) => s.sceneZoom);
   const setLayout = useLayoutStore((s) => s.setLayout);
+  const sceneTrackMode = useLayoutStore((s) => s.sceneTrackMode);
+  const setSceneTrackMode = useLayoutStore((s) => s.setSceneTrackMode);
+  const gridMode = sceneTrackMode === 'grid';
+  const stripRef = useRef<HTMLDivElement | null>(null);
+
+  // Ctrl + wheel zooms the cards (like Premiere). In row mode a plain wheel scrolls sideways.
+  // Native listener: React's wheel handler is passive and cannot stop Electron's page zoom.
+  useEffect(() => {
+    const el = stripRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const st = useLayoutStore.getState();
+        st.setLayout('sceneZoom', wheelZoom(st.sceneZoom, e.deltaY, ...LAYOUT_LIMITS.sceneZoom));
+        return;
+      }
+      if (useLayoutStore.getState().sceneTrackMode === 'row' && e.deltaX === 0 && el.scrollWidth > el.clientWidth) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  /** "Vừa khung": switch to grid and pick the largest zoom that shows every scene. */
+  const fitAllScenes = () => {
+    const el = stripRef.current;
+    const item = el?.firstElementChild as HTMLElement | null;
+    if (!el || !item) return;
+    setSceneTrackMode('grid');
+    const r = item.getBoundingClientRect();
+    setLayout(
+      'sceneZoom',
+      fitSceneZoom({
+        sceneCount: scenes.length,
+        areaWidth: el.clientWidth,
+        areaHeight: el.clientHeight,
+        itemWidth: r.width,
+        itemHeight: r.height,
+        measuredZoom: sceneZoom,
+        cardWidthPerZoom: CARD_W_PER_ZOOM,
+        miniHeightPerZoom: MINI_H_PER_ZOOM,
+        gap: 6,
+        minCardWidth: MIN_CARD_W,
+        minZoom: LAYOUT_LIMITS.sceneZoom[0],
+        maxZoom: LAYOUT_LIMITS.sceneZoom[1],
+      })
+    );
+  };
   // Small zoom hides the layout dropdown to save height.
   const compactMode = sceneZoom < 0.8;
   const outRes = getExportResolution(renderParams.outputAspect);
@@ -153,9 +210,10 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
   );
   // Mini frame keeps the real output shape and slot positions.
   // Card width grows with the zoom slider; the mini frame keeps the real output shape.
-  const cardW = Math.round(232 * sceneZoom);
+  // Never narrower than the header row (badge, duration, ⋯) so nothing sticks out at small zoom.
+  const cardW = Math.max(MIN_CARD_W, Math.round(CARD_W_PER_ZOOM * sceneZoom));
   const miniMaxW = cardW - 14;
-  const miniMaxH = Math.round(120 * sceneZoom);
+  const miniMaxH = Math.round(MINI_H_PER_ZOOM * sceneZoom);
   const miniW = Math.min(miniMaxW, Math.round(miniMaxH * canvasAspect));
 
   const sceneFrameRanges = useMemo(() => {
@@ -372,7 +430,7 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
           </button>
           <label
             className="ml-1 flex items-center gap-1 text-xs text-zinc-400"
-            title="Phóng to / thu nhỏ thẻ Scene"
+            title="Phóng to / thu nhỏ thẻ Scene (hoặc Ctrl + lăn chuột trên dải scene)"
           >
             <span>🔍</span>
             <input
@@ -387,6 +445,36 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
             />
             <span className="w-8 font-mono text-zinc-500">{Math.round(sceneZoom * 100)}%</span>
           </label>
+          <div className="ml-1 flex overflow-hidden rounded border border-zinc-700" role="group" aria-label="Cách xếp scene">
+            {(
+              [
+                ['row', 'Ngang', 'Xếp một hàng ngang (lăn chuột để cuộn ngang)'],
+                ['grid', 'Lưới', 'Xếp xuống dòng, thấy nhiều scene cùng lúc'],
+              ] as const
+            ).map(([mode, label, title]) => (
+              <button
+                key={mode}
+                type="button"
+                title={title}
+                aria-pressed={sceneTrackMode === mode}
+                onClick={() => setSceneTrackMode(mode)}
+                className={`px-2 py-0.5 text-xs ${
+                  sceneTrackMode === mode ? 'bg-amber-500 text-zinc-950' : 'bg-zinc-900 text-zinc-300 hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+            <button
+              type="button"
+              title="Xếp lưới và tự thu nhỏ cho vừa hết scene trong khung"
+              disabled={scenes.length === 0}
+              onClick={fitAllScenes}
+              className="border-l border-zinc-700 bg-zinc-900 px-2 py-0.5 text-xs text-zinc-300 hover:text-white disabled:opacity-40"
+            >
+              Vừa khung
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-1 text-xs">
@@ -406,7 +494,12 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
       </div>
 
       {/* Horizontal Scene Cards */}
-      <div className="flex min-h-0 flex-1 items-start gap-1.5 overflow-auto pb-1">
+      <div
+        ref={stripRef}
+        className={`flex min-h-0 flex-1 items-start gap-1.5 pb-1 ${
+          gridMode ? 'flex-wrap content-start overflow-y-auto overflow-x-hidden' : 'overflow-auto'
+        }`}
+      >
         {scenes.map((sc, idx) => {
           const isActive = sc.id === activeSceneId;
           const isSceneDropHot = dropSceneId === sc.id;
@@ -496,10 +589,10 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                       disabled={disabled}
                       onClick={(e) => e.stopPropagation()}
                       onChange={(e) => setSceneDuration(sc.id, Number(e.target.value) || 3)}
-                      className="h-7 w-14 rounded border border-zinc-700 bg-zinc-950 px-1 text-center font-mono text-xs text-zinc-200"
+                      className={`h-7 ${compactMode ? 'w-12 px-0' : 'w-14 px-1'} rounded border border-zinc-700 bg-zinc-950 text-center font-mono text-xs text-zinc-200`}
                       title="Thời lượng Scene (giây)"
                     />
-                    <span className="text-xs text-zinc-500">s</span>
+                    {!compactMode && <span className="text-xs text-zinc-500">s</span>}
                   </div>
 
                   <button
@@ -695,14 +788,15 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                       e.stopPropagation();
                       setOpenTransMenuSceneId(isMenuOpen ? null : sc.id);
                     }}
-                    title={`Chọn chuyển cảnh từ Scene ${idx + 1} → Scene ${idx + 2}`}
+                    title={`Chọn chuyển cảnh từ Scene ${idx + 1} → Scene ${idx + 2} (${getTransitionName(sc.transitionType)})`}
                     className={`rounded-full border px-2 py-1 text-xs transition disabled:opacity-40 ${
                       isMenuOpen
                         ? 'border-amber-400 bg-amber-500/20 text-amber-300'
                         : 'border-zinc-700 bg-zinc-950 text-zinc-400 hover:border-amber-400 hover:text-amber-300'
                     }`}
                   >
-                    ⇄ {getTransitionName(sc.transitionType)}
+                    {/* Small zoom: icon only, so more scenes fit (name stays in the tooltip). */}
+                    ⇄{compactMode ? '' : ` ${getTransitionName(sc.transitionType)}`}
                   </button>
 
                   {isMenuOpen && (

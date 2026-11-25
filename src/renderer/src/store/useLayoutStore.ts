@@ -30,13 +30,20 @@ export function clampLayout<K extends keyof LayoutPrefs>(key: K, value: number):
   return clamp(value, lo, hi);
 }
 
+/** Scene strip arrangement: one horizontal row, or cards wrapping onto new lines. */
+export type SceneTrackMode = 'row' | 'grid';
+
 interface LayoutState extends LayoutPrefs {
+  sceneTrackMode: SceneTrackMode;
+  setSceneTrackMode: (mode: SceneTrackMode) => void;
   setLayout: <K extends keyof LayoutPrefs>(key: K, value: number) => void;
   resetLayout: () => void;
 }
 
 /** localStorage can throw (private mode, blocked storage): fall back to memory only. */
-const safeStorage = createJSONStorage<Partial<LayoutPrefs>>(() => {
+type PersistedLayout = Partial<LayoutPrefs> & { sceneTrackMode?: SceneTrackMode };
+
+const safeStorage = createJSONStorage<PersistedLayout>(() => {
   try {
     const probe = '__frameslide_probe__';
     window.localStorage.setItem(probe, '1');
@@ -56,8 +63,10 @@ export const useLayoutStore = create<LayoutState>()(
   persist(
     (set) => ({
       ...DEFAULT_LAYOUT,
+      sceneTrackMode: 'row',
+      setSceneTrackMode: (sceneTrackMode) => set({ sceneTrackMode }),
       setLayout: (key, value) => set({ [key]: clampLayout(key, value) } as Partial<LayoutState>),
-      resetLayout: () => set({ ...DEFAULT_LAYOUT }),
+      resetLayout: () => set({ ...DEFAULT_LAYOUT, sceneTrackMode: 'row' }),
     }),
     {
       name: 'frameslide.layout.v1',
@@ -67,10 +76,12 @@ export const useLayoutStore = create<LayoutState>()(
         inspectorWidth: s.inspectorWidth,
         timelineHeight: s.timelineHeight,
         sceneZoom: s.sceneZoom,
+        sceneTrackMode: s.sceneTrackMode,
       }),
       merge: (persisted, current) => {
-        const p = (persisted ?? {}) as Partial<LayoutPrefs>;
+        const p = (persisted ?? {}) as PersistedLayout;
         const next = { ...current };
+        if (p.sceneTrackMode === 'row' || p.sceneTrackMode === 'grid') next.sceneTrackMode = p.sceneTrackMode;
         (Object.keys(DEFAULT_LAYOUT) as (keyof LayoutPrefs)[]).forEach((k) => {
           if (typeof p[k] === 'number') next[k] = clampLayout(k, p[k] as number);
         });
