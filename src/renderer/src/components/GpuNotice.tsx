@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { gpuNoticeFor } from './gpuNotice';
+import { gpuNoticeFor } from './gpuNoticeInfo';
 
 const STORAGE_KEY = 'frameslide.gpuNotice.dismissed';
 

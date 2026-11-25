@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EngineCapabilities } from '@shared/types';
-import { gpuNoticeFor } from './gpuNotice';
+import { gpuNoticeFor } from './gpuNoticeInfo';
 
 const base: EngineCapabilities = {
   webgl2: true,
