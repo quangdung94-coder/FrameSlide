@@ -6,6 +6,7 @@ import type { MotionDirection, MotionTemplateId, SceneLayoutId } from '@shared/t
 import { useAppStore } from '../store/useAppStore';
 import { BackgroundPanel } from './BackgroundPanel';
 import { normalizeCardStyle } from '@engine/cardStyle';
+import { DEFAULT_STAGGER, normalizeStagger, STAGGER_STYLES, staggerTotalSec } from '@engine/stagger';
 import { Group, SliderRow } from './ui';
 
 const FIELD =
@@ -25,6 +26,7 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
   const setSceneMotionTemplate = useAppStore((s) => s.setSceneMotionTemplate);
   const setSceneTransition = useAppStore((s) => s.setSceneTransition);
   const setSceneCardStyle = useAppStore((s) => s.setSceneCardStyle);
+  const setSceneStagger = useAppStore((s) => s.setSceneStagger);
   const setSceneFilmLookOff = useAppStore((s) => s.setSceneFilmLookOff);
   const setSceneTransitionDuration = useAppStore((s) => s.setSceneTransitionDuration);
   const setSceneCaption = useAppStore((s) => s.setSceneCaption);
@@ -120,6 +122,49 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
           </select>
         </label>
       </Group>
+
+      {scene.slots.length > 1 && (
+        <Group
+          id="scene-stagger"
+          title="Ảnh xuất hiện lần lượt"
+          defaultOpen={false}
+          enabled={Boolean(scene.stagger)}
+          disabled={disabled}
+          onToggle={(on) => setSceneStagger(scene.id, on ? {} : null)}
+        >
+          {(() => {
+            const st = normalizeStagger(scene.stagger) ?? DEFAULT_STAGGER;
+            const off = disabled || !scene.stagger;
+            return (
+              <>
+                <div className="grid grid-cols-3 gap-1">
+                  {STAGGER_STYLES.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      disabled={off}
+                      onClick={() => setSceneStagger(scene.id, { style: opt.id })}
+                      className={`h-8 rounded border text-xs disabled:opacity-40 ${
+                        st.style === opt.id
+                          ? 'border-amber-400 bg-amber-500/15 text-amber-200'
+                          : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <SliderRow label="Ảnh sau vào trễ hơn ảnh trước (giây)" value={st.delaySec} min={0.05} max={1.5} step={0.05} disabled={off} onChange={(v) => setSceneStagger(scene.id, { delaySec: v })} />
+                <SliderRow label="Thời gian mỗi ảnh hiện ra (giây)" value={st.entrySec} min={0.1} max={2} step={0.05} disabled={off} onChange={(v) => setSceneStagger(scene.id, { entrySec: v })} />
+                <p className="text-xs text-zinc-500">
+                  Ảnh 1 vào trước, các ảnh sau lần lượt theo thứ tự ô. Tất cả đã hiện đủ sau{' '}
+                  {staggerTotalSec(st, scene.slots.length).toFixed(1)} giây kể từ lúc scene bắt đầu hiện.
+                </p>
+              </>
+            );
+          })()}
+        </Group>
+      )}
 
       <Group
         id="scene-frame"

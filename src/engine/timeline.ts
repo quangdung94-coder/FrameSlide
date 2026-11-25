@@ -15,6 +15,9 @@ export interface TimelineState {
    */
   motionProgressA: number;
   motionProgressB: number;
+  /** Seconds since scene A / B became visible (start of its incoming transition). */
+  sceneTimeA: number;
+  sceneTimeB: number;
 }
 
 export interface TimelineDurationInput {
@@ -142,6 +145,8 @@ export function evaluateTimeline(opts: {
       isInTransition: false,
       motionProgressA: p,
       motionProgressB: p,
+      sceneTimeA: timeSec,
+      sceneTimeB: timeSec,
     };
   }
 
@@ -203,6 +208,8 @@ export function evaluateTimeline(opts: {
         0,
         Math.min(1, (localTime - transitionStart) / (nextDuration + clampedTrans))
       ),
+      sceneTimeA: localTime + incomingTrans,
+      sceneTimeB: localTime - transitionStart,
     };
   }
 
@@ -217,5 +224,7 @@ export function evaluateTimeline(opts: {
     isInTransition: false,
     motionProgressA,
     motionProgressB: 0,
+    sceneTimeA: localTime + incomingTrans,
+    sceneTimeB: 0,
   };
 }

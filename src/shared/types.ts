@@ -188,11 +188,24 @@ export interface SceneCardStyle {
   feather?: number; // 0..1  soft blurred edge (replaces the border)
 }
 
+/** How each photo of a 2–4 photo scene enters, one after another. */
+export type StaggerStyle = 'fade' | 'slide' | 'zoom';
+
+export interface SceneStagger {
+  style: StaggerStyle;
+  /** Seconds between one photo and the next starting to appear (default 0.35). */
+  delaySec?: number;
+  /** Seconds each photo takes to appear (default 0.6). */
+  entrySec?: number;
+}
+
 export interface SceneItem {
   id: string;
   layout: SceneLayoutId;
   durationSec: number;
   transitionType: TransitionType;
+  /** Photos of a 2–4 photo scene appear one after another (undefined = all at once). */
+  stagger?: SceneStagger;
   /** Own frame look (rounded corners, shadow, border, soft edge) for this scene's photos. */
   cardStyle?: SceneCardStyle;
   /** True = this scene is shown without the Film Look and LUT (clean colours). */

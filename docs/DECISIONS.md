@@ -47,3 +47,8 @@ File này lưu lại các quyết định quan trọng về sản phẩm và k�
 ### D21. Keyframe Đầu/Cuối cho ảnh (Bước 5c)
 - **Quyết định:** Mỗi ảnh có tối đa 2 điểm (Đầu, Cuối) cho vị trí, zoom, xoay; nội suy theo `frameIndex` với 4 kiểu làm mượt. Không làm nhiều keyframe giữa (để Đợt 4 / sau Bản 1).
 - **Lý do:** Đủ để tự đạo diễn chuyển động như ProShow, giữ preview và export khớp 100% (D06), không cần trình sửa scene toàn màn hình.
+
+### D22. Hiệu ứng theo thời gian của scene tính trên CPU, shader chỉ nhận kết quả (Đợt 4)
+- **Quyết định:** Ảnh xuất hiện lần lượt (S7) và các hiệu ứng vào/ra theo thời gian khác được tính bằng hàm thuần TypeScript từ thời gian của scene (`sceneTimeA/B` của `evaluateTimeline`, suy ra từ `frameIndex`), rồi gửi vào shader dưới dạng uniform (vd. `uStaggerA` = mức hiện của 4 ô). Không thêm điểm gọi hàm nặng trong shader.
+- **Lý do:** Giữ preview và export khớp 100% (D06), test được bằng vitest, và tránh shader D3D trên Windows bị nở to (bài học từ việc gom tap list).
+

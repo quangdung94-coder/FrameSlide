@@ -475,4 +475,23 @@ describe('scene frame style', () => {
     useAppStore.getState().setSceneCardStyle(b, null);
     expect('cardStyle' in useAppStore.getState().scenes[2]).toBe(false);
   });
+
+  it('S7: staggered entry per scene (on / change / off, copy, duplicate)', () => {
+    useAppStore.setState({ scenes: [] });
+    useAppStore.getState().addScene('triptych');
+    useAppStore.getState().addScene('triptych');
+    const [a, b] = useAppStore.getState().scenes.map((s) => s.id);
+    useAppStore.getState().setSceneStagger(a, {});
+    expect(useAppStore.getState().scenes[0].stagger).toEqual({ style: 'fade', delaySec: 0.35, entrySec: 0.6 });
+    useAppStore.getState().setSceneStagger(a, { style: 'zoom', delaySec: 9 });
+    expect(useAppStore.getState().scenes[0].stagger).toEqual({ style: 'zoom', delaySec: 1.5, entrySec: 0.6 });
+    useAppStore.getState().copySceneSettings(a);
+    useAppStore.getState().pasteSceneSettings(b, ['motion']);
+    expect(useAppStore.getState().scenes[1].stagger?.style).toBe('zoom');
+    useAppStore.getState().duplicateScene(a);
+    expect(useAppStore.getState().scenes[1].stagger?.style).toBe('zoom');
+    useAppStore.getState().setSceneStagger(a, null);
+    expect('stagger' in useAppStore.getState().scenes[0]).toBe(false);
+  });
 });
+

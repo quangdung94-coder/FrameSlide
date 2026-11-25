@@ -79,7 +79,7 @@
 ---
 
 ## Bước 5c: Nâng cấp UX/UI và Scene (căn cứ `research/bao-cao-ux-ui-va-scene.md`, 24/11/2026)
-> Làm theo thứ tự. Mỗi mục một PR nhỏ: tự rà diff → sửa lỗi → typecheck + test + build + CI Windows đạt → gộp vào main. Mỗi tính năng mới là công tắc tùy chọn, film look bật sẵn, Full HD 30fps. Không làm Đợt 4 và không đóng gói .exe. Nếu bị ngắt giữa chừng, tiếp tục từ mục `[ ]` đầu tiên.
+> Làm theo thứ tự. Mỗi mục một PR nhỏ: tự rà diff → sửa lỗi → typecheck + test + build + CI Windows đạt → gộp vào main. Mỗi tính năng mới là công tắc tùy chọn, film look bật sẵn, Full HD 30fps. Không đóng gói .exe. Đợt 4 được anh Dũng duyệt ngày 25/11/2026 (S7, S8, S9, U9); S10, S12, U10 để sau Bản 1. Nếu bị ngắt giữa chừng, tiếp tục từ mục `[ ]` đầu tiên.
 
 ### Đợt 1: Dễ bấm, dễ hiểu
 - [x] 1.1 **U3 + U2:** cỡ chữ/nút tối thiểu (chữ ≥12px, nút ≥28px, thanh trượt dày hơn, ô số gõ trực tiếp); nhóm thu gọn (accordion) có công tắc bật/tắt và nút ⟲ đặt lại, nhớ nhóm đang mở. (Component dùng chung `components/ui.tsx`: `Group`, `SliderRow` có ô số; chữ ≥12px; Look chia nhóm Màu / Ánh sáng / Hạt & Bụi / Rung & Nháy / Khung phim.)
@@ -98,3 +98,15 @@
   - [x] 3.3a **S6:** thời lượng chuyển cảnh riêng từng scene (`SceneItem.transitionDurationSec`, `evaluateTimeline` nhận `transitionDurations`; chưa làm "hướng" riêng vì các kiểu chuyển cảnh đã có sẵn bản trái/phải).
   - [x] 3.3b **S4:** chỉnh màu riêng từng ảnh (tương phản, bão hòa, ấm/lạnh, độ mờ) + công tắc "Bỏ qua Film Look cho scene này". (`SlideAsset.adjust` + `src/engine/photoAdjust.ts`, tính trong shader theo từng ô, không thêm điểm gọi hàm nặng; `SceneItem.filmLookOff` làm mờ dần Film Look/LUT, mượt khi chuyển cảnh; dán thiết lập có thêm phần "Film Look".)
   - [x] 3.3c **S5:** viền, bóng đổ, bo góc, làm mờ cạnh cho ô ảnh trong scene 2–4 ảnh. (`SceneItem.cardStyle` + `src/engine/cardStyle.ts`, uniform `uCardStyleA/B` trong `compositeCard`, không thêm điểm gọi hàm nặng; có trong sao chép/dán thiết lập (phần "Khung ảnh") và nhân đôi scene.)
+
+### Dọn code trước Đợt 4 (anh Dũng yêu cầu 25/11/2026: refactor, module hóa, tăng reuse; không đổi hành vi)
+- [x] Dọn 1 (PR #28): `engine/num.ts` (clamp, normalizeByLimits…) + `computeProjectDurationSec` dùng chung.
+- [x] Dọn 2 (PR #29): `App.tsx` 2.327 → 503 dòng; tab Dự án ở `components/inspector/`, hộp thoại/thanh công cụ thành component riêng; hook `useExportJobs`, `useKeyboardShortcuts`, `usePreviewEngine`, `useProjectFiles`; `ui.tsx` có `SelectField`, `TextField`, `CheckField`, `Modal`.
+- [x] Dọn 3 (PR #30): `engine/objectUtils.ts` (omitKeys, withOptional, mapById), `cloneScene` (nhân bản scene copy sâu mọi thiết lập), `store/storeHelpers.ts` (undo/redo, mergeRenderParams, preset).
+
+### Đợt 4: Scene sống động hơn
+- [x] 4.1 **S7:** ảnh trong scene 2–4 ảnh xuất hiện lần lượt (Mờ dần / Trượt lên / Phóng ra; độ trễ giữa các ảnh, thời gian hiện). (`SceneItem.stagger` + `src/engine/stagger.ts`; thời gian tính từ lúc scene bắt đầu hiện (`TimelineState.sceneTimeA/B`), nên preview và xuất khớp; uniform `uStaggerA/B`, không thêm điểm gọi `compositeCard`; đi theo phần "Chuyển động" khi sao chép/dán và khi nhân bản scene.)
+- [ ] 4.2 **S8:** chữ có chuyển động riêng (mờ vào, gõ máy chữ, trượt lên), kéo vị trí trên khung xem, thời điểm vào/ra trong scene.
+- [ ] 4.3 **S9:** Scene Style: lưu scene thành mẫu (bố cục + chuyển động + nền + chữ) áp cho scene khác; mẫu có sẵn Mở đầu, Kết thúc, Chân dung đôi, Lưới kỷ niệm.
+- [ ] 4.4 **U9:** Template & Look có hình xem trước khi rê chuột; lưới 2 cột.
+

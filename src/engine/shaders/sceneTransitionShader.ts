@@ -98,6 +98,12 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
   // Frame look per scene (A = current, B = next): x = corner, y = shadow, z = border, w = feather.
   uniform vec4 uCardStyleA;
   uniform vec4 uCardStyleB;
+  // Staggered entry per scene: how far each card (x..w = card 0..3) has appeared, 0..1,
+  // and the entry style: 0 = off, 1 = fade, 2 = slide up, 3 = zoom out.
+  uniform vec4 uStaggerA;
+  uniform vec4 uStaggerB;
+  uniform int uStaggerStyleA;
+  uniform int uStaggerStyleB;
   uniform int uBgStyleA;
   uniform int uBgStyleB;
   uniform vec3 uBgCol1A;
@@ -678,7 +684,20 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
         kb = mix(1.0, 1.07, easeP);
       }
 
-      col = compositeCard(col, base + c, screenUv, center, halfExt, tilt, yaw, pitch, z, kb, canvasAspect, aa, cardPolaroid, motionStyle, scene == 0 ? uCardStyleA : uCardStyleB);
+      // Staggered entry (2–4 photo scenes): the card fades in, optionally sliding up or zooming.
+      int stStyle = scene == 0 ? uStaggerStyleA : uStaggerStyleB;
+      float appear = 1.0;
+      vec2 cardHalfExt = halfExt;
+      if (stStyle > 0 && cardCount > 1) {
+        vec4 st = scene == 0 ? uStaggerA : uStaggerB;
+        appear = c == 0 ? st.x : (c == 1 ? st.y : (c == 2 ? st.z : st.w));
+        if (appear <= 0.001) continue;
+        if (stStyle == 2) center.y -= (1.0 - appear) * 0.08;
+        if (stStyle == 3) cardHalfExt *= mix(0.82, 1.0, appear);
+      }
+      vec3 beforeCard = col;
+      col = compositeCard(col, base + c, screenUv, center, cardHalfExt, tilt, yaw, pitch, z, kb, canvasAspect, aa, cardPolaroid, motionStyle, scene == 0 ? uCardStyleA : uCardStyleB);
+      col = mix(beforeCard, col, appear);
     }
     return col;
   }
