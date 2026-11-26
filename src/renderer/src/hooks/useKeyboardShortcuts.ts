@@ -49,13 +49,13 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions): void {
       }
 
       if (ctrl && !e.shiftKey && key === 'z') {
-        if (inInput) return;
+        if (inInput || o.isExporting) return;
         e.preventDefault();
         useAppStore.getState().undo();
         return;
       }
       if (ctrl && (key === 'y' || (e.shiftKey && key === 'z'))) {
-        if (inInput) return;
+        if (inInput || o.isExporting) return;
         e.preventDefault();
         useAppStore.getState().redo();
         return;

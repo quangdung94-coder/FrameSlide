@@ -1,11 +1,12 @@
 import { createHash } from 'crypto';
-import { existsSync, mkdirSync, renameSync } from 'fs';
+import { existsSync, mkdirSync, renameSync, rmSync } from 'fs';
 import { readdir, stat } from 'fs/promises';
 import { basename, extname, join, relative, resolve } from 'path';
 import sharp from 'sharp';
-import type { ImageOrientation, SlideAsset } from '@shared/types';
+import type { FolderScanEntry, ImageOrientation, SlideAsset } from '@shared/types';
 
 let proxyMaxEdge = 2880;
+const inflightProxies = new Map<string, Promise<SlideAsset>>();
 
 /** Long edge of new working proxies (setting "Cỡ ảnh làm việc"). Already-cached photos keep theirs. */
 export function setProxyMaxEdge(px: number): void {
@@ -109,7 +110,73 @@ export async function collectImagePaths(inputPaths: string[], maxDepth = 2): Pro
   return collected;
 }
 
+/**
+ * Scans either 1 parent folder (splitting into level-1 subfolders with images, falling back to
+ * the parent itself if no subfolders contain images) or multiple explicitly selected folders.
+ */
+export async function scanMultiFolders(selectedDirs: string[]): Promise<FolderScanEntry[]> {
+  if (selectedDirs.length === 0) return [];
+  const sortByName = (a: string, b: string) =>
+    a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+
+  const buildEntry = async (folderPath: string): Promise<FolderScanEntry | null> => {
+    const imagePaths = await collectImagePaths([folderPath], 2);
+    if (imagePaths.length === 0) return null;
+    return {
+      folderPath,
+      name: basename(folderPath) || folderPath,
+      imagePaths,
+      imageCount: imagePaths.length,
+    };
+  };
+
+  if (selectedDirs.length === 1) {
+    const parent = selectedDirs[0];
+    try {
+      const entries = await readdir(parent, { withFileTypes: true });
+      const subdirs = entries
+        .filter((e) => e.isDirectory())
+        .map((e) => e.name)
+        .sort(sortByName);
+
+      const subResults: FolderScanEntry[] = [];
+      for (const name of subdirs) {
+        const entry = await buildEntry(join(parent, name));
+        if (entry) subResults.push(entry);
+      }
+      if (subResults.length > 0) return subResults;
+    } catch {
+      // Fall through to scanning parent directly
+    }
+    const selfEntry = await buildEntry(parent);
+    return selfEntry ? [selfEntry] : [];
+  }
+
+  const sortedDirs = [...selectedDirs].sort((a, b) => sortByName(basename(a), basename(b)));
+  const out: FolderScanEntry[] = [];
+  for (const dir of sortedDirs) {
+    const entry = await buildEntry(dir);
+    if (entry) out.push(entry);
+  }
+  return out;
+}
+
 export async function createImageProxy(
+  originalPath: string,
+  cacheDir: string
+): Promise<SlideAsset> {
+  const key = `${resolve(cacheDir)}|${originalPath}`;
+  const existing = inflightProxies.get(key);
+  if (existing) return existing;
+
+  const job = createImageProxyInternal(originalPath, cacheDir).finally(() => {
+    if (inflightProxies.get(key) === job) inflightProxies.delete(key);
+  });
+  inflightProxies.set(key, job);
+  return job;
+}
+
+async function createImageProxyInternal(
   originalPath: string,
   cacheDir: string
 ): Promise<SlideAsset> {
@@ -144,37 +211,49 @@ export async function createImageProxy(
     };
   }
 
-  const base = sharp(originalPath).rotate();
-  const proxyInfo = await base
-    .clone()
-    .resize({
-      width: proxyMaxEdge,
-      height: proxyMaxEdge,
-      fit: 'inside',
-      withoutEnlargement: true,
-    })
-    .jpeg({ quality: 92, mozjpeg: true })
-    .toFile(proxyPath);
+  const suffix = `${process.pid}.${Math.random().toString(36).slice(2, 6)}.tmp`;
+  const tmpProxy = `${proxyPath}.${suffix}`;
+  const tmpThumb = `${thumbPath}.${suffix}`;
+  try {
+    const base = sharp(originalPath).rotate();
+    const proxyInfo = await base
+      .clone()
+      .resize({
+        width: proxyMaxEdge,
+        height: proxyMaxEdge,
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: 92, mozjpeg: true })
+      .toFile(tmpProxy);
 
-  await base
-    .clone()
-    .resize({ width: THUMB_WIDTH, withoutEnlargement: true })
-    .jpeg({ quality: 80, mozjpeg: true })
-    .toFile(thumbPath);
+    await base
+      .clone()
+      .resize({ width: THUMB_WIDTH, withoutEnlargement: true })
+      .jpeg({ quality: 80, mozjpeg: true })
+      .toFile(tmpThumb);
 
-  const orientation = detectOrientation(proxyInfo.width, proxyInfo.height);
-  return {
-    id,
-    name: basename(originalPath),
-    originalPath,
-    proxyUrl: toMediaUrl(proxyPath),
-    thumbUrl: toMediaUrl(thumbPath),
-    width: proxyInfo.width,
-    height: proxyInfo.height,
-    orientation,
-    takenAtMs,
-    focalPoint: defaultFocalFor(orientation),
-  };
+    renameSync(tmpProxy, proxyPath);
+    renameSync(tmpThumb, thumbPath);
+
+    const orientation = detectOrientation(proxyInfo.width, proxyInfo.height);
+    return {
+      id,
+      name: basename(originalPath),
+      originalPath,
+      proxyUrl: toMediaUrl(proxyPath),
+      thumbUrl: toMediaUrl(thumbPath),
+      width: proxyInfo.width,
+      height: proxyInfo.height,
+      orientation,
+      takenAtMs,
+      focalPoint: defaultFocalFor(orientation),
+    };
+  } catch (err) {
+    rmSync(tmpProxy, { force: true });
+    rmSync(tmpThumb, { force: true });
+    throw err;
+  }
 }
 
 export async function createImageProxiesBatch(

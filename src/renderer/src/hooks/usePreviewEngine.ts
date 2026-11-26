@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { FrameSlideEngine } from '@engine/FrameSlideEngine';
 import { resolvePreviewResolution } from '@engine/capabilities';
 import { computeProjectDurationSec, getTotalFrames } from '@engine/timeline';
@@ -23,6 +23,8 @@ interface Options {
 export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSize, effectiveDurationSec }: Options) {
   const [contextLost, setContextLost] = useState(false);
   const [liveFps, setLiveFps] = useState<number | null>(null);
+  const activeWorkspaceId = useAppStore((s) => s.activeWorkspaceId);
+  const customLutPath = useAppStore((s) => s.customLut?.filePath ?? null);
   const slides = useAppStore((s) => s.slides);
   const scenes = useAppStore((s) => s.scenes);
   const renderParams = useAppStore((s) => s.renderParams);
@@ -63,6 +65,12 @@ export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSiz
           const s = useAppStore.getState();
           engine.renderFrame(s.frameIndex, s.fps, s.renderParams, s.compareMode);
         },
+        onTexturesReady: () => {
+          const s = useAppStore.getState();
+          if (!s.isPlaying) {
+            engineRef.current?.renderFrame(s.frameIndex, s.fps, s.renderParams, s.compareMode);
+          }
+        },
       });
     } catch (err) {
       // No WebGL2 at all (driver blocked / too old): keep the editor open and let GpuNotice explain.
@@ -100,18 +108,28 @@ export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSiz
     };
   }, [setEngineCapabilities]);
 
-  // Sync photos + SceneTrack to GPU
+  // Sync photos + SceneTrack to GPU (never runs mid-export)
   useEffect(() => {
     const engine = engineRef.current;
-    if (!engine) return;
+    if (!engine || isExporting) return;
     let cancelled = false;
+    const curState = useAppStore.getState();
+    const startSceneIdx = Math.max(
+      0,
+      scenes.findIndex((sc) => sc.id === curState.activeSceneId)
+    );
     engine
-      .setProjectMedia(slides, scenes, {
-        portraitMode: renderParams.portraitMode,
-        motionTemplate: renderParams.motionTemplate,
-        defaultDurationSec: renderParams.defaultSlideDurationSec,
-        defaultTransition: renderParams.transitionType,
-      })
+      .setProjectMedia(
+        slides,
+        scenes,
+        {
+          portraitMode: renderParams.portraitMode,
+          motionTemplate: renderParams.motionTemplate,
+          defaultDurationSec: renderParams.defaultSlideDurationSec,
+          defaultTransition: renderParams.transitionType,
+        },
+        startSceneIdx
+      )
       .then(() => {
         if (cancelled) return;
         const s = useAppStore.getState();
@@ -122,6 +140,7 @@ export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSiz
       cancelled = true;
     };
   }, [
+    isExporting,
     slides,
     scenes,
     renderParams.portraitMode,
@@ -129,6 +148,55 @@ export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSiz
     renderParams.defaultSlideDurationSec,
     renderParams.transitionType,
   ]);
+
+  // Sync the active workspace's custom .cube LUT to the shared GPU engine on tab switch or LUT change.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || isExporting) return;
+    let cancelled = false;
+
+    const applyLut = async () => {
+      if (!customLutPath) {
+        engine.setCustomCubeLut(null);
+      } else {
+        const content = window.frameSlideAPI
+          ? await window.frameSlideAPI.readTextFile(customLutPath)
+          : null;
+        if (cancelled) return;
+        let parsed: { title: string; size: number } | null = null;
+        if (content) {
+          try {
+            parsed = engine.setCustomCubeLut(content);
+          } catch {
+            parsed = null;
+          }
+        }
+        if (parsed) {
+          const cur = useAppStore.getState().customLut;
+          if (cur && cur.filePath === customLutPath && (cur.size !== parsed.size || cur.name !== parsed.title)) {
+            useAppStore.getState().setCustomLut({
+              name: parsed.title,
+              filePath: customLutPath,
+              size: parsed.size,
+            });
+          }
+        } else {
+          engine.setCustomCubeLut(null);
+          if (useAppStore.getState().customLut?.filePath === customLutPath) {
+            useAppStore.getState().setCustomLut(null);
+          }
+        }
+      }
+      if (cancelled) return;
+      const s = useAppStore.getState();
+      engine.renderFrame(s.frameIndex, s.fps, s.renderParams, s.compareMode);
+    };
+
+    void applyLut();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspaceId, customLutPath, isExporting, engineRef]);
 
   useEffect(() => {
     const engine = engineRef.current;
@@ -144,7 +212,13 @@ export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSiz
     engineRef.current?.renderFrame(s.frameIndex, s.fps, s.renderParams, s.compareMode);
 
     const unsub = useAppStore.subscribe((state, prev) => {
-      if (state.isPlaying || isExporting) return;
+      if (
+        state.isPlaying ||
+        isExporting ||
+        state.activeWorkspaceId !== prev.activeWorkspaceId
+      ) {
+        return;
+      }
       if (
         state.frameIndex !== prev.frameIndex ||
         state.renderParams !== prev.renderParams ||
@@ -207,9 +281,11 @@ export function usePreviewEngine({ canvasRef, engineRef, isExporting, previewSiz
     const loopRange = marked && startFrame >= marked.start && startFrame < marked.end ? marked : null;
     let renderedCount = 0;
     let fpsWindowStart = startWallMs;
+    const startWorkspaceId = initial.activeWorkspaceId;
 
     const tick = (now: number) => {
       const s = useAppStore.getState();
+      if (!s.isPlaying || isExporting || s.activeWorkspaceId !== startWorkspaceId) return;
       const effDur = computeProjectDurationSec(s.scenes, s.renderParams);
       const total = getTotalFrames(effDur, s.fps);
       const { frame: nextFrame, ended } = computePlaybackFrame({

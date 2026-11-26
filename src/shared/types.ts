@@ -62,6 +62,17 @@ export interface SceneBackground extends BackgroundOptions {
 
 export type FrameBorderStyle = 'auto' | 'none' | 'thin' | 'polaroid';
 
+/** How photos fit inside multi-photo / framed slots: 'fit' keeps the whole photo (no head/foot cropping). */
+export type CardFitMode = 'fit' | 'cover';
+
+/** Per-slot frame offset & scale override on the preview (dx right, dy down in 0..1 canvas units). */
+export interface SlotFrameOverride {
+  dx: number;
+  dy: number;
+  scaleX: number;
+  scaleY: number;
+}
+
 export type AspectMaskId = 'none' | '2.39' | '2.00' | '4:3';
 
 export type OutputAspectId = '16:9' | '9:16' | '1:1';
@@ -215,6 +226,14 @@ export interface SceneItem {
   stagger?: SceneStagger;
   /** Own frame look (rounded corners, shadow, border, soft edge) for this scene's photos. */
   cardStyle?: SceneCardStyle;
+  /** Group frame scale multiplier for this scene's cards (0.5..1.4, default 1). */
+  frameScale?: number;
+  /** Group spacing multiplier between cards in 2–4 photo scenes (0..2, default 1). */
+  frameGap?: number;
+  /** Own fit mode for this scene ('fit' = no cropping, 'cover' = fill slot; undefined = follow project). */
+  cardFitMode?: CardFitMode;
+  /** Per-slot manual frame size/position overrides dragged on the preview. */
+  slotFrames?: (SlotFrameOverride | null)[];
   /** True = this scene is shown without the Film Look and LUT (clean colours). */
   filmLookOff?: boolean;
   /** Own length (seconds) of the transition into the next scene (undefined = project setting). */
@@ -396,6 +415,8 @@ export interface RenderParams {
   /** Optional for older projects; DEFAULT_BACKGROUND_OPTIONS is used when missing. */
   backgroundOptions?: BackgroundOptions;
   frameBorderStyle: FrameBorderStyle;
+  /** Default card fit mode for the project: 'fit' (default, no vertical cropping) or 'cover'. */
+  cardFitMode?: CardFitMode;
   outputAspect: OutputAspectId;
   durationMode: DurationMode;
   totalDurationSec: number;
@@ -418,8 +439,20 @@ export interface UserPreset {
   renderParams: RenderParams;
 }
 
+export interface WorkspaceData {
+  id: string;
+  name: string;
+  sourceFolder?: string;
+  slides: SlideAsset[];
+  scenes: SceneItem[];
+  renderParams: RenderParams;
+  customLutPath: string | null;
+  markIn?: number | null;
+  markOut?: number | null;
+}
+
 export interface ProjectFileData {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   savedAt: string;
   fps: SupportedFps;
   slides: SlideAsset[];
@@ -429,6 +462,9 @@ export interface ProjectFileData {
   /** In / Out marks (frame index), Đợt 5.2c. Missing = not set. */
   markIn?: number | null;
   markOut?: number | null;
+  /** Multi-workspace projects (version 3). */
+  activeWorkspaceId?: string;
+  workspaces?: WorkspaceData[];
 }
 
 export interface FfmpegExportStartOptions {
@@ -481,6 +517,18 @@ export interface PickFolderResult {
   folderPath?: string;
 }
 
+export interface FolderScanEntry {
+  folderPath: string;
+  name: string;
+  imagePaths: string[];
+  imageCount: number;
+}
+
+export interface PickMultiFoldersResult {
+  canceled: boolean;
+  folders: FolderScanEntry[];
+}
+
 export interface AppInfo {
   version: string;
   electron: string;
@@ -520,6 +568,7 @@ export interface FrameSlideAPI {
   pickCacheFolder: () => Promise<string | null>;
   pickImages: () => Promise<SlideAsset[]>;
   pickFolderImages: () => Promise<SlideAsset[]>;
+  pickMultiFolders: () => Promise<PickMultiFoldersResult>;
   importPaths: (paths: string[]) => Promise<SlideAsset[]>;
   rehydrateSlides: (slides: SlideAsset[]) => Promise<SlideAsset[]>;
   loadSampleImages: () => Promise<SlideAsset[]>;
@@ -543,4 +592,8 @@ export interface FrameSlideAPI {
   ffmpegExportFrame: (jobId: string, rgbaData: Uint8Array) => Promise<void>;
   ffmpegExportFinish: (jobId: string) => Promise<FfmpegExportFinishResult>;
   ffmpegExportCancel: (jobId: string) => Promise<void>;
+  /** Keeps the OS/app awake while an export is running and clears taskbar progress when false. */
+  setExportActive?: (active: boolean) => Promise<void>;
+  /** Sets Windows taskbar progress bar (0..1, or -1 to clear). */
+  setTaskbarProgress?: (ratio: number) => Promise<void>;
 }

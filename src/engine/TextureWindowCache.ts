@@ -10,7 +10,9 @@ export class TextureWindowCache {
   private readonly maxEntries: number;
   private readonly cache = new Map<string, THREE.Texture>();
   private readonly inflight = new Map<string, Promise<THREE.Texture>>();
+  private readonly failedUrls = new Set<string>();
   private activeKeepSet = new Set<string>();
+  private generation = 0;
   private disposed = false;
 
   constructor(maxEntries = 24) {
@@ -29,10 +31,11 @@ export class TextureWindowCache {
   }
 
   public async ensure(url: string): Promise<THREE.Texture | null> {
-    if (this.disposed) return null;
+    if (this.disposed || this.failedUrls.has(url)) return null;
     const existing = this.get(url);
     if (existing) return existing;
 
+    const gen = this.generation;
     let promise = this.inflight.get(url);
     if (!promise) {
       promise = this.loader.loadAsync(url).then((texture) => {
@@ -49,7 +52,7 @@ export class TextureWindowCache {
     try {
       const texture = await promise;
       this.inflight.delete(url);
-      if (this.disposed) {
+      if (this.disposed || gen !== this.generation) {
         texture.dispose();
         return null;
       }
@@ -58,6 +61,9 @@ export class TextureWindowCache {
       return texture;
     } catch {
       this.inflight.delete(url);
+      if (!this.disposed && gen === this.generation) {
+        this.failedUrls.add(url);
+      }
       return null;
     }
   }
@@ -65,14 +71,22 @@ export class TextureWindowCache {
   /**
    * Preloads textures needed around current playback position and evicts distant ones,
    * while guaranteeing `keepSet` URLs are never evicted mid-flight.
+   * Returns how many textures were newly loaded into the cache.
    */
-  public async preloadWindow(urls: string[], keepSet: Set<string>): Promise<void> {
-    if (this.disposed) return;
+  public async preloadWindow(urls: string[], keepSet: Set<string>): Promise<number> {
+    if (this.disposed) return 0;
     this.activeKeepSet = keepSet;
     this.evictIfNeeded();
 
     const unique = Array.from(new Set(urls));
-    await Promise.all(unique.map((u) => this.ensure(u)));
+    const results = await Promise.all(
+      unique.map(async (u) => {
+        if (this.cache.has(u)) return false;
+        const tex = await this.ensure(u);
+        return tex !== null;
+      })
+    );
+    return results.filter(Boolean).length;
   }
 
   private evictIfNeeded(): void {
@@ -101,12 +115,18 @@ export class TextureWindowCache {
     return this.cache.size;
   }
 
+  public clearFailed(): void {
+    this.failedUrls.clear();
+  }
+
   public clear(): void {
+    this.generation++;
     for (const tex of this.cache.values()) {
       tex.dispose();
     }
     this.cache.clear();
     this.inflight.clear();
+    this.failedUrls.clear();
     this.activeKeepSet.clear();
   }
 

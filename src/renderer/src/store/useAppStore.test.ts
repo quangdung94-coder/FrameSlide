@@ -563,3 +563,213 @@ describe('multi-select scenes (Đợt 6.2)', () => {
     expect(after.activeSceneId).toBe(after.scenes[0].id);
   });
 });
+
+describe('multi-workspace tabs & shared FPS', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      fps: 30,
+      slides: [],
+      scenes: [],
+      activeSceneId: null,
+      activeSlotIndex: 0,
+      selectedPhotoId: null,
+      selectedPhotoIds: [],
+      renderParams: INITIAL_RENDER_PARAMS,
+      customLut: null,
+      projectFilePath: null,
+      workspaces: [
+        {
+          id: 'ws_sample',
+          name: 'Dự án 1',
+          isSampleOnly: true,
+          slides: [makePhoto('SAMPLE_1')],
+          scenes: [],
+          activeSceneId: null,
+          renderParams: INITIAL_RENDER_PARAMS,
+          customLut: null,
+          markIn: null,
+          markOut: null,
+          frameIndex: 0,
+          past: [],
+          future: [],
+        },
+      ],
+      activeWorkspaceId: 'ws_sample',
+      past: [],
+      future: [],
+    });
+  });
+
+  it('replaces startup sample tab on importFolderWorkspaces, auto-builds scenes, and keeps real tabs', () => {
+    const imported = useAppStore.getState().importFolderWorkspaces([
+      { name: '01_MoDau', sourceFolder: 'D:/01', slides: [makePhoto('A1'), makePhoto('A2')] },
+      { name: '02_Ket', sourceFolder: 'D:/02', slides: [makePhoto('B1')] },
+    ]);
+    expect(imported).toBe(2);
+
+    const st = useAppStore.getState();
+    expect(st.workspaces.map((w) => w.name)).toEqual(['01_MoDau', '02_Ket']);
+    expect(st.workspaces.some((w) => w.id === 'ws_sample')).toBe(false);
+    expect(st.scenes.length).toBeGreaterThan(0);
+
+    // Importing again keeps existing real tabs and appends the new ones
+    useAppStore.getState().importFolderWorkspaces([
+      { name: '03_Bonus', sourceFolder: 'D:/03', slides: [makePhoto('C1')] },
+    ]);
+    expect(useAppStore.getState().workspaces.map((w) => w.name)).toEqual([
+      '01_MoDau',
+      '02_Ket',
+      '03_Bonus',
+    ]);
+  });
+
+  it('isolates slides, scenes, LUT, and undo/redo per tab while sharing FPS', () => {
+    useAppStore.getState().importFolderWorkspaces([
+      { name: 'Tab1', sourceFolder: 'D:/1', slides: [makePhoto('A1')] },
+      { name: 'Tab2', sourceFolder: 'D:/2', slides: [makePhoto('B1')] },
+    ]);
+    const [w1, w2] = useAppStore.getState().workspaces;
+
+    useAppStore.getState().setFps(24);
+    useAppStore.getState().setCustomLut({ name: 'Warm.cube', filePath: 'D:/Warm.cube', size: 33 });
+    useAppStore.getState().setSceneCaption(useAppStore.getState().scenes[0].id, 'Tab 1 caption');
+
+    useAppStore.getState().switchWorkspace(w2.id);
+    expect(useAppStore.getState().fps).toBe(24);
+    expect(useAppStore.getState().slides.map((s) => s.id)).toEqual(['B1']);
+    expect(useAppStore.getState().customLut).toBeNull();
+    expect(useAppStore.getState().scenes[0].caption).toBeUndefined();
+
+    // Editing Tab 2 + Undo does not affect Tab 1 or shared FPS
+    useAppStore.getState().setSceneDuration(useAppStore.getState().scenes[0].id, 6);
+    useAppStore.getState().undo();
+    expect(useAppStore.getState().fps).toBe(24);
+
+    useAppStore.getState().switchWorkspace(w1.id);
+    expect(useAppStore.getState().customLut?.filePath).toBe('D:/Warm.cube');
+    expect(useAppStore.getState().scenes[0].caption).toBe('Tab 1 caption');
+  });
+
+  it('copyStyleToWorkspaces copies look/LUT but preserves each tab text title/subtitle', () => {
+    useAppStore.getState().importFolderWorkspaces([
+      { name: 'Tab1', sourceFolder: 'D:/1', slides: [makePhoto('A1')] },
+      { name: 'Tab2', sourceFolder: 'D:/2', slides: [makePhoto('B1')] },
+    ]);
+    const [w1, w2] = useAppStore.getState().workspaces;
+
+    useAppStore.getState().switchWorkspace(w2.id);
+    useAppStore.getState().updateTextOverlay({ title: 'Riêng Tab 2', subtitle: 'Phụ đề 2' });
+
+    useAppStore.getState().switchWorkspace(w1.id);
+    useAppStore.getState().applyFilmLookPreset('35mm-cinema');
+    useAppStore.getState().updateTextOverlay({ title: 'Riêng Tab 1', style: 'editorial-serif' });
+    useAppStore.getState().setCustomLut({ name: 'Film.cube', filePath: 'D:/Film.cube', size: 33 });
+
+    const copied = useAppStore.getState().copyStyleToWorkspaces([w2.id]);
+    expect(copied).toBe(1);
+
+    useAppStore.getState().switchWorkspace(w2.id);
+    expect(useAppStore.getState().renderParams.super8.presetId).toBe('35mm-cinema');
+    expect(useAppStore.getState().renderParams.textOverlay.style).toBe('editorial-serif');
+    expect(useAppStore.getState().renderParams.textOverlay.title).toBe('Riêng Tab 2');
+    expect(useAppStore.getState().renderParams.textOverlay.subtitle).toBe('Phụ đề 2');
+    expect(useAppStore.getState().customLut?.filePath).toBe('D:/Film.cube');
+  });
+
+  it('serializes and restores v3 multi-workspace project files', () => {
+    useAppStore.getState().importFolderWorkspaces([
+      { name: '01_A', sourceFolder: 'D:/A', slides: [makePhoto('A1')] },
+      { name: '02_B', sourceFolder: 'D:/B', slides: [makePhoto('B1')] },
+    ]);
+    useAppStore.getState().setFps(25);
+    const saved = useAppStore.getState().toProjectFileData();
+    expect(saved.version).toBe(3);
+    expect(saved.workspaces).toHaveLength(2);
+
+    // Reset and reload
+    useAppStore.getState().closeWorkspace(useAppStore.getState().workspaces[0].id);
+    useAppStore.getState().loadProjectData(saved, 'D:/all.frameslide');
+    expect(useAppStore.getState().fps).toBe(25);
+    expect(useAppStore.getState().workspaces.map((w) => w.name)).toEqual(['01_A', '02_B']);
+  });
+
+  it('resets projectFilePath when closing the last remaining tab and protects multi-tab / edited tabs', () => {
+    useAppStore.getState().importFolderWorkspaces([
+      { name: '01_A', sourceFolder: 'D:/A', slides: [makePhoto('A1')] },
+    ]);
+    useAppStore.getState().setProjectFilePath('D:/existing.frameslide');
+    const soleId = useAppStore.getState().workspaces[0].id;
+    useAppStore.getState().closeWorkspace(soleId);
+    expect(useAppStore.getState().projectFilePath).toBeNull();
+    expect(useAppStore.getState().workspaces).toHaveLength(1);
+
+    // Adding a second empty tab means importFolderWorkspaces preserves existing tabs
+    useAppStore.getState().addWorkspace('Riêng');
+    useAppStore.getState().importFolderWorkspaces([
+      { name: '02_B', sourceFolder: 'D:/B', slides: [makePhoto('B1')] },
+    ]);
+    expect(useAppStore.getState().workspaces.map((w) => w.name)).toEqual(['Dự án 1', 'Riêng', '02_B']);
+  });
+});
+
+describe('slot frame editing, cardFitMode, and bulk duration controls', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      fps: 30,
+      slides: [makePhoto('P1', 'portrait'), makePhoto('P2', 'landscape')],
+      scenes: [],
+      activeSceneId: null,
+      renderParams: INITIAL_RENDER_PARAMS,
+      past: [],
+      future: [],
+    });
+    useAppStore.getState().addScene('diptych');
+    useAppStore.getState().addScene('single');
+  });
+
+  it('applies duration to all scenes at once and supports undo, plus allows up to 600s total duration', () => {
+    useAppStore.getState().setTotalDurationSec(180);
+    expect(useAppStore.getState().renderParams.totalDurationSec).toBe(180);
+    useAppStore.getState().setTotalDurationSec(999);
+    expect(useAppStore.getState().renderParams.totalDurationSec).toBe(600);
+
+    useAppStore.getState().applyDurationToAllScenes(5.5);
+    const st = useAppStore.getState();
+    expect(st.renderParams.durationMode).toBe('per-slide');
+    expect(st.renderParams.defaultSlideDurationSec).toBe(5.5);
+    expect(st.scenes.every((sc) => sc.durationSec === 5.5)).toBe(true);
+
+    useAppStore.getState().undo();
+    expect(useAppStore.getState().scenes.every((sc) => sc.durationSec !== 5.5)).toBe(true);
+  });
+
+  it('updates, copies/pastes, and resets per-slot frames, group scale/gap, and cardFitMode', () => {
+    const [s1, s2] = useAppStore.getState().scenes;
+    useAppStore.getState().setCardFitMode('cover');
+    expect(useAppStore.getState().renderParams.cardFitMode).toBe('cover');
+
+    useAppStore.getState().setSceneFrameScale(s1.id, 1.25);
+    useAppStore.getState().setSceneFrameGap(s1.id, 1.4);
+    useAppStore.getState().setSceneCardFitMode(s1.id, 'fit');
+    useAppStore.getState().setSceneSlotFrame(s1.id, 1, { dx: 0.1, scaleX: 1.3, scaleY: 0.8 });
+
+    const edited = useAppStore.getState().scenes[0];
+    expect(edited.frameScale).toBe(1.25);
+    expect(edited.frameGap).toBe(1.4);
+    expect(edited.cardFitMode).toBe('fit');
+    expect(edited.slotFrames?.[1]).toEqual({ dx: 0.1, dy: 0, scaleX: 1.3, scaleY: 0.8 });
+
+    // Copy & paste 'frame' part carries the frame sizing settings
+    useAppStore.getState().copySceneSettings(s1.id);
+    useAppStore.getState().pasteSceneSettings(s2.id, ['frame']);
+    expect(useAppStore.getState().scenes[1].frameScale).toBe(1.25);
+
+    // Clearing slot override to identity removes slotFrames array cleanly
+    useAppStore.getState().setSceneSlotFrame(s1.id, 1, null);
+    expect('slotFrames' in useAppStore.getState().scenes[0]).toBe(false);
+
+    useAppStore.getState().resetSceneFrames(s1.id);
+    expect('frameScale' in useAppStore.getState().scenes[0]).toBe(false);
+    expect('frameGap' in useAppStore.getState().scenes[0]).toBe(false);
+  });
+});

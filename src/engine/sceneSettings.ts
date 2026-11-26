@@ -1,4 +1,5 @@
 import type {
+  CardFitMode,
   MotionDirection,
   MotionTemplateId,
   SceneBackground,
@@ -6,6 +7,7 @@ import type {
   SceneItem,
   SceneLayoutId,
   SceneStagger,
+  SlotFrameOverride,
   TransitionType,
   CaptionTiming,
   SceneTextOverride,
@@ -52,6 +54,10 @@ export interface SceneSettings {
   /** Own text of the scene; pasting keeps the target's own words (only the look is copied). */
   text?: SceneTextOverride;
   cardStyle?: SceneCardStyle;
+  frameScale?: number;
+  frameGap?: number;
+  cardFitMode?: CardFitMode;
+  slotFrames?: (SlotFrameOverride | null)[];
   filmLookOff?: boolean;
 }
 
@@ -70,6 +76,10 @@ export function copySceneSettings(scene: SceneItem): SceneSettings {
     captionOffset: scene.captionOffset ? { ...scene.captionOffset } : undefined,
     text: scene.text ? { ...scene.text } : undefined,
     cardStyle: scene.cardStyle ? { ...scene.cardStyle } : undefined,
+    frameScale: scene.frameScale,
+    frameGap: scene.frameGap,
+    cardFitMode: scene.cardFitMode,
+    slotFrames: scene.slotFrames?.map((f) => (f ? { ...f } : null)),
     filmLookOff: scene.filmLookOff,
   };
 }
@@ -112,6 +122,10 @@ export function applySceneSettings(
         break;
       case 'frame':
         next.cardStyle = settings.cardStyle ? { ...settings.cardStyle } : undefined;
+        next.frameScale = settings.frameScale;
+        next.frameGap = settings.frameGap;
+        next.cardFitMode = settings.cardFitMode;
+        next.slotFrames = settings.slotFrames?.map((f) => (f ? { ...f } : null));
         break;
       case 'look':
         next.filmLookOff = settings.filmLookOff;

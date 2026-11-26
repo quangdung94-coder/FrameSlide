@@ -44,3 +44,13 @@ nsis:
   deleteAppDataOnUninstall: false
 portable:
   artifactName: FrameSlide-Portable-${version}.${ext}
+mac:
+  icon: build/icon.png
+  category: public.app-category.video
+  identity: null
+  target:
+    - target: dmg
+      arch:
+        - arm64
+dmg:
+  artifactName: FrameSlide-${version}-arm64.${ext}

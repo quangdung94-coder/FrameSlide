@@ -1,5 +1,6 @@
 import { ArrayBufferTarget, Muxer } from 'mp4-muxer';
 import type { ExportCodec, FrameSlideAPI, RenderParams, SceneItem, SlideAsset } from '@shared/types';
+import { codecExtension, joinExportPath, sanitizeFileStem } from '@shared/exportPath';
 import { getExportResolution } from './capabilities';
 import type { FrameSlideEngine } from './FrameSlideEngine';
 import { computeProjectDurationSec, getTotalFrames } from './timeline';
@@ -12,6 +13,7 @@ export interface ExportProgressInfo {
   percent: number;
   clipIndex?: number;
   clipCount?: number;
+  clipName?: string;
 }
 
 export interface ExportSummary {
@@ -21,6 +23,7 @@ export interface ExportSummary {
   speedFactor: number;
   filePath?: string;
   clipCount?: number;
+  failedClips?: { name: string; error: string }[];
 }
 
 export class ExportCanceledError extends Error {
@@ -416,5 +419,169 @@ export async function exportBatchClips(opts: {
     speedFactor: (grandDurationSec * 1000) / durationMs,
     filePath: opts.outputDir,
     clipCount: chunks.length,
+  };
+}
+
+export interface ExportWorkspaceInput {
+  id: string;
+  name: string;
+  slides: SlideAsset[];
+  scenes: SceneItem[];
+  renderParams: RenderParams;
+  customLutPath: string | null;
+}
+
+async function applyWorkspaceLut(
+  engine: FrameSlideEngine,
+  api: FrameSlideAPI,
+  customLutPath: string | null
+): Promise<void> {
+  if (!customLutPath) {
+    engine.setCustomCubeLut(null);
+    return;
+  }
+  try {
+    const content = await api.readTextFile(customLutPath);
+    if (content) {
+      engine.setCustomCubeLut(content);
+      return;
+    }
+  } catch {
+    // Missing or unreadable LUT falls back to clean output
+  }
+  engine.setCustomCubeLut(null);
+}
+
+/**
+ * Exports multiple independent workspace tabs sequentially into one shared `outputDir`,
+ * clearing GPU texture caches between workspaces and always restoring the active workspace on exit.
+ */
+export async function exportWorkspaceBatch(opts: {
+  engine: FrameSlideEngine;
+  api: FrameSlideAPI;
+  workspaces: ExportWorkspaceInput[];
+  restoreState: {
+    slides: SlideAsset[];
+    scenes: SceneItem[];
+    renderParams: RenderParams;
+    customLutPath: string | null;
+  };
+  codec: ExportCodec;
+  fps: number;
+  outputDir: string;
+  onProgress?: (info: ExportProgressInfo) => void;
+  onWorkspaceDone?: (id: string) => void;
+  signal?: AbortSignal;
+}): Promise<ExportSummary> {
+  const startedAt = performance.now();
+  let grandTotalFrames = 0;
+  let grandDurationSec = 0;
+  let succeeded = 0;
+  const failedClips: { name: string; error: string }[] = [];
+  const ext = codecExtension(opts.codec);
+
+  try {
+    for (let i = 0; i < opts.workspaces.length; i++) {
+      if (opts.signal?.aborted) throw new ExportCanceledError();
+      const ws = opts.workspaces[i];
+      if (ws.scenes.length === 0) continue;
+
+      try {
+        opts.engine.clearTextureCache();
+        await applyWorkspaceLut(opts.engine, opts.api, ws.customLutPath);
+        await opts.engine.setProjectMedia(ws.slides, ws.scenes, {
+          portraitMode: ws.renderParams.portraitMode,
+          motionTemplate: ws.renderParams.motionTemplate,
+          defaultDurationSec: ws.renderParams.defaultSlideDurationSec,
+          defaultTransition: ws.renderParams.transitionType,
+        });
+
+        const { effectiveDurationSec } = getEffectiveDurationAndFrames(
+          opts.engine,
+          opts.fps,
+          ws.renderParams
+        );
+
+        const stem =
+          sanitizeFileStem(ws.name) ?? `DuAn_${String(i + 1).padStart(2, '0')}`;
+        const fileName = `${stem}.${ext}`;
+        const filePath = opts.api.freeExportPath
+          ? await opts.api.freeExportPath(opts.outputDir, fileName)
+          : joinExportPath(opts.outputDir, fileName);
+
+        const forwardProgress = (info: ExportProgressInfo) =>
+          opts.onProgress?.({
+            ...info,
+            clipIndex: i + 1,
+            clipCount: opts.workspaces.length,
+            clipName: ws.name,
+          });
+
+        if (opts.codec === 'h264') {
+          const { data, summary } = await exportMp4WebCodecs({
+            engine: opts.engine,
+            fps: opts.fps,
+            params: ws.renderParams,
+            signal: opts.signal,
+            onProgress: forwardProgress,
+          });
+          await opts.api.saveBinaryToPath(data, filePath);
+          grandTotalFrames += summary.totalFrames;
+        } else {
+          const summary = await exportViaFfmpeg({
+            engine: opts.engine,
+            api: opts.api,
+            codec: opts.codec,
+            fps: opts.fps,
+            params: ws.renderParams,
+            defaultName: filePath,
+            directFilePath: filePath,
+            signal: opts.signal,
+            onProgress: forwardProgress,
+          });
+          if (summary) grandTotalFrames += summary.totalFrames;
+        }
+
+        grandDurationSec += effectiveDurationSec;
+        succeeded++;
+        opts.onWorkspaceDone?.(ws.id);
+      } catch (err) {
+        if (err instanceof ExportCanceledError) throw err;
+        failedClips.push({
+          name: ws.name,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+  } finally {
+    opts.engine.clearTextureCache();
+    await applyWorkspaceLut(opts.engine, opts.api, opts.restoreState.customLutPath);
+    await opts.engine.setProjectMedia(
+      opts.restoreState.slides,
+      opts.restoreState.scenes,
+      {
+        portraitMode: opts.restoreState.renderParams.portraitMode,
+        motionTemplate: opts.restoreState.renderParams.motionTemplate,
+        defaultDurationSec: opts.restoreState.renderParams.defaultSlideDurationSec,
+        defaultTransition: opts.restoreState.renderParams.transitionType,
+      }
+    );
+  }
+
+  if (succeeded === 0 && failedClips.length > 0) {
+    throw new Error(
+      `Không xuất được dự án nào (${failedClips[0].name}: ${failedClips[0].error})`
+    );
+  }
+
+  const durationMs = Math.max(1, Math.round(performance.now() - startedAt));
+  return {
+    codec: opts.codec,
+    totalFrames: grandTotalFrames,
+    durationMs,
+    speedFactor: grandDurationSec > 0 ? (grandDurationSec * 1000) / durationMs : 0,
+    filePath: opts.outputDir,
+    clipCount: succeeded,
+    ...(failedClips.length > 0 ? { failedClips } : {}),
   };
 }

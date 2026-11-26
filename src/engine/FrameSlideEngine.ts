@@ -19,6 +19,7 @@ import {
 import { BG_PATTERN_CODE, BG_STYLE_CODE, hexToLinearRgb, resolveSceneBackground } from './background';
 import { classifyGpuRenderer } from './capabilities';
 import { cardStyleToUniform } from './cardStyle';
+import { computeSlotFrameUniform, hasCustomSingleFrame, resolveCardFitMode } from './slotFrame';
 import { STAGGER_STYLE_CODE, staggerAppear } from './stagger';
 import { photoAdjustToUniform } from './photoAdjust';
 import { resolvePhotoTransform } from './photoKeyframes';
@@ -49,6 +50,8 @@ export interface EngineOptions {
   onContextRestored?: () => void;
   /** Called once all shader programs finished compiling (first frame can be drawn). */
   onShadersReady?: () => void;
+  /** Called when a background texture preload finishes after a missing-texture render. */
+  onTexturesReady?: () => void;
 }
 
 export interface AutoSceneBuildOptions {
@@ -119,6 +122,7 @@ export class FrameSlideEngine {
   private readonly capabilities: EngineCapabilities;
   private readonly onContextLostCallback?: () => void;
   private readonly onContextRestoredCallback?: () => void;
+  private readonly onTexturesReadyCallback?: () => void;
 
   private readonly quadGeo: THREE.PlaneGeometry;
   private readonly orthoCam: THREE.OrthographicCamera;
@@ -146,7 +150,9 @@ export class FrameSlideEngine {
 
   private photoMap = new Map<string, SlideAsset>();
   private scenes: SceneItem[] = [];
-  private activePreloadCenter: number | null = null;
+  private mediaGeneration = 0;
+  private activePreloadKey: string | null = null;
+  private activePreloadPromise: Promise<number> | null = null;
   private lastSceneIndex = 0;
 
   private width: number;
@@ -192,6 +198,7 @@ export class FrameSlideEngine {
     this.height = Math.max(2, Math.floor(options.height ?? 1080));
     this.onContextLostCallback = options.onContextLost;
     this.onContextRestoredCallback = options.onContextRestored;
+    this.onTexturesReadyCallback = options.onTexturesReady;
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
@@ -264,6 +271,11 @@ export class FrameSlideEngine {
         uXfA1: { value: new THREE.Vector4(0, 0, 1, 0) },
         uXfA2: { value: new THREE.Vector4(0, 0, 1, 0) },
         uXfA3: { value: new THREE.Vector4(0, 0, 1, 0) },
+        uFrameA0: { value: new THREE.Vector4(0, 0, 1, 1) },
+        uFrameA1: { value: new THREE.Vector4(0, 0, 1, 1) },
+        uFrameA2: { value: new THREE.Vector4(0, 0, 1, 1) },
+        uFrameA3: { value: new THREE.Vector4(0, 0, 1, 1) },
+        uForceFrameA: { value: 0 },
         uLayoutA: { value: 0 },
         uMotionDirA: { value: 0 },
 
@@ -291,6 +303,11 @@ export class FrameSlideEngine {
         uXfB1: { value: new THREE.Vector4(0, 0, 1, 0) },
         uXfB2: { value: new THREE.Vector4(0, 0, 1, 0) },
         uXfB3: { value: new THREE.Vector4(0, 0, 1, 0) },
+        uFrameB0: { value: new THREE.Vector4(0, 0, 1, 1) },
+        uFrameB1: { value: new THREE.Vector4(0, 0, 1, 1) },
+        uFrameB2: { value: new THREE.Vector4(0, 0, 1, 1) },
+        uFrameB3: { value: new THREE.Vector4(0, 0, 1, 1) },
+        uForceFrameB: { value: 0 },
         uLayoutB: { value: 0 },
         uMotionDirB: { value: 0 },
         uMotionStyleB: { value: 0 },
@@ -511,6 +528,15 @@ export class FrameSlideEngine {
     return this.scenes;
   }
 
+  /** Releases cached photo & blurred-background GPU textures (e.g. between multi-project batch exports). */
+  public clearTextureCache(): void {
+    this.mediaGeneration++;
+    this.activePreloadKey = null;
+    this.activePreloadPromise = null;
+    this.textureCache.clear();
+    this.blurCache.clear();
+  }
+
   public setCustomCubeLut(cubeContent: string | null): { title: string; size: number } | null {
     if (this.customLutTex) {
       this.customLutTex.dispose();
@@ -549,9 +575,14 @@ export class FrameSlideEngine {
   public async setProjectMedia(
     photos: SlideAsset[],
     scenes: SceneItem[],
-    fallbackOptions: AutoSceneBuildOptions = {}
+    fallbackOptions: AutoSceneBuildOptions = {},
+    initialSceneIndex = 0
   ): Promise<void> {
     if (this.disposed) return;
+    this.mediaGeneration++;
+    this.activePreloadKey = null;
+    this.activePreloadPromise = null;
+    this.textureCache.clearFailed();
     this.photoMap = new Map(photos.map((p) => [p.id, p]));
     this.scenes =
       scenes.length > 0
@@ -563,7 +594,8 @@ export class FrameSlideEngine {
             defaultDurationSec: fallbackOptions.defaultDurationSec,
             defaultTransition: fallbackOptions.defaultTransition,
           });
-    await this.preloadAroundSceneIndex(0);
+    const center = Math.max(0, Math.min(this.scenes.length - 1, initialSceneIndex));
+    await this.preloadAroundSceneIndex(center);
   }
 
   private collectSceneUrls(indices: number[]): string[] {
@@ -580,27 +612,37 @@ export class FrameSlideEngine {
     return urls;
   }
 
-  public async preloadAroundSceneIndex(centerIndex: number): Promise<void> {
-    if (this.disposed || this.scenes.length === 0) return;
-    if (this.activePreloadCenter === centerIndex) return;
-    this.activePreloadCenter = centerIndex;
-
-    try {
-      // Order priority: current & next scene last so they are freshest in LRU
-      const windowIndices = [
-        centerIndex - 1,
-        centerIndex + 2,
-        centerIndex + 1,
-        centerIndex,
-      ].filter((i) => i >= 0 && i < this.scenes.length);
-
-      const urls = this.collectSceneUrls(windowIndices);
-      await this.textureCache.preloadWindow(urls, new Set(urls));
-    } finally {
-      if (this.activePreloadCenter === centerIndex) {
-        this.activePreloadCenter = null;
-      }
+  public async preloadAroundSceneIndex(centerIndex: number): Promise<number> {
+    if (this.disposed || this.scenes.length === 0) return 0;
+    const gen = this.mediaGeneration;
+    const key = `${gen}:${centerIndex}`;
+    if (this.activePreloadKey === key && this.activePreloadPromise) {
+      return this.activePreloadPromise;
     }
+    this.activePreloadKey = key;
+
+    const job = (async () => {
+      try {
+        // Order priority: current & next scene last so they are freshest in LRU
+        const windowIndices = [
+          centerIndex - 1,
+          centerIndex + 2,
+          centerIndex + 1,
+          centerIndex,
+        ].filter((i) => i >= 0 && i < this.scenes.length);
+
+        const urls = this.collectSceneUrls(windowIndices);
+        return await this.textureCache.preloadWindow(urls, new Set(urls));
+      } finally {
+        if (this.activePreloadKey === key) {
+          this.activePreloadKey = null;
+          this.activePreloadPromise = null;
+        }
+      }
+    })();
+
+    this.activePreloadPromise = job;
+    return job;
   }
 
   public async ensureFrameTextures(
@@ -678,11 +720,13 @@ export class FrameSlideEngine {
     scene: SceneItem | undefined,
     motionProgress: number,
     sceneTimeSec: number,
-    keyframePreview: 'start' | 'end' | null
+    keyframePreview: 'start' | 'end' | null,
+    params?: RenderParams
   ): boolean {
     let missingTex = false;
     const layoutCode = scene ? LAYOUT_CODE[scene.layout] : 0;
     this.pass1Mat.uniforms[`uLayout${prefix}`].value = layoutCode;
+    this.pass1Mat.uniforms[`uForceFrame${prefix}`].value = hasCustomSingleFrame(scene) ? 1 : 0;
     (this.pass1Mat.uniforms[`uCardStyle${prefix}`].value as THREE.Vector4).set(
       ...cardStyleToUniform(scene?.cardStyle)
     );
@@ -694,6 +738,11 @@ export class FrameSlideEngine {
       ...staggerAppear(stagger, scene?.slots.length ?? 0, sceneTimeSec)
     );
     this.pass1Mat.uniforms[`uStaggerStyle${prefix}`].value = stagger ? STAGGER_STYLE_CODE[stagger.style] ?? 1 : 0;
+
+    const canvasAspect = this.width / Math.max(1, this.height);
+    const projectTemplate = params?.motionTemplate ?? 'ken-burns-classic';
+    const motionStyle = MOTION_STYLE_CODE_MAP[scene?.motionTemplate ?? projectTemplate] ?? 0;
+    const fitMode = resolveCardFitMode(scene, params);
 
     for (let k = 0; k < 4; k++) {
       const pid = scene?.slots[k] ?? null;
@@ -712,7 +761,8 @@ export class FrameSlideEngine {
         asset ? asset.focalPoint.y : defaultFocalY
       );
       const rotDeg = asset?.rotationDeg ?? 0;
-      this.pass1Mat.uniforms[`uRot${prefix}${k}`].value = Math.round(rotDeg / 90) % 4;
+      const rotSteps = Math.round(rotDeg / 90) % 4;
+      this.pass1Mat.uniforms[`uRot${prefix}${k}`].value = rotSteps;
       const expStops = asset?.exposure ?? 0;
       this.pass1Mat.uniforms[`uExp${prefix}${k}`].value = Math.pow(2, expStops);
       (this.pass1Mat.uniforms[`uAdj${prefix}${k}`].value as THREE.Vector4).set(
@@ -726,6 +776,25 @@ export class FrameSlideEngine {
         xf.scale,
         (-xf.rotationDeg * Math.PI) / 180
       );
+      const quarter = Math.abs(rotSteps) % 2 === 1;
+      const photoAspect = asset
+        ? (quarter ? asset.height / Math.max(1, asset.width) : asset.width / Math.max(1, asset.height))
+        : undefined;
+      const fr = computeSlotFrameUniform({
+        layout: scene?.layout ?? 'single',
+        slotIdx: k,
+        canvasAspect,
+        motionStyle,
+        photoAspect,
+        portraitMode: params?.portraitMode,
+        forceFrame: hasCustomSingleFrame(scene),
+        forceTilt3d: scene?.motionDirection === 'tilt-3d',
+        fitMode,
+        frameScale: scene?.frameScale,
+        frameGap: scene?.frameGap,
+        override: scene?.slotFrames?.[k],
+      });
+      (this.pass1Mat.uniforms[`uFrame${prefix}${k}`].value as THREE.Vector4).set(...fr);
     }
     return missingTex;
   }
@@ -760,10 +829,18 @@ export class FrameSlideEngine {
 
     // Pin keyframes to Start/End only for the on-screen preview while editing; never when exporting.
     const keyframePreview = finalTarget ? null : this.keyframePreview;
-    const missingA = this.bindSceneSlots('A', sceneA, state.motionProgressA, state.sceneTimeA, keyframePreview);
-    const missingB = this.bindSceneSlots('B', sceneB, state.motionProgressB, state.sceneTimeB, keyframePreview);
-    if (missingA || missingB) {
-      void this.preloadAroundSceneIndex(state.slideAIndex);
+    const missingA = this.bindSceneSlots('A', sceneA, state.motionProgressA, state.sceneTimeA, keyframePreview, params);
+    const missingB = this.bindSceneSlots('B', sceneB, state.motionProgressB, state.sceneTimeB, keyframePreview, params);
+    if ((missingA || missingB) && !finalTarget) {
+      const gen = this.mediaGeneration;
+      const key = `${gen}:${state.slideAIndex}`;
+      if (this.activePreloadKey !== key) {
+        void this.preloadAroundSceneIndex(state.slideAIndex).then((loadedCount) => {
+          if (loadedCount > 0 && !this.disposed && this.mediaGeneration === gen) {
+            this.onTexturesReadyCallback?.();
+          }
+        });
+      }
     }
 
     const activeTrans = sceneA?.transitionType ?? params?.transitionType ?? 'light-leak';

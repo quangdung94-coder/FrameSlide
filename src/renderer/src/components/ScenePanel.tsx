@@ -6,6 +6,7 @@ import type { MotionDirection, MotionTemplateId, SceneLayoutId } from '@shared/t
 import { useAppStore } from '../store/useAppStore';
 import { BackgroundPanel } from './BackgroundPanel';
 import { normalizeCardStyle } from '@engine/cardStyle';
+import { clampFrameGap, clampFrameScale, SLOT_FRAME_LIMITS } from '@engine/slotFrame';
 import { DEFAULT_STAGGER, normalizeStagger, STAGGER_STYLES, staggerTotalSec } from '@engine/stagger';
 import { Group, SliderRow } from './ui';
 import { SceneStylesGroup } from './SceneStylesGroup';
@@ -28,6 +29,10 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
   const setSceneMotionTemplate = useAppStore((s) => s.setSceneMotionTemplate);
   const setSceneTransition = useAppStore((s) => s.setSceneTransition);
   const setSceneCardStyle = useAppStore((s) => s.setSceneCardStyle);
+  const setSceneFrameScale = useAppStore((s) => s.setSceneFrameScale);
+  const setSceneFrameGap = useAppStore((s) => s.setSceneFrameGap);
+  const setSceneCardFitMode = useAppStore((s) => s.setSceneCardFitMode);
+  const resetSceneFrames = useAppStore((s) => s.resetSceneFrames);
   const setSceneStagger = useAppStore((s) => s.setSceneStagger);
   const setSceneFilmLookOff = useAppStore((s) => s.setSceneFilmLookOff);
   const setSceneTransitionDuration = useAppStore((s) => s.setSceneTransitionDuration);
@@ -69,7 +74,7 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
           label="Thời lượng scene (giây)"
           value={scene.durationSec}
           min={0.5}
-          max={20}
+          max={30}
           step={0.5}
           disabled={disabled}
           onChange={(v) => setSceneDuration(scene.id, v)}
@@ -173,22 +178,70 @@ export function ScenePanel({ disabled, onNotice }: { disabled: boolean; onNotice
 
       <Group
         id="scene-frame"
-        title="Khung ảnh: bo góc, bóng, viền"
+        title="Khung ảnh: cỡ, khoảng cách, bo góc"
         defaultOpen={false}
         disabled={disabled}
-        onReset={() => setSceneCardStyle(scene.id, null)}
-        resetTitle="Trả khung ảnh về mặc định"
+        onReset={() => {
+          setSceneCardStyle(scene.id, null);
+          setSceneCardFitMode(scene.id, null);
+          resetSceneFrames(scene.id);
+        }}
+        resetTitle="Trả cỡ khung, khoảng cách và viền về mặc định"
       >
         {(() => {
           const cs = normalizeCardStyle(scene.cardStyle);
+          const fScale = clampFrameScale(scene.frameScale);
+          const fGap = clampFrameGap(scene.frameGap);
           return (
             <>
+              <SliderRow
+                label={`Cỡ khung chung (${Math.round(fScale * 100)}%)`}
+                value={fScale}
+                min={SLOT_FRAME_LIMITS.groupScaleMin}
+                max={SLOT_FRAME_LIMITS.groupScaleMax}
+                step={0.02}
+                disabled={disabled}
+                onChange={(v) => setSceneFrameScale(scene.id, v)}
+              />
+              {scene.slots.length > 1 && (
+                <>
+                  <SliderRow
+                    label="Khoảng cách giữa các khung"
+                    value={fGap}
+                    min={SLOT_FRAME_LIMITS.groupGapMin}
+                    max={SLOT_FRAME_LIMITS.groupGapMax}
+                    step={0.05}
+                    disabled={disabled}
+                    onChange={(v) => setSceneFrameGap(scene.id, v)}
+                  />
+                  <label className="flex flex-col gap-1 text-xs text-zinc-400">
+                    Cách lấp ảnh vào khung
+                    <select
+                      value={scene.cardFitMode ?? ''}
+                      disabled={disabled}
+                      onChange={(e) =>
+                        setSceneCardFitMode(
+                          scene.id,
+                          (e.target.value || null) as 'fit' | 'cover' | null
+                        )
+                      }
+                      className={FIELD}
+                    >
+                      <option value="">
+                        Theo dự án ({(renderParams.cardFitMode ?? 'fit') === 'fit' ? 'Ôm trọn ảnh' : 'Lấp đầy ô'})
+                      </option>
+                      <option value="fit">Ôm trọn ảnh (Không cắt dọc/ngang)</option>
+                      <option value="cover">Lấp đầy ô (Các khung bằng nhau)</option>
+                    </select>
+                  </label>
+                </>
+              )}
               <SliderRow label="Bo góc" value={cs.corner} min={0} max={1} step={0.02} disabled={disabled} onChange={(v) => setSceneCardStyle(scene.id, { corner: v })} />
               <SliderRow label="Bóng đổ" value={cs.shadow} min={0} max={2} step={0.05} disabled={disabled} onChange={(v) => setSceneCardStyle(scene.id, { shadow: v })} />
               <SliderRow label="Độ dày viền" value={cs.border} min={0} max={3} step={0.1} disabled={disabled} onChange={(v) => setSceneCardStyle(scene.id, { border: v })} />
               <SliderRow label="Làm mờ cạnh" value={cs.feather} min={0} max={1} step={0.02} disabled={disabled} onChange={(v) => setSceneCardStyle(scene.id, { feather: v })} />
               <p className="text-xs text-zinc-500">
-                Hiện rõ nhất ở scene 2–4 ảnh và ảnh có khung. Ảnh ngang tràn khung không có khung nên không đổi.
+                Muốn kéo to/nhỏ từng khung riêng kiểu Photoshop: bấm &ldquo;✥ Chỉnh&rdquo; phía trên khung xem.
               </p>
             </>
           );

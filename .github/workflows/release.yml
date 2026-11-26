@@ -1,8 +1,10 @@
-name: Đóng gói FrameSlide.exe
+name: Đóng gói FrameSlide (Windows + macOS Apple Silicon)
 
-# Bước 6: bộ cài Windows (NSIS) + bản chạy liền (portable), có sẵn FFmpeg, không cần Node.
-# - PR: đóng gói + tự kiểm tra (smoke test), file .exe để ở mục Artifacts của lần chạy.
-# - Gộp vào main: như trên, rồi cập nhật GitHub Release "FrameSlide (bản mới nhất)".
+# Đóng gói song song:
+# - Windows x64: bộ cài (NSIS) + bản chạy liền (Portable), kèm FFmpeg.
+# - macOS Apple Silicon (chip M1/M2/M3/M4 - arm64): file .dmg, kèm FFmpeg arm64.
+# - PR: đóng gói + tự kiểm tra (smoke test), file để ở mục Artifacts.
+# - Push lên main: như trên, rồi cập nhật GitHub Release "FrameSlide (bản mới nhất)".
 on:
   push:
     branches: [main]
@@ -71,7 +73,7 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
-      - name: Tự kiểm tra bản đóng gói (mở app, ảnh mẫu, FFmpeg)
+      - name: Tự kiểm tra bản đóng gói Windows (mở app, ảnh mẫu, FFmpeg)
         shell: pwsh
         run: |
           $out = "$env:RUNNER_TEMP\smoke.json"
@@ -80,7 +82,7 @@ jobs:
           if (-not (Test-Path $out)) { throw 'App không ghi kết quả kiểm tra' }
           Get-Content $out
           $r = Get-Content $out -Raw | ConvertFrom-Json
-          if (-not $r.ok) { throw 'Bản đóng gói chưa đạt' }
+          if (-not $r.ok) { throw 'Bản đóng gói Windows chưa đạt' }
           Get-ChildItem release/*.exe | ForEach-Object { "{0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB) }
 
       - name: Lưu file .exe (Artifacts)
@@ -90,20 +92,130 @@ jobs:
           path: release/*.exe
           retention-days: 30
 
+  package-macos:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Tải FFmpeg tĩnh cho macOS Apple Silicon (arm64)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p vendor/ffmpeg
+          ZIP="$RUNNER_TEMP/ffmpeg-mac-arm64.zip"
+          SRC=$(curl -fsSL https://www.osxexperts.net/ | grep -oE 'https://www\.osxexperts\.net/ffmpeg[0-9]+arm\.zip' | head -n 1 || true)
+          if [ -z "$SRC" ]; then
+            SRC="https://www.osxexperts.net/ffmpeg91arm.zip"
+          fi
+          echo "FFmpeg macOS arm64 từ: $SRC"
+          curl -fSL "$SRC" -o "$ZIP"
+          unzip -o "$ZIP" -d "$RUNNER_TEMP/ffmpeg-mac"
+          BIN=$(find "$RUNNER_TEMP/ffmpeg-mac" -type f -name ffmpeg | head -n 1)
+          if [ -z "$BIN" ]; then
+            echo "Không tìm thấy binary ffmpeg trong file zip"
+            exit 1
+          fi
+          cp "$BIN" vendor/ffmpeg/ffmpeg
+          chmod +x vendor/ffmpeg/ffmpeg
+          xattr -cr vendor/ffmpeg/ffmpeg 2>/dev/null || true
+          echo "FFmpeg (GPL) - https://ffmpeg.org - nguồn bản dựng: $SRC" > vendor/ffmpeg/README.txt
+          file vendor/ffmpeg/ffmpeg
+          file vendor/ffmpeg/ffmpeg | grep -qi 'arm64'
+          ENC=$(./vendor/ffmpeg/ffmpeg -hide_banner -encoders)
+          for need in prores_ks dnxhd libx264; do
+            echo "$ENC" | grep -q "$need" || { echo "FFmpeg thiếu encoder $need"; exit 1; }
+          done
+          ./vendor/ffmpeg/ffmpeg -hide_banner -version | head -n 1
+
+      - name: Đóng gói .dmg (macOS Apple Silicon)
+        run: npm run package:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Tự kiểm tra bản đóng gói macOS (mở app, ảnh mẫu, FFmpeg)
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/smoke-mac.json"
+          APP_BIN="release/mac-arm64/FrameSlide.app/Contents/MacOS/FrameSlide"
+          "$APP_BIN" --smoke-test="$OUT" &
+          PID=$!
+          WAITED=0
+          while kill -0 "$PID" 2>/dev/null; do
+            if [ "$WAITED" -ge 180 ]; then
+              kill -9 "$PID" 2>/dev/null || true
+              echo "App không tự thoát sau 3 phút"
+              exit 1
+            fi
+            sleep 2
+            WAITED=$((WAITED + 2))
+          done
+          wait "$PID" || true
+          if [ ! -f "$OUT" ]; then
+            echo "App không ghi kết quả kiểm tra"
+            exit 1
+          fi
+          cat "$OUT"
+          node -e "const r = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')); if (!r.ok) process.exit(1);" "$OUT"
+          ls -lh release/*.dmg
+
+      - name: Lưu file .dmg (Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: FrameSlide-macOS-AppleSilicon
+          path: release/*.dmg
+          retention-days: 30
+
+  publish-release:
+    needs: [package-windows, package-macos]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tải file đóng gói Windows
+        uses: actions/download-artifact@v4
+        with:
+          name: FrameSlide-Windows
+          path: release-assets
+
+      - name: Tải file đóng gói macOS Apple Silicon
+        uses: actions/download-artifact@v4
+        with:
+          name: FrameSlide-macOS-AppleSilicon
+          path: release-assets
+
       - name: Cập nhật bản phát hành "bản mới nhất"
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ban-moi-nhat
           name: FrameSlide (bản mới nhất)
           make_latest: true
           overwrite_files: true
-          files: release/*.exe
+          files: release-assets/*
           body: |
-            Bản đóng gói tự động từ nhánh main, commit ${{ github.sha }}.
+            Bản đóng gói tự động song song (Windows + macOS chip M) từ nhánh `main`, commit ${{ github.sha }}.
 
-            **Cài đặt (khuyên dùng):** tải `FrameSlide-Setup-*.exe`, chạy, bấm Next. Có biểu tượng FrameSlide trên Desktop và Start Menu.
-            **Chạy liền không cài:** tải `FrameSlide-Portable-*.exe`, bấm đúp là chạy (mỗi lần mở chậm hơn bản cài vài giây vì phải giải nén).
+            ### Windows (64-bit)
+            - **Cài đặt (khuyên dùng):** tải `FrameSlide-Setup-*.exe`, chạy, bấm Next. Có biểu tượng FrameSlide trên Desktop và Start Menu.
+            - **Chạy liền không cài:** tải `FrameSlide-Portable-*.exe`, bấm đúp là chạy.
+            - Windows SmartScreen có thể báo "Windows protected your PC" vì app cá nhân không ký số: bấm **More info → Run anyway**.
 
-            Không cần cài Node.js hay FFmpeg; FFmpeg (GPL, ffmpeg.org) có sẵn trong app để xuất ProRes / DNxHR.
-            Windows SmartScreen có thể báo "Windows protected your PC" vì file không ký số: bấm "More info" → "Run anyway".
+            ### macOS Apple Silicon (chip M1 / M2 / M3 / M4)
+            - Tải `FrameSlide-*-arm64.dmg`, mở ra và kéo **FrameSlide** vào thư mục **Applications**.
+            - Vì app chia sẻ nội bộ không ký số Apple Developer, nếu lần đầu mở macOS báo *"FrameSlide is damaged and can't be opened"* hoặc chặn mở, mở **Terminal** và chạy đúng 1 lệnh:
+              ```bash
+              xattr -cr /Applications/FrameSlide.app
+              ```
+              Sau đó mở lại FrameSlide bình thường.
+
+            Không cần cài Node.js hay FFmpeg; FFmpeg (GPL, ffmpeg.org) đã có sẵn trong app để xuất H.264 / ProRes / DNxHR.

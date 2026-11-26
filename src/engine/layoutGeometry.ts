@@ -61,6 +61,10 @@ export interface SlotRectOptions {
   /** Width / height of the photo after its 90° rotation. */
   photoAspect?: number;
   portraitMode?: 'smart-pairing' | 'safe-top-third' | string;
+  /** True when the scene has custom frame scale/offset overrides on a single photo. */
+  forceFrame?: boolean;
+  /** True when scene.motionDirection === 'tilt-3d'. */
+  forceTilt3d?: boolean;
 }
 
 /**
@@ -76,18 +80,18 @@ export function getSlotFrameRect(
   const style = opts.motionStyle ?? 0;
   const polaroid = style === 2;
   const parallax = style === 1;
-  const is3d = style === 5 || style === 6;
+  const is3d = style === 5 || style === 6 || Boolean(opts.forceTilt3d);
   const centered = (w: number, h: number): LayoutRect => ({ x: 0.5 - w / 2, y: 0.5 - h / 2, w, h });
 
   if (layout === 'single') {
     const asp0 = opts.photoAspect ?? canvasAspect;
     const isPortrait = asp0 < 0.95;
-    const framed =
+    const baseFramed =
       polaroid ||
       parallax ||
       is3d ||
       (isPortrait && opts.portraitMode !== 'safe-top-third' && canvasAspect > 1.05);
-    if (!framed) return { x: 0, y: 0, w: 1, h: 1 };
+    if (!baseFramed) return { x: 0, y: 0, w: 1, h: 1 };
     const frameH = polaroid ? 0.74 : is3d ? 0.78 : parallax ? 0.8 : 0.86;
     const targetAsp = isPortrait ? asp0 : Math.min(asp0, 1.65);
     const frameW = Math.min(0.84, (frameH * targetAsp) / canvasAspect);

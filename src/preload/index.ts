@@ -16,6 +16,7 @@ const api: FrameSlideAPI = {
   pickCacheFolder: () => ipcRenderer.invoke('cache:pickFolder'),
   pickImages: () => ipcRenderer.invoke('media:pickImages'),
   pickFolderImages: () => ipcRenderer.invoke('media:pickFolderImages'),
+  pickMultiFolders: () => ipcRenderer.invoke('media:pickMultiFolders'),
   importPaths: (paths: string[]) => ipcRenderer.invoke('media:importPaths', paths),
   rehydrateSlides: (slides) => ipcRenderer.invoke('media:rehydrateSlides', slides),
   loadSampleImages: () => ipcRenderer.invoke('media:loadSamples'),
@@ -43,6 +44,8 @@ const api: FrameSlideAPI = {
     ipcRenderer.invoke('export:ffmpegFrame', jobId, rgbaData),
   ffmpegExportFinish: (jobId: string) => ipcRenderer.invoke('export:ffmpegFinish', jobId),
   ffmpegExportCancel: (jobId: string) => ipcRenderer.invoke('export:ffmpegCancel', jobId),
+  setExportActive: (active: boolean) => ipcRenderer.invoke('export:setActive', active),
+  setTaskbarProgress: (ratio: number) => ipcRenderer.invoke('export:setTaskbarProgress', ratio),
 };
 
 contextBridge.exposeInMainWorld('frameSlideAPI', api);

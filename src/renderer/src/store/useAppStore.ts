@@ -33,6 +33,19 @@ import {
   takeSnapshot,
   type HistorySnapshot,
 } from './storeHelpers';
+import {
+  cloneCustomLut,
+  cloneRenderParams,
+  cloneScenes,
+  cloneSlides,
+  fromWorkspaceData,
+  makeWorkspaceId,
+  syncActiveWorkspace,
+  toWorkspaceData,
+  workspaceFieldsFor,
+  type WorkspaceTab,
+} from './workspaceHelpers';
+import { pathStem } from '@shared/exportPath';
 import { DEFAULT_BACKGROUND_OPTIONS } from '@engine/background';
 import {
   applySceneSettings,
@@ -41,6 +54,12 @@ import {
   type SceneSettings,
 } from '@engine/sceneSettings';
 import { isIdentityTransform, normalizePhotoTransform } from '@engine/photoTransform';
+import {
+  clampFrameGap,
+  clampFrameScale,
+  isIdentitySlotFrame,
+  normalizeSlotFrame,
+} from '@engine/slotFrame';
 import { isNeutralCardStyle, normalizeCardStyle } from '@engine/cardStyle';
 import { isIdentityPhotoAdjust, normalizePhotoAdjust } from '@engine/photoAdjust';
 import { projectDurationInput, resolveSlideDurations } from '@engine/timeline';
@@ -49,9 +68,11 @@ import {
   DEFAULT_TEXT_OVERLAY,
   type BackgroundOptions,
   type BackgroundStyle,
+  type CardFitMode,
   type PhotoAdjust,
   type SceneCardStyle,
   type SceneStagger,
+  type SlotFrameOverride,
   type CaptionTiming,
   type TextOffset,
   type PhotoKeyframeEase,
@@ -108,8 +129,24 @@ interface AppState {
   customLut: CustomLutInfo | null;
   userPresets: UserPreset[];
   projectFilePath: string | null;
+  workspaces: WorkspaceTab[];
+  activeWorkspaceId: string;
   past: HistorySnapshot[];
   future: HistorySnapshot[];
+
+  // Multi-workspace actions (shared FPS across all tabs)
+  getAllWorkspacesSnapshot: () => WorkspaceTab[];
+  switchWorkspace: (id: string) => void;
+  addWorkspace: (name?: string) => string;
+  renameWorkspace: (id: string, name: string) => void;
+  duplicateWorkspace: (id: string) => void;
+  closeWorkspace: (id: string) => void;
+  importFolderWorkspaces: (
+    items: { name: string; sourceFolder: string; slides: SlideAsset[] }[],
+    opts?: { autoBuildScenes?: boolean; copyCurrentStyle?: boolean }
+  ) => number;
+  copyStyleToWorkspaces: (targetIds: string[]) => number;
+  markWorkspacesExported: (ids: string[]) => void;
 
   setFps: (fps: SupportedFps) => void;
   /** Settings "Mặc định dự án mới", applied when the app opens with an empty project (no undo step). */
@@ -129,7 +166,7 @@ interface AppState {
   setTransport: (transport: { isPlaying: boolean; direction: PlayDirection; rate: number }) => void;
 
   // Photo Bin actions
-  setSlides: (slides: SlideAsset[], pushHistory?: boolean) => void;
+  setSlides: (slides: SlideAsset[], pushHistory?: boolean, sampleOnly?: boolean) => void;
   /** Add photos to the tray only (no scenes are created). Returns how many were new. */
   addPhotosToBin: (incoming: SlideAsset[]) => number;
   /** Build scenes from the given tray photos (in tray order) and append them to the timeline. Returns scenes added. */
@@ -204,6 +241,8 @@ interface AppState {
   randomizeSceneTransitions: (seed?: number) => void;
   setSceneLayout: (sceneId: string, layout: SceneLayoutId) => void;
   setSceneDuration: (sceneId: string, durationSec: number) => void;
+  /** Sets the same duration (seconds) on every scene in the active workspace and switches to 'per-slide'. */
+  applyDurationToAllScenes: (durationSec: number) => void;
   setSceneTransition: (sceneId: string, transitionType: TransitionType) => void;
   /** Own transition length into the next scene; `null` = follow the project's. */
   setSceneTransitionDuration: (sceneId: string, durationSec: number | null) => void;
@@ -211,6 +250,17 @@ interface AppState {
   setSceneFilmLookOff: (sceneId: string, off: boolean) => void;
   /** Frame look (corners, shadow, border, soft edge) of a scene's photos; `null` = default look. */
   setSceneCardStyle: (sceneId: string, style: SceneCardStyle | null) => void;
+  setSceneFrameScale: (sceneId: string, scale: number, recordHistory?: boolean) => void;
+  setSceneFrameGap: (sceneId: string, gap: number, recordHistory?: boolean) => void;
+  setSceneCardFitMode: (sceneId: string, mode: CardFitMode | null) => void;
+  setSceneSlotFrame: (
+    sceneId: string,
+    slotIndex: number,
+    frame: Partial<SlotFrameOverride> | null,
+    recordHistory?: boolean
+  ) => void;
+  resetSceneFrames: (sceneId: string) => void;
+  setCardFitMode: (mode: CardFitMode) => void;
   /** Turn on / change (merged) or turn off (null) photos entering one after another. */
   setSceneStagger: (sceneId: string, stagger: Partial<SceneStagger> | null) => void;
 
@@ -321,6 +371,32 @@ export const INITIAL_RENDER_PARAMS: RenderParams = {
 
 export type InspectorScope = 'project' | 'scene' | 'photo';
 
+const DEFAULT_WORKSPACE_ID = 'ws_1';
+
+function createEmptyWorkspace(
+  id = DEFAULT_WORKSPACE_ID,
+  name = 'Dự án 1',
+  params: RenderParams = cloneRenderParams(INITIAL_RENDER_PARAMS),
+  isSampleOnly = false
+): WorkspaceTab {
+  return {
+    id,
+    name,
+    isSampleOnly,
+    exportedInSession: false,
+    slides: [],
+    scenes: [],
+    activeSceneId: null,
+    renderParams: params,
+    customLut: null,
+    markIn: null,
+    markOut: null,
+    frameIndex: 0,
+    past: [],
+    future: [],
+  };
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   fps: 30,
   previewQuality: 'auto',
@@ -343,13 +419,245 @@ export const useAppStore = create<AppState>((set, get) => ({
   customLut: null,
   userPresets: loadUserPresets(),
   projectFilePath: null,
+  workspaces: [createEmptyWorkspace(DEFAULT_WORKSPACE_ID, 'Dự án 1', cloneRenderParams(INITIAL_RENDER_PARAMS), true)],
+  activeWorkspaceId: DEFAULT_WORKSPACE_ID,
   past: [],
   future: [],
 
-  setFps: (fps) => set((s) => ({ ...pushPast(s), fps })),
+  getAllWorkspacesSnapshot: () => {
+    const s = get();
+    return syncActiveWorkspace(s.workspaces, s.activeWorkspaceId, s);
+  },
+
+  switchWorkspace: (id) =>
+    set((s) => {
+      if (id === s.activeWorkspaceId) return s;
+      const synced = syncActiveWorkspace(s.workspaces, s.activeWorkspaceId, s);
+      const target = synced.find((w) => w.id === id);
+      if (!target) return s;
+      return {
+        workspaces: synced,
+        activeWorkspaceId: target.id,
+        ...workspaceFieldsFor(target),
+        isPlaying: false,
+        activeSlotIndex: 0,
+        selectedPhotoId: null,
+        selectedPhotoIds: [],
+        selectedSceneIds: target.activeSceneId ? [target.activeSceneId] : [],
+        sceneSelectAnchor: target.activeSceneId,
+      };
+    }),
+
+  addWorkspace: (name) => {
+    let createdId = makeWorkspaceId();
+    set((s) => {
+      const synced = syncActiveWorkspace(s.workspaces, s.activeWorkspaceId, s);
+      const nextName = name?.trim() || `Dự án ${synced.length + 1}`;
+      const tab = createEmptyWorkspace(createdId, nextName, cloneRenderParams(INITIAL_RENDER_PARAMS), false);
+      return {
+        workspaces: [...synced, tab],
+        activeWorkspaceId: tab.id,
+        ...workspaceFieldsFor(tab),
+        isPlaying: false,
+        activeSlotIndex: 0,
+        selectedPhotoId: null,
+        selectedPhotoIds: [],
+        selectedSceneIds: [],
+        sceneSelectAnchor: null,
+      };
+    });
+    return createdId;
+  },
+
+  renameWorkspace: (id, name) =>
+    set((s) => {
+      const clean = name.trim();
+      if (!clean) return s;
+      return {
+        workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, name: clean } : w)),
+      };
+    }),
+
+  duplicateWorkspace: (id) =>
+    set((s) => {
+      const synced = syncActiveWorkspace(s.workspaces, s.activeWorkspaceId, s);
+      const src = synced.find((w) => w.id === id);
+      if (!src) return s;
+      const clonedScenes = cloneScenes(src.scenes);
+      const copy: WorkspaceTab = {
+        id: makeWorkspaceId(),
+        name: `${src.name} (bản sao)`,
+        sourceFolder: src.sourceFolder,
+        isSampleOnly: false,
+        exportedInSession: false,
+        slides: cloneSlides(src.slides),
+        scenes: clonedScenes,
+        activeSceneId: clonedScenes[0]?.id ?? null,
+        renderParams: cloneRenderParams(src.renderParams),
+        customLut: cloneCustomLut(src.customLut),
+        markIn: src.markIn,
+        markOut: src.markOut,
+        frameIndex: 0,
+        past: [],
+        future: [],
+      };
+      const srcIdx = synced.findIndex((w) => w.id === id);
+      const nextList = [...synced];
+      nextList.splice(srcIdx + 1, 0, copy);
+      return {
+        workspaces: nextList,
+        activeWorkspaceId: copy.id,
+        ...workspaceFieldsFor(copy),
+        isPlaying: false,
+        activeSlotIndex: 0,
+        selectedPhotoId: null,
+        selectedPhotoIds: [],
+        selectedSceneIds: copy.activeSceneId ? [copy.activeSceneId] : [],
+        sceneSelectAnchor: copy.activeSceneId,
+      };
+    }),
+
+  closeWorkspace: (id) =>
+    set((s) => {
+      const synced = syncActiveWorkspace(s.workspaces, s.activeWorkspaceId, s);
+      if (synced.length <= 1) {
+        const fresh = createEmptyWorkspace(makeWorkspaceId(), 'Dự án 1', cloneRenderParams(INITIAL_RENDER_PARAMS), false);
+        return {
+          workspaces: [fresh],
+          activeWorkspaceId: fresh.id,
+          ...workspaceFieldsFor(fresh),
+          projectFilePath: null,
+          isPlaying: false,
+          activeSlotIndex: 0,
+          selectedPhotoId: null,
+          selectedPhotoIds: [],
+          selectedSceneIds: [],
+          sceneSelectAnchor: null,
+        };
+      }
+      const idx = synced.findIndex((w) => w.id === id);
+      if (idx < 0) return s;
+      const nextList = synced.filter((w) => w.id !== id);
+      if (id !== s.activeWorkspaceId) {
+        return { workspaces: nextList };
+      }
+      const nextActive = nextList[Math.min(idx, nextList.length - 1)];
+      return {
+        workspaces: nextList,
+        activeWorkspaceId: nextActive.id,
+        ...workspaceFieldsFor(nextActive),
+        isPlaying: false,
+        activeSlotIndex: 0,
+        selectedPhotoId: null,
+        selectedPhotoIds: [],
+        selectedSceneIds: nextActive.activeSceneId ? [nextActive.activeSceneId] : [],
+        sceneSelectAnchor: nextActive.activeSceneId,
+      };
+    }),
+
+  importFolderWorkspaces: (items, opts) => {
+    const valid = items.filter((item) => item.slides.length > 0);
+    if (valid.length === 0) return 0;
+    const autoBuildScenes = opts?.autoBuildScenes !== false;
+    const copyCurrentStyle = opts?.copyCurrentStyle !== false;
+
+    set((s) => {
+      const synced = syncActiveWorkspace(s.workspaces, s.activeWorkspaceId, s);
+      const only = synced[0];
+      const replaceExisting =
+        synced.length === 1 &&
+        Boolean(
+          only.isSampleOnly ||
+            (only.slides.length === 0 &&
+              only.scenes.length === 0 &&
+              !only.customLut &&
+              only.past.length === 0)
+        );
+      const baseList = replaceExisting ? [] : synced;
+      const styleParams = copyCurrentStyle ? s.renderParams : INITIAL_RENDER_PARAMS;
+      const styleLut = copyCurrentStyle ? s.customLut : null;
+
+      const created: WorkspaceTab[] = valid.map((item) => {
+        const params = cloneRenderParams(styleParams);
+        const slides = cloneSlides(item.slides);
+        const scenes = autoBuildScenes ? buildScenesForProject(slides, params) : [];
+        return {
+          id: makeWorkspaceId(),
+          name: item.name,
+          sourceFolder: item.sourceFolder,
+          isSampleOnly: false,
+          exportedInSession: false,
+          slides,
+          scenes,
+          activeSceneId: scenes[0]?.id ?? null,
+          renderParams: params,
+          customLut: cloneCustomLut(styleLut),
+          markIn: null,
+          markOut: null,
+          frameIndex: 0,
+          past: [],
+          future: [],
+        };
+      });
+
+      const nextList = [...baseList, ...created];
+      const firstNew = created[0];
+      return {
+        workspaces: nextList,
+        activeWorkspaceId: firstNew.id,
+        ...workspaceFieldsFor(firstNew),
+        isPlaying: false,
+        activeSlotIndex: 0,
+        selectedPhotoId: null,
+        selectedPhotoIds: [],
+        selectedSceneIds: firstNew.activeSceneId ? [firstNew.activeSceneId] : [],
+        sceneSelectAnchor: firstNew.activeSceneId,
+      };
+    });
+    return valid.length;
+  },
+
+  copyStyleToWorkspaces: (targetIds) => {
+    const targets = new Set(targetIds);
+    let updated = 0;
+    set((s) => {
+      const synced = syncActiveWorkspace(s.workspaces, s.activeWorkspaceId, s);
+      const nextList = synced.map((w) => {
+        if (w.id === s.activeWorkspaceId || !targets.has(w.id)) return w;
+        updated++;
+        const nextParams = cloneRenderParams(s.renderParams);
+        // Preserve each tab's own title, subtitle, and dateText.
+        nextParams.textOverlay = {
+          ...nextParams.textOverlay,
+          title: w.renderParams.textOverlay.title,
+          subtitle: w.renderParams.textOverlay.subtitle,
+          dateText: w.renderParams.textOverlay.dateText,
+        };
+        return {
+          ...w,
+          renderParams: nextParams,
+          customLut: cloneCustomLut(s.customLut),
+        };
+      });
+      return { workspaces: nextList };
+    });
+    return updated;
+  },
+
+  markWorkspacesExported: (ids) =>
+    set((s) => {
+      const doneSet = new Set(ids);
+      return {
+        workspaces: s.workspaces.map((w) =>
+          doneSet.has(w.id) ? { ...w, exportedInSession: true } : w
+        ),
+      };
+    }),
+
+  setFps: (fps) => set({ fps }),
   applyStartDefaults: ({ fps, aspect, sceneSec, filmLookOn }) =>
     set((s) => {
-      if (s.slides.length > 0 || s.projectFilePath) return s;
+      if (s.slides.length > 0 || s.projectFilePath || s.workspaces.length > 1) return s;
       return {
         fps,
         renderParams: {
@@ -378,7 +686,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       playbackRate: Math.min(MAX_PLAYBACK_RATE, Math.max(0.25, rate)),
     }),
 
-  setSlides: (slides, recordHistory = false) =>
+  setSlides: (slides, recordHistory = false, sampleOnly = false) =>
     set((s) => {
       const builtScenes = buildScenesForProject(slides, s.renderParams);
       return {
@@ -389,6 +697,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         selectedPhotoId: null,
         selectedPhotoIds: [],
         frameIndex: 0,
+        workspaces: s.workspaces.map((w) =>
+          w.id === s.activeWorkspaceId
+            ? { ...w, isSampleOnly: sampleOnly, exportedInSession: false }
+            : w
+        ),
       };
     }),
 
@@ -402,7 +715,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       return true;
     });
     if (unique.length === 0) return 0;
-    set({ ...pushPast(s), slides: [...s.slides, ...unique] });
+    set({
+      ...pushPast(s),
+      slides: [...s.slides, ...unique],
+      workspaces: s.workspaces.map((w) =>
+        w.id === s.activeWorkspaceId
+          ? { ...w, isSampleOnly: false, exportedInSession: false }
+          : w
+      ),
+    });
     return unique.length;
   },
 
@@ -817,14 +1138,93 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSceneLayout: (sceneId, layout) =>
     set((s) => ({
       ...pushPast(s),
-      scenes: mapById(s.scenes, sceneId, (sc) => resizeSceneSlots(sc, layout)),
+      scenes: mapById(s.scenes, sceneId, (sc) => {
+        const next = resizeSceneSlots(sc, layout);
+        if (next.slotFrames) {
+          const trimmed = next.slotFrames.slice(0, next.slots.length);
+          return trimmed.some(Boolean) ? { ...next, slotFrames: trimmed } : omitKeys(next, 'slotFrames');
+        }
+        return next;
+      }),
       activeSceneId: sceneId,
     })),
 
   setSceneDuration: (sceneId, durationSec) =>
     set((s) => ({
       ...pushPast(s),
-      scenes: mapById(s.scenes, sceneId, (sc) => ({ ...sc, durationSec: Math.max(0.5, Math.min(20, durationSec)) })),
+      scenes: mapById(s.scenes, sceneId, (sc) => ({ ...sc, durationSec: Math.max(0.5, Math.min(30, durationSec)) })),
+    })),
+
+  applyDurationToAllScenes: (durationSec) =>
+    set((s) => {
+      const clamped = Math.max(0.5, Math.min(30, Math.round(durationSec * 10) / 10));
+      return {
+        ...pushPast(s),
+        renderParams: {
+          ...s.renderParams,
+          durationMode: 'per-slide',
+          defaultSlideDurationSec: clamped,
+        },
+        scenes: s.scenes.map((sc) => ({ ...sc, durationSec: clamped })),
+        frameIndex: 0,
+      };
+    }),
+
+  setSceneFrameScale: (sceneId, scale, recordHistory = true) =>
+    set((s) => {
+      const clamped = clampFrameScale(scale);
+      return {
+        ...(recordHistory ? pushPast(s) : {}),
+        scenes: mapById(s.scenes, sceneId, (sc) =>
+          Math.abs(clamped - 1) < 1e-3 ? omitKeys(sc, 'frameScale') : { ...sc, frameScale: clamped }
+        ),
+      };
+    }),
+
+  setSceneFrameGap: (sceneId, gap, recordHistory = true) =>
+    set((s) => {
+      const clamped = clampFrameGap(gap);
+      return {
+        ...(recordHistory ? pushPast(s) : {}),
+        scenes: mapById(s.scenes, sceneId, (sc) =>
+          Math.abs(clamped - 1) < 1e-3 ? omitKeys(sc, 'frameGap') : { ...sc, frameGap: clamped }
+        ),
+      };
+    }),
+
+  setSceneCardFitMode: (sceneId, mode) =>
+    set((s) => ({
+      ...pushPast(s),
+      scenes: mapById(s.scenes, sceneId, (sc) => withOptional(sc, 'cardFitMode', mode)),
+    })),
+
+  setSceneSlotFrame: (sceneId, slotIndex, frame, recordHistory = true) =>
+    set((s) => ({
+      ...(recordHistory ? pushPast(s) : {}),
+      scenes: mapById(s.scenes, sceneId, (sc) => {
+        if (slotIndex < 0 || slotIndex >= sc.slots.length) return sc;
+        const nextFrames = Array.from(
+          { length: sc.slots.length },
+          (_, i) => sc.slotFrames?.[i] ?? null
+        );
+        if (frame === null) {
+          nextFrames[slotIndex] = null;
+        } else {
+          const merged = normalizeSlotFrame({ ...nextFrames[slotIndex], ...frame });
+          nextFrames[slotIndex] = isIdentitySlotFrame(merged) ? null : merged;
+        }
+        return nextFrames.some(Boolean)
+          ? { ...sc, slotFrames: nextFrames }
+          : omitKeys(sc, 'slotFrames');
+      }),
+    })),
+
+  resetSceneFrames: (sceneId) =>
+    set((s) => ({
+      ...pushPast(s),
+      scenes: mapById(s.scenes, sceneId, (sc) =>
+        omitKeys(sc, 'frameScale', 'frameGap', 'slotFrames')
+      ),
     })),
 
   setSceneTransition: (sceneId, transitionType) =>
@@ -1109,6 +1509,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   setFrameBorderStyle: (frameBorderStyle) =>
     set((s) => ({ ...pushPast(s), renderParams: { ...s.renderParams, frameBorderStyle } })),
 
+  setCardFitMode: (cardFitMode) =>
+    set((s) => ({ ...pushPast(s), renderParams: { ...s.renderParams, cardFitMode } })),
+
   setOutputAspect: (outputAspect) =>
     set((s) => ({ ...pushPast(s), renderParams: { ...s.renderParams, outputAspect } })),
 
@@ -1122,14 +1525,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   setTotalDurationSec: (totalDurationSec) =>
     set((s) => ({
       ...pushPast(s),
-      renderParams: { ...s.renderParams, totalDurationSec },
+      renderParams: {
+        ...s.renderParams,
+        totalDurationSec: Math.max(2, Math.min(600, Math.round(totalDurationSec * 10) / 10)),
+      },
       frameIndex: 0,
     })),
 
   setDefaultSlideDurationSec: (defaultSlideDurationSec) =>
     set((s) => ({
       ...pushPast(s),
-      renderParams: { ...s.renderParams, defaultSlideDurationSec },
+      renderParams: {
+        ...s.renderParams,
+        defaultSlideDurationSec: Math.max(0.5, Math.min(30, defaultSlideDurationSec)),
+      },
       frameIndex: 0,
     })),
 
@@ -1241,33 +1650,80 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   loadProjectData: (data, filePath) =>
     set(() => {
+      if (data.version === 3 && Array.isArray(data.workspaces) && data.workspaces.length > 0) {
+        const tabs = data.workspaces.map((ws) => {
+          const tab = fromWorkspaceData(ws, INITIAL_RENDER_PARAMS);
+          if (tab.scenes.length === 0 && tab.slides.length > 0) {
+            tab.scenes = buildScenesForProject(tab.slides, tab.renderParams);
+            tab.activeSceneId = tab.scenes[0]?.id ?? null;
+          }
+          return tab;
+        });
+        const active =
+          tabs.find((t) => t.id === data.activeWorkspaceId) ?? tabs[0];
+        return {
+          fps: data.fps,
+          workspaces: tabs,
+          activeWorkspaceId: active.id,
+          ...workspaceFieldsFor(active),
+          activeSlotIndex: 0,
+          selectedPhotoId: null,
+          selectedPhotoIds: [],
+          selectedSceneIds: active.activeSceneId ? [active.activeSceneId] : [],
+          sceneSelectAnchor: active.activeSceneId,
+          projectFilePath: filePath,
+          isPlaying: false,
+        };
+      }
+
       const mergedParams = mergeRenderParams(INITIAL_RENDER_PARAMS, data.renderParams);
       const loadedScenes =
         data.scenes && data.scenes.length > 0
           ? data.scenes
           : buildScenesForProject(data.slides, mergedParams);
-      return {
-        fps: data.fps,
+      const tabId = makeWorkspaceId();
+      const singleTab: WorkspaceTab = {
+        id: tabId,
+        name: pathStem(filePath) ?? 'Dự án 1',
+        isSampleOnly: false,
+        exportedInSession: false,
         slides: data.slides,
         scenes: loadedScenes,
         activeSceneId: loadedScenes[0]?.id ?? null,
-        selectedPhotoId: null,
-        selectedPhotoIds: [],
         renderParams: mergedParams,
-        projectFilePath: filePath,
-        frameIndex: 0,
-        isPlaying: false,
+        customLut: data.customLutPath
+          ? {
+              name: data.customLutPath.split(/[\\/]/).pop() ?? 'LUT',
+              filePath: data.customLutPath,
+              size: 0,
+            }
+          : null,
         markIn: typeof data.markIn === 'number' ? data.markIn : null,
         markOut: typeof data.markOut === 'number' ? data.markOut : null,
+        frameIndex: 0,
         past: [],
         future: [],
+      };
+      return {
+        fps: data.fps,
+        workspaces: [singleTab],
+        activeWorkspaceId: singleTab.id,
+        ...workspaceFieldsFor(singleTab),
+        activeSlotIndex: 0,
+        selectedPhotoId: null,
+        selectedPhotoIds: [],
+        selectedSceneIds: singleTab.activeSceneId ? [singleTab.activeSceneId] : [],
+        sceneSelectAnchor: singleTab.activeSceneId,
+        projectFilePath: filePath,
+        isPlaying: false,
       };
     }),
 
   toProjectFileData: () => {
     const s = get();
+    const allWorkspaces = syncActiveWorkspace(s.workspaces, s.activeWorkspaceId, s);
     return {
-      version: 2,
+      version: 3,
       savedAt: new Date().toISOString(),
       fps: s.fps,
       slides: s.slides,
@@ -1276,6 +1732,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       customLutPath: s.customLut?.filePath ?? null,
       ...(s.markIn !== null ? { markIn: s.markIn } : {}),
       ...(s.markOut !== null ? { markOut: s.markOut } : {}),
+      activeWorkspaceId: s.activeWorkspaceId,
+      workspaces: allWorkspaces.map(toWorkspaceData),
     };
   },
 

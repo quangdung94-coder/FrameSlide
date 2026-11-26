@@ -109,6 +109,8 @@ export const PlaybackBar = memo(function PlaybackBar({
 
   /** Timecode (MM:SS:FF) or seconds (MM:SS.s); click the clock to switch. */
   const [showFrames, setShowFrames] = useState(true);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [hoverRatio, setHoverRatio] = useState<number | null>(null);
 
   const lastFrame = Math.max(0, totalFrames - 1);
   const shownFrame = Math.min(frameIndex, lastFrame);
@@ -125,23 +127,37 @@ export const PlaybackBar = memo(function PlaybackBar({
     });
   }, [scenes, renderParams]);
 
-  // Scene boundary ticks, Handles zones and ruler labels (percent 0..100 of the clip).
-  const { tickPercents, handlePct, marks } = useMemo(() => {
+  // Scene boundary ticks, scene segments, Handles zones and ruler labels (percent 0..100 of the clip).
+  const { tickPercents, sceneSegments, handlePct, marks } = useMemo(() => {
     if (durations.length === 0 || effectiveDurationSec <= 0) {
-      return { tickPercents: [] as number[], handlePct: 0, marks: [] as number[] };
+      return {
+        tickPercents: [] as number[],
+        sceneSegments: [] as { index: number; startPct: number; widthPct: number }[],
+        handlePct: 0,
+        marks: [] as number[],
+      };
     }
     const ticks: number[] = [];
+    const segs: { index: number; startPct: number; widthPct: number }[] = [];
     let acc = 0;
-    for (let i = 0; i < durations.length - 1; i++) {
-      acc += durations[i];
-      ticks.push((acc / effectiveDurationSec) * 100);
+    for (let i = 0; i < durations.length; i++) {
+      const d = durations[i];
+      segs.push({
+        index: i,
+        startPct: (acc / effectiveDurationSec) * 100,
+        widthPct: (d / effectiveDurationSec) * 100,
+      });
+      acc += d;
+      if (i < durations.length - 1) ticks.push((acc / effectiveDurationSec) * 100);
     }
     const hPct =
       renderParams.handlesSec > 0 ? Math.min(25, (renderParams.handlesSec / effectiveDurationSec) * 100) : 0;
-    return { tickPercents: ticks, handlePct: hPct, marks: rulerMarks(effectiveDurationSec, 12) };
+    return { tickPercents: ticks, sceneSegments: segs, handlePct: hPct, marks: rulerMarks(effectiveDurationSec, 12) };
   }, [durations, renderParams.handlesSec, effectiveDurationSec]);
 
   const scenePos = scenePositionAt(timeSec, durations);
+  const hoverSec = hoverRatio !== null ? hoverRatio * effectiveDurationSec : null;
+  const hoverScenePos = hoverSec !== null ? scenePositionAt(hoverSec, durations) : null;
   const marked = marksToRange(markIn, markOut, totalFrames);
   const framePct = (f: number) => `${(f / Math.max(1, lastFrame)) * 100}%`;
 
@@ -309,8 +325,7 @@ export const PlaybackBar = memo(function PlaybackBar({
         </div>
       </div>
 
-      {/* Ruler (seconds) + scrubber with scene ticks and Handles zones. Inset by the thumb radius
-          so marks line up with where the thumb actually sits. */}
+      {/* Ruler (seconds) + arrow playhead + scrubber with scene labels, ticks and Handles zones. */}
       <div className="relative mx-[7px]">
         <div className="relative h-3.5 select-none">
           {marks.map((t) => (
@@ -323,16 +338,44 @@ export const PlaybackBar = memo(function PlaybackBar({
             </span>
           ))}
         </div>
-        <div className="relative flex h-4 items-center">
+        <div
+          className="relative flex h-6 items-center"
+          onPointerMove={(e) => {
+            if (disabled) return;
+            const r = e.currentTarget.getBoundingClientRect();
+            const ratio = Math.max(0, Math.min(1, (e.clientX - r.left) / Math.max(1, r.width)));
+            setHoverRatio(ratio);
+          }}
+          onPointerLeave={() => setHoverRatio(null)}
+        >
+          {/* Track background + per-scene labels (S1, S2...) */}
+          <div className="pointer-events-none absolute inset-x-0 top-1.5 bottom-1 overflow-hidden rounded bg-zinc-800/90">
+            {sceneSegments.map((seg) => (
+              <div
+                key={seg.index}
+                style={{ left: `${seg.startPct}%`, width: `${seg.widthPct}%` }}
+                className={`absolute inset-y-0 flex items-center justify-center overflow-hidden ${
+                  seg.index % 2 === 1 ? 'bg-zinc-900/45' : ''
+                }`}
+              >
+                {seg.widthPct >= 4.2 && (
+                  <span className="truncate px-0.5 font-mono text-2xs leading-none text-zinc-500">
+                    S{seg.index + 1}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+
           {handlePct > 0 && (
             <>
               <div
-                className="pointer-events-none absolute left-0 h-2 rounded-l bg-amber-500/25"
+                className="pointer-events-none absolute top-1.5 bottom-1 left-0 rounded-l bg-amber-500/25"
                 style={{ width: `${handlePct}%` }}
                 title="Handles đầu clip"
               />
               <div
-                className="pointer-events-none absolute right-0 h-2 rounded-r bg-amber-500/25"
+                className="pointer-events-none absolute top-1.5 bottom-1 right-0 rounded-r bg-amber-500/25"
                 style={{ width: `${handlePct}%` }}
                 title="Handles cuối clip"
               />
@@ -340,7 +383,7 @@ export const PlaybackBar = memo(function PlaybackBar({
           )}
           {marked && (
             <div
-              className="pointer-events-none absolute top-0 bottom-0 rounded-sm border-x-2 border-amber-400 bg-amber-500/30"
+              className="pointer-events-none absolute top-1 bottom-0.5 rounded-sm border-x-2 border-amber-400 bg-amber-500/30"
               style={{ left: framePct(marked.start), width: `calc(${framePct(marked.end - 1)} - ${framePct(marked.start)})` }}
               title="Đoạn In / Out"
             />
@@ -348,17 +391,52 @@ export const PlaybackBar = memo(function PlaybackBar({
           {marks.map((t) => (
             <div
               key={`m${t}`}
-              className="pointer-events-none absolute top-0 h-1 w-px bg-zinc-600"
+              className="pointer-events-none absolute top-0 h-1.5 w-px bg-zinc-600"
               style={{ left: pct(t) }}
             />
           ))}
           {tickPercents.map((p, i) => (
             <div
               key={i}
-              className="pointer-events-none absolute top-0.5 bottom-0.5 w-px bg-zinc-400/70"
+              className="pointer-events-none absolute top-1.5 bottom-1 w-px bg-zinc-400/70"
               style={{ left: `${p}%` }}
             />
           ))}
+
+          {/* Hover guide tooltip: shows which scene the cursor is pointing to */}
+          {!isScrubbing && hoverRatio !== null && hoverScenePos && hoverSec !== null && (
+            <div
+              className="pointer-events-none absolute -top-6 z-20 -translate-x-1/2 whitespace-nowrap rounded border border-zinc-700 bg-zinc-950/95 px-1.5 py-0.5 font-mono text-2xs text-zinc-200 shadow"
+              style={{ left: `${hoverRatio * 100}%` }}
+            >
+              S{hoverScenePos.index + 1} • {formatSecondsClock(hoverSec)}
+            </div>
+          )}
+
+          {/* Arrow Playhead (▼ + vertical line) */}
+          {!disabled && (
+            <div
+              className="pointer-events-none absolute inset-y-0 z-20 -translate-x-1/2"
+              style={{ left: framePct(shownFrame) }}
+            >
+              {isScrubbing && scenePos && (
+                <div className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-amber-400 px-1.5 py-0.5 font-mono text-2xs font-bold text-zinc-950 shadow">
+                  S{scenePos.index + 1} • {formatSecondsClock(timeSec)}
+                </div>
+              )}
+              <svg
+                width="12"
+                height="9"
+                viewBox="0 0 12 9"
+                className="-mt-0.5 block text-amber-400 drop-shadow"
+                aria-hidden="true"
+              >
+                <path d="M1 0h10L6 8z" fill="currentColor" />
+              </svg>
+              <div className="mx-auto h-full w-0.5 -mt-0.5 bg-amber-400 shadow" />
+            </div>
+          )}
+
           <input
             type="range"
             min={0}
@@ -366,13 +444,18 @@ export const PlaybackBar = memo(function PlaybackBar({
             value={shownFrame}
             disabled={disabled}
             aria-label="Thanh tua"
+            onPointerDown={() => setIsScrubbing(true)}
             onChange={(e) => {
               setIsPlaying(false);
               setFrameIndex(Number(e.target.value));
             }}
             // Hand the keyboard back after a drag so ← → and the other shortcuts work right away.
-            onPointerUp={(e) => e.currentTarget.blur()}
-            className="relative z-10 -mx-[7px] h-1.5 w-[calc(100%+14px)] cursor-pointer accent-amber-400"
+            onPointerUp={(e) => {
+              setIsScrubbing(false);
+              e.currentTarget.blur();
+            }}
+            onPointerCancel={() => setIsScrubbing(false)}
+            className="relative z-10 -mx-[7px] h-full w-[calc(100%+14px)] cursor-pointer opacity-0"
           />
         </div>
       </div>

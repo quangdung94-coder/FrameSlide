@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatSecondsClock, formatTimecode, rulerMarks, scenePositionAt } from './timecode';
+import { formatSecondsClock, formatTimecode, parseDurationInput, rulerMarks, scenePositionAt } from './timecode';
 
 describe('formatTimecode', () => {
   it('shows minutes, seconds and frame', () => {
@@ -38,5 +38,18 @@ describe('scenePositionAt', () => {
     expect(scenePositionAt(5.6, d)?.offsetSec).toBeCloseTo(2.1);
     expect(scenePositionAt(99, d)).toEqual({ index: 2, offsetSec: 2, durationSec: 2 });
     expect(scenePositionAt(1, [])).toBeNull();
+  });
+});
+
+describe('parseDurationInput', () => {
+  it('parses seconds and mm:ss values and rejects invalid input', () => {
+    expect(parseDurationInput('90')).toBe(90);
+    expect(parseDurationInput('45.5')).toBe(45.5);
+    expect(parseDurationInput('1:30')).toBe(90);
+    expect(parseDurationInput('02:15')).toBe(135);
+    expect(parseDurationInput('')).toBeNull();
+    expect(parseDurationInput('-5')).toBeNull();
+    expect(parseDurationInput('1:75')).toBeNull();
+    expect(parseDurationInput('abc')).toBeNull();
   });
 });

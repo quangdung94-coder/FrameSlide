@@ -55,10 +55,18 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
   const clearCache = async () => {
     if (!api) return;
-    // Keep the files the open project shows, so nothing on screen breaks.
-    const keep = useAppStore.getState().slides.flatMap((s) => [s.proxyUrl, s.thumbUrl].filter(Boolean) as string[]);
+    // Keep the files every open workspace tab (and its undo/redo history) uses.
+    const keep = useAppStore
+      .getState()
+      .getAllWorkspacesSnapshot()
+      .flatMap((w) => [
+        ...w.slides,
+        ...w.past.flatMap((snap) => snap.slides),
+        ...w.future.flatMap((snap) => snap.slides),
+      ])
+      .flatMap((s) => [s.proxyUrl, s.thumbUrl].filter(Boolean) as string[]);
     const removed = await api.clearCache(keep);
-    setNotice(`Đã xóa ${removed} file cache. Ảnh của dự án đang mở được giữ lại.`);
+    setNotice(`Đã xóa ${removed} file cache. Ảnh của các dự án đang mở được giữ lại.`);
     void refresh();
   };
 

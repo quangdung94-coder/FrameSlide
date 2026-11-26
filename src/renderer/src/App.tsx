@@ -19,6 +19,8 @@ import { SettingsDialog } from './components/SettingsDialog';
 import { usePrefsStore } from './store/usePrefsStore';
 import { StatusFooter } from './components/StatusFooter';
 import { TopToolbar } from './components/TopToolbar';
+import { WorkspaceTabs } from './components/WorkspaceTabs';
+import { MultiFolderImportModal } from './components/MultiFolderImportModal';
 import { TextDragOverlay } from './components/TextDragOverlay';
 import { InspectorNav, type InspectorTab } from './components/inspector/InspectorNav';
 import { LookTab } from './components/inspector/LookTab';
@@ -30,7 +32,7 @@ import { usePreviewEngine } from './hooks/usePreviewEngine';
 import { useProjectFiles } from './hooks/useProjectFiles';
 import { DEFAULT_LAYOUT, useLayoutStore } from './store/useLayoutStore';
 import { useAppStore } from './store/useAppStore';
-import type { AppInfo, FrameSlideAPI } from '@shared/types';
+import type { AppInfo, FolderScanEntry, FrameSlideAPI } from '@shared/types';
 
 declare global {
   interface Window {
@@ -44,6 +46,7 @@ declare global {
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<FrameSlideEngine | null>(null);
+  const previewViewportRef = useRef<HTMLDivElement | null>(null);
 
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [activeTab, setActiveTab] = useState<InspectorTab>('template');
@@ -53,8 +56,11 @@ export default function App() {
   const [cropMode, setCropMode] = useState(false);
   const [textDragMode, setTextDragMode] = useState(false);
   const [isFullscreenPreview, setIsFullscreenPreview] = useState(false);
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewViewportSize, setPreviewViewportSize] = useState({ width: 0, height: 0 });
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [multiFolderQueue, setMultiFolderQueue] = useState<FolderScanEntry[] | null>(null);
   const [photoToolSlot, setPhotoToolSlot] = useState<HTMLDivElement | null>(null);
 
   // ⚙ Cài đặt: defaults for a new project, applied once when the app opens (empty project only).
@@ -89,6 +95,7 @@ export default function App() {
     Math.min(timelineHeight, typeof window !== 'undefined' ? window.innerHeight - 330 : timelineHeight)
   );
   const activeSceneId = useAppStore((s) => s.activeSceneId);
+  const activeWorkspaceId = useAppStore((s) => s.activeWorkspaceId);
   const inspectorScope = useAppStore((s) => s.inspectorScope);
   const activeSlotIndex = useAppStore((s) => s.activeSlotIndex);
   const selectedPhotoId = useAppStore((s) => s.selectedPhotoId);
@@ -143,6 +150,62 @@ export default function App() {
       setCropMode(false);
     }
   }, [isPlaying]);
+
+  // Switching workspace tabs clears active preview overlay modes so edits never leak across tabs.
+  useEffect(() => {
+    setFocalPickMode(false);
+    setTransformEditMode(false);
+    setCropMode(false);
+    setTextDragMode(false);
+  }, [activeWorkspaceId]);
+
+  // Measure the available preview area so the main viewer fills nearly the entire panel by default.
+  useEffect(() => {
+    const el = previewViewportRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const update = () => {
+      setPreviewViewportSize({ width: el.clientWidth, height: el.clientHeight });
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Ctrl + mouse wheel over the preview area zooms the viewer smoothly (25% – 300%).
+  useEffect(() => {
+    const el = previewViewportRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      setPreviewZoom((z) => Math.round(Math.min(3, Math.max(0.25, z * factor)) * 100) / 100);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  const stepPreviewZoom = (delta: number) =>
+    setPreviewZoom((z) => Math.round(Math.min(3, Math.max(0.25, z + delta)) * 100) / 100);
+
+  const previewBoxStyle = useMemo(() => {
+    if (previewViewportSize.width <= 0 || previewViewportSize.height <= 0) return undefined;
+    const aspect =
+      renderParams.outputAspect === '9:16'
+        ? 9 / 16
+        : renderParams.outputAspect === '1:1'
+          ? 1
+          : 16 / 9;
+    const availW = Math.max(200, previewViewportSize.width - 12);
+    const availH = Math.max(120, previewViewportSize.height - 12);
+    const fitW = Math.min(availW, availH * aspect);
+    const fitH = fitW / aspect;
+    return {
+      width: Math.max(120, Math.round(fitW * previewZoom)),
+      height: Math.max(80, Math.round(fitH * previewZoom)),
+    };
+  }, [previewViewportSize.width, previewViewportSize.height, renderParams.outputAspect, previewZoom]);
 
   const activeSceneIndex = useMemo(
     () => scenes.findIndex((sc) => sc.id === activeSceneId),
@@ -258,6 +321,18 @@ export default function App() {
     flashNotice(`Đã đặt tâm ảnh ${focalTargetPhoto.name} (${Math.round(x * 100)}%, ${Math.round(y * 100)}%)`);
   };
 
+  const handlePickMultiFolders = async () => {
+    const api = window.frameSlideAPI;
+    if (!api) return;
+    const res = await api.pickMultiFolders();
+    if (res.canceled) return;
+    if (res.folders.length === 0) {
+      flashNotice('Không tìm thấy ảnh hợp lệ trong thư mục vừa chọn.');
+      return;
+    }
+    setMultiFolderQueue(res.folders);
+  };
+
 
   return (
     <div
@@ -286,18 +361,26 @@ export default function App() {
         onSaveProject={handleSaveProject}
         onPickImages={handlePickImages}
         onPickFolder={handlePickFolder}
+        onPickMultiFolders={() => void handlePickMultiFolders()}
         onLoadSamples={handleLoadSamples}
         onShowShortcuts={() => setShowShortcutsModal(true)}
         onShowSettings={() => setShowSettings(true)}
         onShowExport={() => setShowExportDialog(true)}
       />
 
+      {!isFullscreenPreview && (
+        <WorkspaceTabs disabled={isExporting || loadingSlides} onNotice={flashNotice} />
+      )}
+
       {/* Autosave Restore Banner */}
       {autosaveBanner && (
         <div className="flex items-center justify-between border-b border-amber-500/30 bg-amber-950/30 px-4 py-1.5 text-xs text-amber-200">
           <span>
-            Phát hiện bản tự động lưu ({autosaveBanner.slides.length} ảnh lúc{' '}
-            {new Date(autosaveBanner.savedAt).toLocaleTimeString()}). Khôi phục?
+            Phát hiện bản tự động lưu (
+            {autosaveBanner.workspaces && autosaveBanner.workspaces.length > 1
+              ? `${autosaveBanner.workspaces.length} dự án`
+              : `${autosaveBanner.slides.length} ảnh`}{' '}
+            lúc {new Date(autosaveBanner.savedAt).toLocaleTimeString()}). Khôi phục?
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -344,37 +427,82 @@ export default function App() {
         )}
 
         {/* Center: Preview Canvas + Playback + Scene Track */}
-        <main className="flex min-w-0 flex-1 flex-col justify-between overflow-hidden p-3">
-          {!isFullscreenPreview && scenes.length > 0 && (
-            <div className="mx-auto w-full max-w-4xl">
-              <PhotoQuickBar
-                photo={focalTargetPhoto}
-                photoNumber={focalTargetPhoto ? slides.indexOf(focalTargetPhoto) + 1 : null}
-                disabled={isExporting || textDragMode}
-                focalPickMode={focalPickMode}
-                editMode={transformEditMode}
-                cropMode={cropMode}
-                onEdit={() => (transformEditMode ? setTransformEditMode(false) : startTransformEdit())}
-                onCrop={() => (cropMode ? setCropMode(false) : startCrop())}
-                onToggleFocalPick={() => {
-                  setTransformEditMode(false);
-                  setCropMode(false);
-                  setFocalPickMode(!focalPickMode);
-                }}
-                onToolSlot={setPhotoToolSlot}
-              />
+        <main className="flex min-w-0 flex-1 flex-col justify-between overflow-hidden p-2">
+          {!isFullscreenPreview && (
+            <div className="flex w-full shrink-0 items-center gap-2 pb-1">
+              <div className="min-w-0 flex-1">
+                {scenes.length > 0 && (
+                  <PhotoQuickBar
+                    photo={focalTargetPhoto}
+                    photoNumber={focalTargetPhoto ? slides.indexOf(focalTargetPhoto) + 1 : null}
+                    disabled={isExporting || textDragMode}
+                    focalPickMode={focalPickMode}
+                    editMode={transformEditMode}
+                    cropMode={cropMode}
+                    onEdit={() => (transformEditMode ? setTransformEditMode(false) : startTransformEdit())}
+                    onCrop={() => (cropMode ? setCropMode(false) : startCrop())}
+                    onToggleFocalPick={() => {
+                      setTransformEditMode(false);
+                      setCropMode(false);
+                      setFocalPickMode(!focalPickMode);
+                    }}
+                    onToolSlot={setPhotoToolSlot}
+                  />
+                )}
+              </div>
+              <div
+                className="flex shrink-0 items-center gap-1 rounded border border-zinc-800 bg-zinc-900/90 px-1.5 py-1 text-xs"
+                title="Phóng to / thu nhỏ khung xem (Ctrl + cuộn chuột)"
+              >
+                <button
+                  type="button"
+                  onClick={() => stepPreviewZoom(-0.15)}
+                  disabled={previewZoom <= 0.25}
+                  title="Thu nhỏ khung xem"
+                  aria-label="Thu nhỏ khung xem"
+                  className="flex h-7 w-7 items-center justify-center rounded border border-zinc-700 bg-zinc-800 text-sm font-semibold text-zinc-200 hover:border-amber-400 hover:text-amber-300 disabled:opacity-35"
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewZoom(1)}
+                  title="Đặt lại vừa khít khung xem (100%)"
+                  className={`h-7 min-w-[54px] rounded px-2 font-mono text-xs font-medium transition ${
+                    previewZoom === 1
+                      ? 'text-zinc-300 hover:bg-zinc-800'
+                      : 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30'
+                  }`}
+                >
+                  {previewZoom === 1 ? 'Vừa' : `${Math.round(previewZoom * 100)}%`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => stepPreviewZoom(0.15)}
+                  disabled={previewZoom >= 3}
+                  title="Phóng to khung xem"
+                  aria-label="Phóng to khung xem"
+                  className="flex h-7 w-7 items-center justify-center rounded border border-zinc-700 bg-zinc-800 text-sm font-semibold text-zinc-200 hover:border-amber-400 hover:text-amber-300 disabled:opacity-35"
+                >
+                  +
+                </button>
+              </div>
             </div>
           )}
-          <div className="flex min-h-0 flex-1 items-center justify-center">
+          <div
+            ref={previewViewportRef}
+            className="flex min-h-0 flex-1 overflow-auto"
+          >
             <div
-              className={`relative max-h-full overflow-hidden rounded-lg border border-zinc-800 bg-black shadow-2xl ${
-                renderParams.outputAspect === '9:16'
-                  ? 'aspect-[9/16] h-full'
-                  : renderParams.outputAspect === '1:1'
-                    ? 'aspect-square h-full'
-                    : isFullscreenPreview
-                      ? 'aspect-video w-full max-w-6xl'
-                      : 'aspect-video w-full max-w-4xl'
+              style={previewBoxStyle}
+              className={`relative m-auto shrink-0 overflow-hidden rounded-lg border border-zinc-800 bg-black shadow-2xl ${
+                previewBoxStyle
+                  ? ''
+                  : renderParams.outputAspect === '9:16'
+                    ? 'aspect-[9/16] h-full'
+                    : renderParams.outputAspect === '1:1'
+                      ? 'aspect-square h-full'
+                      : 'aspect-video h-full max-w-full'
               }`}
             >
               <canvas
@@ -566,6 +694,19 @@ export default function App() {
 
       {showShortcutsModal && <ShortcutsModal onClose={() => setShowShortcutsModal(false)} />}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
+      {multiFolderQueue && (
+        <MultiFolderImportModal
+          folders={multiFolderQueue}
+          onClose={() => setMultiFolderQueue(null)}
+          onImported={(count, autoBuilt) =>
+            flashNotice(
+              autoBuilt
+                ? `Đã tạo ${count} tab dự án riêng và tự xếp ảnh lên Timeline.`
+                : `Đã tạo ${count} tab dự án riêng và nạp ảnh vào khay.`
+            )
+          }
+        />
+      )}
 
       <GpuNotice />
       <StatusFooter appInfo={appInfo} previewSize={resolvedSize} liveFps={liveFps} notice={statusNotice} />

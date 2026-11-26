@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, powerSaveBlocker, protocol, shell } from 'electron';
 import { existsSync } from 'fs';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { basename, join } from 'path';
@@ -14,6 +14,7 @@ import type {
   OpenProjectResult,
   PickCubeLutResult,
   PickFolderResult,
+  PickMultiFoldersResult,
   ProjectFileData,
   SaveFileResult,
   SlideAsset,
@@ -34,6 +35,7 @@ import {
   decodeMediaUrl,
   ensureSamplePhotos,
   mergeRegeneratedSlide,
+  scanMultiFolders,
   setProxyMaxEdge,
 } from './proxyService';
 import { nextFreeFileName } from '@shared/exportPath';
@@ -44,6 +46,10 @@ const isDev = Boolean(process.env['ELECTRON_RENDERER_URL']);
 
 // Laptops/desktops with both Intel and NVIDIA/AMD GPUs: render on the dedicated card.
 app.commandLine.appendSwitch('force_high_performance_gpu');
+// Keep WebGL + WebCodecs video export running at full speed when the window is minimized or occluded.
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 // Bước 6: when the graphics driver is blocked or missing, fall back to software WebGL (slow, the app
 // shows a warning) instead of a blank window. The app only loads its own local pages.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
@@ -96,6 +102,7 @@ function createWindow(): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      backgroundThrottling: false,
     },
   });
 
@@ -114,8 +121,20 @@ function createWindow(): BrowserWindow {
   return mainWindow;
 }
 
+let exportPowerBlockerId: number | null = null;
+
+function stopExportPowerBlocker(): void {
+  if (exportPowerBlockerId !== null) {
+    if (powerSaveBlocker.isStarted(exportPowerBlockerId)) {
+      powerSaveBlocker.stop(exportPowerBlockerId);
+    }
+    exportPowerBlockerId = null;
+  }
+}
+
 app.whenReady().then(() => {
-  if (!isDev) {
+  // On macOS, clearing the application menu disables standard Cmd+C/V/X/A/Q shortcuts in inputs.
+  if (!isDev && process.platform !== 'darwin') {
     Menu.setApplicationMenu(null);
   }
 
@@ -210,6 +229,18 @@ app.whenReady().then(() => {
     if (imagePaths.length === 0) return [];
     const { assets } = await createImageProxiesBatch(imagePaths, cacheDir, 4);
     return assets;
+  });
+
+  ipcMain.handle('media:pickMultiFolders', async (): Promise<PickMultiFoldersResult> => {
+    const res = await dialog.showOpenDialog({
+      title: 'Chọn thư mục cha hoặc nhiều thư mục ảnh',
+      properties: ['openDirectory', 'multiSelections'],
+    });
+    if (res.canceled || res.filePaths.length === 0) {
+      return { canceled: true, folders: [] };
+    }
+    const folders = await scanMultiFolders(res.filePaths);
+    return { canceled: false, folders };
   });
 
   ipcMain.handle('media:importPaths', async (_evt, paths: string[]): Promise<SlideAsset[]> => {
@@ -436,6 +467,28 @@ app.whenReady().then(() => {
     await cancelFfmpegJob(jobId);
   });
 
+  ipcMain.handle('export:setActive', (evt, active: boolean) => {
+    const win = BrowserWindow.fromWebContents(evt.sender);
+    if (active) {
+      if (exportPowerBlockerId === null) {
+        exportPowerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+      }
+    } else {
+      stopExportPowerBlocker();
+      win?.setProgressBar(-1);
+    }
+  });
+
+  ipcMain.handle('export:setTaskbarProgress', (evt, ratio: number) => {
+    const win = BrowserWindow.fromWebContents(evt.sender);
+    if (!win || win.isDestroyed()) return;
+    if (!Number.isFinite(ratio) || ratio < 0) {
+      win.setProgressBar(-1);
+    } else {
+      win.setProgressBar(Math.max(0, Math.min(1, ratio)));
+    }
+  });
+
   const mainWindow = createWindow();
 
   const smokeOut = smokeTestOutput();
@@ -455,6 +508,7 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+  stopExportPowerBlocker();
   cancelAllFfmpegJobs();
 });
 

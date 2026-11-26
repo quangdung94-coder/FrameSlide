@@ -22,20 +22,36 @@ export const MAX_HISTORY = 40;
 export function takeSnapshot(state: HistorySnapshot): HistorySnapshot {
   return {
     fps: state.fps,
-    slides: state.slides.map((s) => ({ ...s, focalPoint: { ...s.focalPoint } })),
+    slides: state.slides.map((s) => ({
+      ...s,
+      focalPoint: { ...s.focalPoint },
+      adjust: s.adjust ? { ...s.adjust } : undefined,
+      transform: s.transform ? { ...s.transform } : undefined,
+      transformEnd: s.transformEnd ? { ...s.transformEnd } : undefined,
+    })),
     scenes: state.scenes.map((sc) => ({ ...sc, slots: [...sc.slots] })),
     renderParams: {
       ...state.renderParams,
+      backgroundOptions: state.renderParams.backgroundOptions
+        ? { ...state.renderParams.backgroundOptions }
+        : undefined,
       super8: { ...state.renderParams.super8 },
-      textOverlay: { ...state.renderParams.textOverlay },
+      textOverlay: {
+        ...state.renderParams.textOverlay,
+        offset: state.renderParams.textOverlay.offset
+          ? { ...state.renderParams.textOverlay.offset }
+          : undefined,
+        look: state.renderParams.textOverlay.look
+          ? { ...state.renderParams.textOverlay.look }
+          : undefined,
+      },
     },
   };
 }
 
-/** State fields that put `snap` back on screen (playhead to 0, first scene selected). */
+/** State fields that put `snap` back on screen (playhead to 0, first scene selected; shared `fps` is untouched). */
 export function restoreSnapshot(snap: HistorySnapshot) {
   return {
-    fps: snap.fps,
     slides: snap.slides,
     scenes: snap.scenes,
     renderParams: snap.renderParams,

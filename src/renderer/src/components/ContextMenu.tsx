@@ -62,7 +62,7 @@ function MenuView({ state, onClose }: { state: OpenState; onClose: () => void })
       role="menu"
       style={{ left: pos.x, top: pos.y }}
       onContextMenu={(e) => e.preventDefault()}
-      className="fixed z-[100] max-h-[calc(100vh-8px)] min-w-[220px] overflow-y-auto rounded-lg border border-zinc-700 bg-[#18181f] py-1 text-xs shadow-2xl"
+      className="fixed z-[100] max-h-[calc(100vh-8px)] min-w-[250px] overflow-y-auto rounded-lg border border-zinc-700 bg-[#18181f] py-1.5 text-sm shadow-2xl"
     >
       {state.items.map((item, i) =>
         item.separator ? (
@@ -77,7 +77,7 @@ function MenuView({ state, onClose }: { state: OpenState; onClose: () => void })
               onClose();
               item.onClick?.();
             }}
-            className={`flex h-8 w-full items-center gap-2 px-3 text-left disabled:opacity-35 ${
+            className={`flex h-9 w-full items-center gap-2 px-3.5 text-left disabled:opacity-35 ${
               item.danger
                 ? 'text-red-300 hover:bg-red-500/20'
                 : 'text-zinc-200 hover:bg-zinc-800 hover:text-amber-300'

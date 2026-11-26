@@ -5,6 +5,7 @@ import {
   exportBatchClips,
   exportMp4WebCodecs,
   exportViaFfmpeg,
+  exportWorkspaceBatch,
   type ExportProgressInfo,
   type ExportSummary,
 } from '@engine/exporter';
@@ -70,6 +71,21 @@ export function useExportJobs(engineRef: RefObject<FrameSlideEngine | null>) {
   /** Whole clip, the In/Out part, or the selected scene (single-clip exports only). */
   const [rangeMode, setRangeMode] = useState<ExportRangeMode>('all');
 
+  const lastTaskbarPctRef = useRef(-1);
+
+  const reportProgress = (info: ExportProgressInfo) => {
+    setProgress(info);
+    const ratio =
+      info.clipCount && info.clipIndex
+        ? (info.clipIndex - 1 + info.percent / 100) / info.clipCount
+        : info.percent / 100;
+    const pctInt = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+    if (pctInt !== lastTaskbarPctRef.current) {
+      lastTaskbarPctRef.current = pctInt;
+      void window.frameSlideAPI?.setTaskbarProgress?.(pctInt / 100);
+    }
+  };
+
   /** Shared wrapper: stop playback, reset messages, run the job with an abort signal, clean up. */
   const runJob = async (
     job: (engine: FrameSlideEngine, signal: AbortSignal) => Promise<ExportSummary | null | undefined>
@@ -81,6 +97,9 @@ export function useExportJobs(engineRef: RefObject<FrameSlideEngine | null>) {
     setError(null);
     setStatusMsg(null);
     setSummary(null);
+    lastTaskbarPctRef.current = -1;
+    void window.frameSlideAPI?.setExportActive?.(true);
+    void window.frameSlideAPI?.setTaskbarProgress?.(0);
     const controller = new AbortController();
     abortRef.current = controller;
     try {
@@ -91,6 +110,9 @@ export function useExportJobs(engineRef: RefObject<FrameSlideEngine | null>) {
       else setError(err instanceof Error ? err.message : String(err));
     } finally {
       abortRef.current = null;
+      lastTaskbarPctRef.current = -1;
+      void window.frameSlideAPI?.setTaskbarProgress?.(-1);
+      void window.frameSlideAPI?.setExportActive?.(false);
       setProgress(null);
       setIsExporting(false);
     }
@@ -126,7 +148,7 @@ export function useExportJobs(engineRef: RefObject<FrameSlideEngine | null>) {
     if (!api) {
       if (codec !== 'h264') return;
       await runJob(async (engine, signal) => {
-        const { data, summary: done } = await exportMp4WebCodecs({ engine, fps, params: renderParams, range, signal, onProgress: setProgress });
+        const { data, summary: done } = await exportMp4WebCodecs({ engine, fps, params: renderParams, range, signal, onProgress: reportProgress });
         downloadInBrowser(data, fileName);
         return done;
       });
@@ -140,7 +162,7 @@ export function useExportJobs(engineRef: RefObject<FrameSlideEngine | null>) {
       const filePath = await api.freeExportPath(outputFolder, fileName);
       let result: ExportSummary | null;
       if (codec === 'h264') {
-        const { data, summary: done } = await exportMp4WebCodecs({ engine, fps, params: renderParams, range, signal, onProgress: setProgress });
+        const { data, summary: done } = await exportMp4WebCodecs({ engine, fps, params: renderParams, range, signal, onProgress: reportProgress });
         await api.saveBinaryToPath(data, filePath);
         result = { ...done, filePath };
       } else {
@@ -154,7 +176,7 @@ export function useExportJobs(engineRef: RefObject<FrameSlideEngine | null>) {
           defaultName: fileName,
           directFilePath: filePath,
           signal,
-          onProgress: setProgress,
+          onProgress: reportProgress,
         });
       }
       revealWhenDone(result?.filePath);
@@ -184,7 +206,51 @@ export function useExportJobs(engineRef: RefObject<FrameSlideEngine | null>) {
         outputDir,
         namePrefix: pathStem(projectFilePath) ?? undefined,
         signal,
-        onProgress: setProgress,
+        onProgress: reportProgress,
+      });
+      if (usePrefsStore.getState().openFolderAfterExport) void api.openFolder(outputDir);
+      return result;
+    });
+  };
+
+  const exportWorkspaces = async (workspaceIds: string[]) => {
+    const api = window.frameSlideAPI;
+    const state = useAppStore.getState();
+    if (!engineRef.current || !api) return;
+    if (!outputFolder) {
+      setError('Chưa chọn thư mục lưu. Bấm "Đổi thư mục…" để chọn.');
+      return;
+    }
+    const idSet = new Set(workspaceIds);
+    const allWorkspaces = state.getAllWorkspacesSnapshot();
+    const targets = allWorkspaces.filter((w) => idSet.has(w.id) && w.scenes.length > 0);
+    if (targets.length === 0) return;
+
+    const outputDir = outputFolder;
+    await runJob(async (engine, signal) => {
+      const result = await exportWorkspaceBatch({
+        engine,
+        api,
+        workspaces: targets.map((w) => ({
+          id: w.id,
+          name: w.name,
+          slides: w.slides,
+          scenes: w.scenes,
+          renderParams: w.renderParams,
+          customLutPath: w.customLut?.filePath ?? null,
+        })),
+        restoreState: {
+          slides: state.slides,
+          scenes: state.scenes,
+          renderParams: state.renderParams,
+          customLutPath: state.customLut?.filePath ?? null,
+        },
+        codec: usePrefsStore.getState().exportCodec,
+        fps: state.fps,
+        outputDir,
+        signal,
+        onProgress: reportProgress,
+        onWorkspaceDone: (id) => useAppStore.getState().markWorkspacesExported([id]),
       });
       if (usePrefsStore.getState().openFolderAfterExport) void api.openFolder(outputDir);
       return result;
@@ -210,6 +276,7 @@ export function useExportJobs(engineRef: RefObject<FrameSlideEngine | null>) {
     cancel: () => abortRef.current?.abort(),
     exportSingle,
     exportBatch,
+    exportWorkspaces,
   };
 }
 

@@ -10,7 +10,8 @@ import { LAYOUT_LABELS } from '@engine/sceneBuilder';
 import { getExportResolution } from '@engine/capabilities';
 import { getLayoutRects } from '@engine/layoutGeometry';
 import { backgroundCss, resolveSceneBackground } from '@engine/background';
-import { resolveSlideDurations } from '@engine/timeline';
+import { computeProjectDurationSec, resolveSlideDurations } from '@engine/timeline';
+import { formatSecondsClock, parseDurationInput } from '@engine/timecode';
 import { SCENE_SETTING_PARTS } from '@engine/sceneSettings';
 import { useAppStore } from '../store/useAppStore';
 import { useContextMenu, type MenuItem } from './ContextMenu';
@@ -39,11 +40,13 @@ function SceneTimeStrip({
   startFrame,
   endFrame,
   disabled,
+  onScrubChange,
 }: {
   sceneId: string;
   startFrame: number;
   endFrame: number;
   disabled: boolean;
+  onScrubChange?: (active: boolean) => void;
 }) {
   // Only re-renders when this scene's own playhead position changes.
   const fraction = useAppStore((s) =>
@@ -75,6 +78,7 @@ function SceneTimeStrip({
       onPointerDown={(e) => {
         if (disabled) return;
         e.stopPropagation();
+        onScrubChange?.(true);
         e.currentTarget.setPointerCapture(e.pointerId);
         seekFromPointer(e);
       }}
@@ -82,6 +86,8 @@ function SceneTimeStrip({
         if (disabled || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
         seekFromPointer(e);
       }}
+      onPointerUp={() => onScrubChange?.(false)}
+      onPointerCancel={() => onScrubChange?.(false)}
       className={`relative mt-1 h-2.5 w-full overflow-hidden rounded-sm bg-zinc-800 ${
         disabled ? 'cursor-not-allowed' : 'cursor-ew-resize hover:bg-zinc-700'
       }`}
@@ -98,6 +104,35 @@ function SceneTimeStrip({
           />
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Vertical arrow playhead overlay drawn across whichever scene card currently holds the playhead.
+ */
+function SceneCardPlayhead({ startFrame, endFrame }: { startFrame: number; endFrame: number }) {
+  const fraction = useAppStore((s) =>
+    s.frameIndex >= startFrame && s.frameIndex < endFrame
+      ? (s.frameIndex - startFrame) / Math.max(1, endFrame - startFrame)
+      : null
+  );
+  if (fraction === null) return null;
+  return (
+    <div
+      className="pointer-events-none absolute inset-y-0 z-20 -translate-x-1/2"
+      style={{ left: `${fraction * 100}%` }}
+    >
+      <svg
+        width="10"
+        height="7"
+        viewBox="0 0 10 7"
+        className="-mt-1 block text-amber-400 drop-shadow"
+        aria-hidden="true"
+      >
+        <path d="M1 0h8L5 7z" fill="currentColor" />
+      </svg>
+      <div className="mx-auto h-full w-0.5 -mt-0.5 bg-amber-400/80" />
     </div>
   );
 }
@@ -145,6 +180,9 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
   const autoMotionCount = scenes.filter((sc) => sc.motionAuto).length;
   const setSceneLayout = useAppStore((s) => s.setSceneLayout);
   const setSceneDuration = useAppStore((s) => s.setSceneDuration);
+  const applyDurationToAllScenes = useAppStore((s) => s.applyDurationToAllScenes);
+  const setDurationMode = useAppStore((s) => s.setDurationMode);
+  const setTotalDurationSec = useAppStore((s) => s.setTotalDurationSec);
   const setSceneTransition = useAppStore((s) => s.setSceneTransition);
   const assignPhotoToSlot = useAppStore((s) => s.assignPhotoToSlot);
   const swapSceneSlots = useAppStore((s) => s.swapSceneSlots);
@@ -159,6 +197,17 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
   const setSceneTrackMode = useLayoutStore((s) => s.setSceneTrackMode);
   const gridMode = sceneTrackMode === 'grid';
   const stripRef = useRef<HTMLDivElement | null>(null);
+  const cardRefs = useRef(new Map<string, HTMLDivElement>());
+  const isScrubbingStripRef = useRef(false);
+
+  // Keep the active scene card scrolled into view when scrubbing or playing (skip while dragging a card's own strip).
+  useEffect(() => {
+    if (!activeSceneId || isScrubbingStripRef.current) return;
+    const el = cardRefs.current.get(activeSceneId);
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
+  }, [activeSceneId]);
 
   // Ctrl + wheel zooms the cards (like Premiere). In row mode a plain wheel scrolls sideways.
   // Native listener: React's wheel handler is passive and cannot stop Electron's page zoom.
@@ -249,6 +298,10 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
   const [dropSceneId, setDropSceneId] = useState<string | null>(null);
   const [openTransMenuSceneId, setOpenTransMenuSceneId] = useState<string | null>(null);
+  const [showDurationPopover, setShowDurationPopover] = useState(false);
+  const [perSceneDraft, setPerSceneDraft] = useState(() => String(renderParams.defaultSlideDurationSec));
+  const [totalDurDraft, setTotalDurDraft] = useState(() => String(renderParams.totalDurationSec));
+  const totalProjectSec = useMemo(() => computeProjectDurationSec(scenes, renderParams), [scenes, renderParams]);
 
   useEffect(() => {
     if (!openTransMenuSceneId) return;
@@ -256,6 +309,20 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
     window.addEventListener('click', onGlobalClick);
     return () => window.removeEventListener('click', onGlobalClick);
   }, [openTransMenuSceneId]);
+
+  useEffect(() => {
+    if (!showDurationPopover) return;
+    const onGlobalClick = () => setShowDurationPopover(false);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowDurationPopover(false);
+    };
+    window.addEventListener('click', onGlobalClick);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('click', onGlobalClick);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [showDurationPopover]);
 
   // "T" shortcut: open the transition picker of the selected scene (not possible on the last scene).
   useEffect(() => {
@@ -457,6 +524,122 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
           >
             Trống ô
           </button>
+          <div className="relative">
+            <button
+              type="button"
+              disabled={disabled || scenes.length === 0}
+              onClick={(e) => {
+                e.stopPropagation();
+                setPerSceneDraft(String(renderParams.defaultSlideDurationSec));
+                setTotalDurDraft(
+                  String(
+                    renderParams.durationMode === 'fixed-total'
+                      ? renderParams.totalDurationSec
+                      : Math.round(totalProjectSec * 10) / 10
+                  )
+                );
+                setShowDurationPopover((v) => !v);
+              }}
+              title="Chỉnh nhanh tổng thời lượng video hoặc áp 1 thời lượng cho tất cả Scene"
+              className={`rounded border px-2 py-0.5 font-mono text-xs transition disabled:opacity-40 ${
+                showDurationPopover
+                  ? 'border-amber-400 bg-amber-500/20 text-amber-300'
+                  : 'border-zinc-700 bg-zinc-800 text-zinc-200 hover:border-amber-400'
+              }`}
+            >
+              ⏱ Tổng {formatSecondsClock(totalProjectSec)}
+            </button>
+            {showDurationPopover && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="fixed bottom-44 z-50 w-72 space-y-2.5 rounded-lg border border-zinc-700 bg-[#18181f] p-3 text-xs shadow-2xl"
+              >
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-1.5">
+                  <span className="font-semibold text-amber-400">Chỉnh thời lượng cả video</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowDurationPopover(false)}
+                    className="text-zinc-400 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-zinc-400">1. Áp 1 thời lượng cho tất cả {scenes.length} scene:</div>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="number"
+                      min={0.5}
+                      max={30}
+                      step={0.5}
+                      value={perSceneDraft}
+                      onChange={(e) => setPerSceneDraft(e.target.value)}
+                      className="h-8 min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-950 px-2 font-mono text-zinc-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const v = Number(perSceneDraft);
+                        if (!Number.isFinite(v) || v < 0.5) return;
+                        applyDurationToAllScenes(v);
+                        setShowDurationPopover(false);
+                      }}
+                      className="h-8 rounded bg-amber-500 px-2.5 font-semibold text-zinc-950 hover:bg-amber-400"
+                    >
+                      Áp tất cả
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1.5 border-t border-zinc-800 pt-2">
+                  <div className="text-zinc-400">2. Hoặc cố định tổng thời lượng (giây / phút:giây):</div>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={totalDurDraft}
+                      placeholder="VD: 90 hoặc 1:30"
+                      onChange={(e) => setTotalDurDraft(e.target.value)}
+                      className="h-8 min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-950 px-2 font-mono text-zinc-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sec = parseDurationInput(totalDurDraft);
+                        if (sec === null) return;
+                        setDurationMode('fixed-total');
+                        setTotalDurationSec(sec);
+                        setShowDurationPopover(false);
+                      }}
+                      className="h-8 rounded border border-amber-400/80 bg-zinc-800 px-2.5 font-semibold text-amber-300 hover:bg-zinc-700"
+                    >
+                      Đặt tổng
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {[
+                      { label: '30s', sec: 30 },
+                      { label: '1p', sec: 60 },
+                      { label: '1p30', sec: 90 },
+                      { label: '2p', sec: 120 },
+                      { label: '3p', sec: 180 },
+                    ].map((q) => (
+                      <button
+                        key={q.sec}
+                        type="button"
+                        onClick={() => {
+                          setDurationMode('fixed-total');
+                          setTotalDurationSec(q.sec);
+                          setShowDurationPopover(false);
+                        }}
+                        className="rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-2xs text-zinc-300 hover:border-amber-400 hover:text-amber-300"
+                      >
+                        {q.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
           {multiSelected && (
             <span
               role="status"
@@ -562,6 +745,10 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
           return (
             <div key={sc.id} className="relative flex shrink-0 items-stretch gap-1.5">
               <div
+                ref={(el) => {
+                  if (el) cardRefs.current.set(sc.id, el);
+                  else cardRefs.current.delete(sc.id);
+                }}
                 draggable={!disabled}
                 onMouseDown={(e) => {
                   // Shift + click would otherwise select page text.
@@ -623,7 +810,7 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                   setDropTargetKey(null);
                 }}
                 style={{ width: cardW }}
-                className={`flex shrink-0 cursor-pointer flex-col justify-between rounded-md border p-1.5 transition-colors ${
+                className={`relative flex shrink-0 cursor-pointer flex-col justify-between rounded-md border p-1.5 transition-colors ${
                   isSceneDropHot
                     ? 'border-amber-400 bg-amber-500/15 ring-2 ring-amber-400'
                     : isActive
@@ -634,6 +821,10 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                 }`}
                 aria-selected={selectedIds.includes(sc.id)}
               >
+                <SceneCardPlayhead
+                  startFrame={sceneFrameRanges[idx]?.start ?? 0}
+                  endFrame={sceneFrameRanges[idx]?.end ?? 0}
+                />
                 {/* Card Header */}
                 <div className="mb-1 flex items-center justify-between gap-1">
                   <div className="flex items-center gap-1">
@@ -649,7 +840,7 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                     <input
                       type="number"
                       min={0.5}
-                      max={20}
+                      max={30}
                       step={0.5}
                       value={sc.durationSec}
                       disabled={disabled}
@@ -847,6 +1038,9 @@ export function SceneTrack({ disabled }: SceneTrackProps) {
                   startFrame={sceneFrameRanges[idx]?.start ?? 0}
                   endFrame={sceneFrameRanges[idx]?.end ?? 0}
                   disabled={disabled}
+                  onScrubChange={(active) => {
+                    isScrubbingStripRef.current = active;
+                  }}
                 />
               </div>
 

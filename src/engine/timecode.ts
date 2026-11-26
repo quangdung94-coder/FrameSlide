@@ -55,3 +55,25 @@ export function scenePositionAt(timeSec: number, durations: readonly number[]): 
   }
   return null;
 }
+
+/**
+ * Parses a user-typed duration string: seconds ("90", "45.5") or MM:SS ("1:30", "02:15.5").
+ * Returns null if invalid or <= 0.
+ */
+export function parseDurationInput(raw: string): number | null {
+  const s = raw.trim();
+  if (!s) return null;
+  if (s.includes(':')) {
+    const parts = s.split(':').map((p) => p.trim());
+    if (parts.length !== 2) return null;
+    const mins = Number(parts[0]);
+    const secs = Number(parts[1]);
+    if (!Number.isFinite(mins) || !Number.isFinite(secs) || mins < 0 || secs < 0 || secs >= 60) {
+      return null;
+    }
+    const total = mins * 60 + secs;
+    return total > 0 ? total : null;
+  }
+  const num = Number(s.replace(',', '.'));
+  return Number.isFinite(num) && num > 0 ? num : null;
+}

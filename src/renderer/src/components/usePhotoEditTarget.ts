@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { getExportResolution } from '@engine/capabilities';
-import { getSlotFrameRect } from '@engine/layoutGeometry';
 import { MOTION_STYLE_CODE_MAP } from '@engine/presets/motionTemplates';
 import { normalizePhotoTransform } from '@engine/photoTransform';
+import { getEffectiveSlotFrameRect, hasCustomSingleFrame, resolveCardFitMode } from '@engine/slotFrame';
 import { useAppStore } from '../store/useAppStore';
 
 /**
- * Shared by the photo editor and the crop tool: which photo of the active scene is being edited,
- * where the preview picture sits inside the overlay (object-contain) and where that photo's slot
- * frame is on screen.
+ * Shared by the photo/frame editor and the crop tool: which slot of the active scene is being edited,
+ * where the preview picture sits inside the overlay (object-contain) and where that slot's card
+ * frame is on screen (matching `sampleScene()` in GLSL 1:1).
  */
 export function usePhotoEditTarget(
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
@@ -59,19 +59,51 @@ export function usePhotoEditTarget(
   const out = getExportResolution(renderParams.outputAspect);
   const canvasAspect = out.width / out.height;
   const motionStyle = MOTION_STYLE_CODE_MAP[scene?.motionTemplate ?? renderParams.motionTemplate] ?? 0;
+  const fitMode = resolveCardFitMode(scene, renderParams);
 
-  /** Slot frame of slot `idx` in 0..1 preview units. */
-  const rectFor = (idx: number) => {
+  const photoAspectFor = (idx: number) => {
     const pid = scene?.slots[idx];
     const ph = pid ? slides.find((p) => p.id === pid) : undefined;
-    const quarter = Math.round((ph?.rotationDeg ?? 0) / 90) % 2 === 1;
-    const photoAspect = ph ? (quarter ? ph.height / ph.width : ph.width / ph.height) : undefined;
-    return getSlotFrameRect(scene?.layout ?? 'single', idx, canvasAspect, {
-      motionStyle,
-      photoAspect,
-      portraitMode: renderParams.portraitMode,
-    });
+    const quarter = Math.abs(Math.round((ph?.rotationDeg ?? 0) / 90)) % 2 === 1;
+    return ph ? (quarter ? ph.height / Math.max(1, ph.width) : ph.width / Math.max(1, ph.height)) : undefined;
   };
+
+  const forceFrame = hasCustomSingleFrame(scene);
+  const forceTilt3d = scene?.motionDirection === 'tilt-3d';
+
+  /** Effective slot frame of slot `idx` in 0..1 preview units (includes fit mode, group scale/gap, and manual override). */
+  const rectFor = (idx: number) =>
+    getEffectiveSlotFrameRect({
+      layout: scene?.layout ?? 'single',
+      slotIdx: idx,
+      canvasAspect,
+      motionStyle,
+      photoAspect: photoAspectFor(idx),
+      portraitMode: renderParams.portraitMode,
+      forceFrame,
+      forceTilt3d,
+      fitMode,
+      frameScale: scene?.frameScale,
+      frameGap: scene?.frameGap,
+      override: scene?.slotFrames?.[idx],
+    });
+
+  /** Base slot frame of slot `idx` before manual per-slot override (used to compute relative resize scale). */
+  const baseRectFor = (idx: number) =>
+    getEffectiveSlotFrameRect({
+      layout: scene?.layout ?? 'single',
+      slotIdx: idx,
+      canvasAspect,
+      motionStyle,
+      photoAspect: photoAspectFor(idx),
+      portraitMode: renderParams.portraitMode,
+      forceFrame,
+      forceTilt3d,
+      fitMode,
+      frameScale: scene?.frameScale,
+      frameGap: scene?.frameGap,
+      override: null,
+    });
 
   const frame = rectFor(slotIdx);
   /** The edited slot's frame in overlay pixels. */
@@ -80,5 +112,19 @@ export function usePhotoEditTarget(
   const fw = frame.w * box.width;
   const fh = frame.h * box.height;
 
-  return { box, scene, slotIdx, photo, editingEnd, setPhotoTransform, xf, rectFor, fx, fy, fw, fh };
+  return {
+    box,
+    scene,
+    slotIdx,
+    photo,
+    editingEnd,
+    setPhotoTransform,
+    xf,
+    rectFor,
+    baseRectFor,
+    fx,
+    fy,
+    fw,
+    fh,
+  };
 }

@@ -82,6 +82,18 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
   uniform vec4 uXfB1;
   uniform vec4 uXfB2;
   uniform vec4 uXfB3;
+  // Per-slot frame adjustment (fit-to-photo + group scale/gap + manual frame drag):
+  // xy = center offset (y up), zw = halfExt multipliers (scaleX, scaleY).
+  uniform vec4 uFrameA0;
+  uniform vec4 uFrameA1;
+  uniform vec4 uFrameA2;
+  uniform vec4 uFrameA3;
+  uniform vec4 uFrameB0;
+  uniform vec4 uFrameB1;
+  uniform vec4 uFrameB2;
+  uniform vec4 uFrameB3;
+  uniform int uForceFrameA;
+  uniform int uForceFrameB;
   uniform int uLayoutB;
   uniform int uMotionDirB;
 
@@ -249,6 +261,17 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     if (slot == 5) return uXfB1;
     if (slot == 6) return uXfB2;
     return uXfB3;
+  }
+
+  vec4 slotFrame(int slot) {
+    if (slot == 0) return uFrameA0;
+    if (slot == 1) return uFrameA1;
+    if (slot == 2) return uFrameA2;
+    if (slot == 3) return uFrameA3;
+    if (slot == 4) return uFrameB0;
+    if (slot == 5) return uFrameB1;
+    if (slot == 6) return uFrameB2;
+    return uFrameB3;
   }
 
   // Applies the user's move/scale/rotate to a 0..1 frame uv (inverse mapping:
@@ -602,7 +625,9 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
     vec2 effSz0 = effectiveSize(slotSize(base), slotRot(base));
     float asp0 = effSz0.x / max(1.0, effSz0.y);
     bool isPortrait = asp0 < 0.95;
-    bool framedSingle = polaroid || parallax || is3d || (isPortrait && uPortraitMode == 0 && canvasAspect > 1.05);
+    bool baseFramedSingle = polaroid || parallax || is3d || (isPortrait && uPortraitMode == 0 && canvasAspect > 1.05);
+    bool forceFrame = (scene == 0 ? uForceFrameA : uForceFrameB) > 0;
+    bool framedSingle = baseFramedSingle || forceFrame;
 
     if (!multi && !framedSingle) {
       // Plain full-frame Ken Burns: no background, no card.
@@ -648,10 +673,14 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
       drift = mix(-0.012, 0.012, easeP) * uMotionIntensity;
     } else {
       // Framed single photo
-      float frameH = polaroid ? 0.74 : (is3d ? 0.78 : (parallax ? 0.80 : 0.86));
-      float targetAsp = isPortrait ? asp0 : min(asp0, 1.65);
-      float frameW = min(0.84, frameH * targetAsp / canvasAspect);
-      halfExt = vec2(frameW, frameH) * 0.5;
+      if (!baseFramedSingle && forceFrame) {
+        halfExt = vec2(0.5, 0.5);
+      } else {
+        float frameH = polaroid ? 0.74 : (is3d ? 0.78 : (parallax ? 0.80 : 0.86));
+        float targetAsp = isPortrait ? asp0 : min(asp0, 1.65);
+        float frameW = min(0.84, frameH * targetAsp / canvasAspect);
+        halfExt = vec2(frameW, frameH) * 0.5;
+      }
       fgDrift = (parallax || is3d)
         ? vec2(mix(0.02, -0.02, easeP), mix(-0.008, 0.008, easeP)) * uMotionIntensity
         : vec2(0.0);
@@ -705,7 +734,9 @@ export const SCENE_TRANSITION_FRAGMENT_SHADER = /* glsl */ `
       // Staggered entry (2–4 photo scenes): the card fades in, optionally sliding up or zooming.
       int stStyle = scene == 0 ? uStaggerStyleA : uStaggerStyleB;
       float appear = 1.0;
-      vec2 cardHalfExt = halfExt;
+      vec4 fr = slotFrame(base + c);
+      center += fr.xy;
+      vec2 cardHalfExt = halfExt * fr.zw;
       if (stStyle > 0 && cardCount > 1) {
         vec4 st = scene == 0 ? uStaggerA : uStaggerB;
         appear = c == 0 ? st.x : (c == 1 ? st.y : (c == 2 ? st.z : st.w));

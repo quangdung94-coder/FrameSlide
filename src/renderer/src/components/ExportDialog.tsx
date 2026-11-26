@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { AppInfo, ExportCodec } from '@shared/types';
-import { codecExtension } from '@shared/exportPath';
+import { codecExtension, sanitizeFileStem } from '@shared/exportPath';
 import { currentExportRange, type ExportJobs } from '../hooks/useExportJobs';
 import { rangeFrameCount, type ExportRangeMode } from '@engine/frameRange';
+import { computeProjectDurationSec } from '@engine/timeline';
 import { useAppStore } from '../store/useAppStore';
 import { usePrefsStore } from '../store/usePrefsStore';
 import { Modal, SliderRow } from './ui';
@@ -30,9 +31,28 @@ interface Props {
  * "Xuất" button with a summary. Progress and result below.
  */
 export function ExportDialog({ jobs, appInfo, exportSize, effectiveDurationSec, onClose }: Props) {
-  const [tab, setTab] = useState<'single' | 'batch'>('single');
+  const workspacesRaw = useAppStore((s) => s.workspaces);
+  const activeWorkspaceId = useAppStore((s) => s.activeWorkspaceId);
   const slides = useAppStore((s) => s.slides);
-  const sceneCount = useAppStore((s) => s.scenes.length);
+  const scenes = useAppStore((s) => s.scenes);
+  const renderParams = useAppStore((s) => s.renderParams);
+  const sceneCount = scenes.length;
+
+  const allWorkspaces = useMemo(
+    () =>
+      workspacesRaw.map((w) =>
+        w.id === activeWorkspaceId ? { ...w, slides, scenes, renderParams } : w
+      ),
+    [workspacesRaw, activeWorkspaceId, slides, scenes, renderParams]
+  );
+
+  const [tab, setTab] = useState<'single' | 'batch' | 'projects'>(() =>
+    workspacesRaw.length > 1 ? 'projects' : 'single'
+  );
+  const [selectedProjectIds, setSelectedProjectIds] = useState<Set<string>>(
+    () => new Set(allWorkspaces.filter((w) => w.scenes.length > 0).map((w) => w.id))
+  );
+
   const fadeIn = useAppStore((s) => s.renderParams.videoFadeInSec);
   const fadeOut = useAppStore((s) => s.renderParams.videoFadeOutSec);
   const setVideoFadeInSec = useAppStore((s) => s.setVideoFadeInSec);
@@ -70,11 +90,26 @@ export function ExportDialog({ jobs, appInfo, exportSize, effectiveDurationSec, 
   const formatBlocked = format.ffmpeg && !ffmpegOk;
   const ext = codecExtension(codec);
   const clipCount = Math.ceil(slides.length / Math.max(1, jobs.batchSlidesPerClip));
+  const readyWorkspaces = allWorkspaces.filter((w) => w.scenes.length > 0);
+  const selectedProjects = readyWorkspaces.filter((w) => selectedProjectIds.has(w.id));
   const folder = jobs.outputFolder;
   const canExport =
     !isExporting &&
     !formatBlocked &&
-    (tab === 'single' ? sceneCount > 0 && (folder || !hasApi) : hasApi && slides.length > 0 && Boolean(folder));
+    (tab === 'single'
+      ? sceneCount > 0 && (folder || !hasApi)
+      : tab === 'batch'
+        ? hasApi && slides.length > 0 && Boolean(folder)
+        : hasApi && selectedProjects.length > 0 && Boolean(folder));
+
+  const toggleProject = (id: string) => {
+    setSelectedProjectIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   return (
     <Modal
@@ -84,11 +119,12 @@ export function ExportDialog({ jobs, appInfo, exportSize, effectiveDurationSec, 
       closeTitle="Đóng (Esc). Việc xuất đang chạy vẫn tiếp tục."
       onClose={onClose}
     >
-      <div className="grid grid-cols-2 overflow-hidden rounded border border-zinc-700" role="tablist" aria-label="Kiểu xuất">
+      <div className="grid grid-cols-3 overflow-hidden rounded border border-zinc-700" role="tablist" aria-label="Kiểu xuất">
         {(
           [
-            ['single', 'Một clip', `${exportSize.width}×${exportSize.height} • ${sceneCount} scene`],
-            ['batch', 'Nhiều clip B-roll', `Chia ${slides.length} ảnh thành nhiều clip`],
+            ['single', 'Một clip', `${sceneCount} scene`],
+            ['batch', 'Nhiều clip B-roll', `Chia ${slides.length} ảnh`],
+            ['projects', `Nhiều dự án (${allWorkspaces.length})`, `${readyWorkspaces.length} sẵn sàng`],
           ] as const
         ).map(([id, label, sub]) => (
           <button
@@ -155,9 +191,13 @@ export function ExportDialog({ jobs, appInfo, exportSize, effectiveDurationSec, 
             />
             <span className="shrink-0 font-mono text-zinc-500">.{ext}</span>
           </label>
-        ) : (
+        ) : tab === 'batch' ? (
           <p className="text-xs text-zinc-500">
             Các clip đặt tên …_BRoll_01, _02… Trùng tên file cũ thì tự thêm _2, không ghi đè.
+          </p>
+        ) : (
+          <p className="text-xs text-zinc-500">
+            Toàn bộ dự án đã chọn sẽ xuất chung vào thư mục trên, đặt tên theo tên từng tab (.{ext}). Trùng tên tự thêm _2.
           </p>
         )}
       </section>
@@ -194,7 +234,7 @@ export function ExportDialog({ jobs, appInfo, exportSize, effectiveDurationSec, 
             </p>
           )}
         </section>
-      ) : (
+      ) : tab === 'batch' ? (
         <section className={SECTION}>
           <div className={LABEL}>2. Chia clip</div>
           <label className="flex items-center gap-2 text-xs text-zinc-400">
@@ -212,6 +252,67 @@ export function ExportDialog({ jobs, appInfo, exportSize, effectiveDurationSec, 
               → <strong className="text-zinc-200">{clipCount}</strong> clip từ {slides.length} ảnh
             </span>
           </label>
+        </section>
+      ) : (
+        <section className={SECTION}>
+          <div className="flex items-center justify-between">
+            <div className={LABEL}>2. Chọn dự án cần xuất</div>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                disabled={isExporting}
+                onClick={() => setSelectedProjectIds(new Set(readyWorkspaces.map((w) => w.id)))}
+                className="rounded border border-zinc-700 px-2 py-0.5 text-2xs text-zinc-300 hover:border-amber-400 disabled:opacity-40"
+              >
+                Chọn tất cả
+              </button>
+              <button
+                type="button"
+                disabled={isExporting}
+                onClick={() => setSelectedProjectIds(new Set())}
+                className="rounded border border-zinc-700 px-2 py-0.5 text-2xs text-zinc-300 hover:border-amber-400 disabled:opacity-40"
+              >
+                Bỏ chọn
+              </button>
+            </div>
+          </div>
+          <div className="max-h-44 space-y-1 overflow-y-auto rounded border border-zinc-800 bg-zinc-950 p-2">
+            {allWorkspaces.map((w, idx) => {
+              const hasScenes = w.scenes.length > 0;
+              const checked = hasScenes && selectedProjectIds.has(w.id);
+              const dur = hasScenes ? computeProjectDurationSec(w.scenes, w.renderParams) : 0;
+              const stem = sanitizeFileStem(w.name) ?? `DuAn_${String(idx + 1).padStart(2, '0')}`;
+              return (
+                <label
+                  key={w.id}
+                  className={`flex items-center justify-between gap-2 rounded px-2 py-1 text-xs ${
+                    hasScenes ? 'cursor-pointer text-zinc-200 hover:bg-zinc-900' : 'cursor-not-allowed text-zinc-600'
+                  }`}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={!hasScenes || isExporting}
+                      onChange={() => toggleProject(w.id)}
+                      className="accent-amber-400"
+                    />
+                    <span className="truncate font-medium" title={`${stem}.${ext}`}>
+                      {w.name}
+                    </span>
+                    {w.exportedInSession && (
+                      <span className="shrink-0 rounded bg-emerald-500/20 px-1 text-2xs text-emerald-300">
+                        ✓ Đã xuất
+                      </span>
+                    )}
+                  </span>
+                  <span className="shrink-0 font-mono text-2xs text-zinc-400">
+                    {hasScenes ? `${w.scenes.length} sc • ${dur.toFixed(1)}s` : 'Chưa có scene'}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
         </section>
       )}
 
@@ -247,10 +348,12 @@ export function ExportDialog({ jobs, appInfo, exportSize, effectiveDurationSec, 
 
       <section className={SECTION}>
         <div className={LABEL}>4. Tùy chọn</div>
-        <div className="grid grid-cols-2 gap-2">
-          <SliderRow label="Fade In đầu (s)" value={fadeIn} min={0} max={1.5} step={0.1} disabled={isExporting} onChange={setVideoFadeInSec} />
-          <SliderRow label="Fade Out cuối (s)" value={fadeOut} min={0} max={1.5} step={0.1} disabled={isExporting} onChange={setVideoFadeOutSec} />
-        </div>
+        {tab !== 'projects' && (
+          <div className="grid grid-cols-2 gap-2">
+            <SliderRow label="Fade In đầu (s)" value={fadeIn} min={0} max={1.5} step={0.1} disabled={isExporting} onChange={setVideoFadeInSec} />
+            <SliderRow label="Fade Out cuối (s)" value={fadeOut} min={0} max={1.5} step={0.1} disabled={isExporting} onChange={setVideoFadeOutSec} />
+          </div>
+        )}
         {hasApi && (
           <label className="flex items-center gap-2 text-xs text-zinc-300">
             <input
@@ -268,26 +371,42 @@ export function ExportDialog({ jobs, appInfo, exportSize, effectiveDurationSec, 
         <p className="truncate text-xs text-zinc-400" title={folder}>
           {tab === 'single'
             ? `${exportSize.width}×${exportSize.height} • ${fps}fps • ${exportSec.toFixed(1)}s • ${format.label}`
-            : `${clipCount} clip • ${exportSize.width}×${exportSize.height} • ${fps}fps • ${format.label}`}
+            : tab === 'batch'
+              ? `${clipCount} clip • ${exportSize.width}×${exportSize.height} • ${fps}fps • ${format.label}`
+              : `${selectedProjects.length} dự án • ${fps}fps (dùng chung) • ${format.label}`}
           {folder ? ` → ${folder}` : ''}
         </p>
         <button
           type="button"
-          onClick={() => void (tab === 'single' ? jobs.exportSingle() : jobs.exportBatch())}
+          onClick={() =>
+            void (tab === 'single'
+              ? jobs.exportSingle()
+              : tab === 'batch'
+                ? jobs.exportBatch()
+                : jobs.exportWorkspaces(selectedProjects.map((w) => w.id)))
+          }
           disabled={!canExport}
           className="w-full rounded bg-emerald-500 px-3 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 disabled:opacity-40"
         >
-          {isExporting ? 'Đang xuất…' : tab === 'single' ? `Xuất ${format.label}` : `Xuất ${clipCount} clip ${format.label}`}
+          {isExporting
+            ? 'Đang xuất…'
+            : tab === 'single'
+              ? `Xuất ${format.label}`
+              : tab === 'batch'
+                ? `Xuất ${clipCount} clip ${format.label}`
+                : `Xuất ${selectedProjects.length} dự án (${format.label})`}
         </button>
       </div>
 
       {progress && (
         <div className="space-y-1.5 rounded border border-zinc-700 bg-zinc-900 p-2.5">
-          <div className="flex justify-between text-xs">
-            <span>
-              {progress.clipCount ? `Clip ${progress.clipIndex}/${progress.clipCount}` : 'Đang render 1080p...'}
+          <div className="flex justify-between gap-2 text-xs">
+            <span className="truncate">
+              {progress.clipCount
+                ? `${progress.clipName ? `Dự án ${progress.clipIndex}/${progress.clipCount}: ${progress.clipName}` : `Clip ${progress.clipIndex}/${progress.clipCount}`}`
+                : 'Đang render 1080p...'}
             </span>
-            <span className="font-mono">{progress.percent}%</span>
+            <span className="shrink-0 font-mono">{progress.percent}%</span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded bg-zinc-800">
             <div className="h-full bg-amber-400 transition-all" style={{ width: `${progress.percent}%` }} />
@@ -312,6 +431,18 @@ export function ExportDialog({ jobs, appInfo, exportSize, effectiveDurationSec, 
             {summary.totalFrames} frames trong {(summary.durationMs / 1000).toFixed(2)}s •{' '}
             {summary.speedFactor.toFixed(2)}x realtime
           </div>
+          {summary.failedClips && summary.failedClips.length > 0 && (
+            <div className="mt-2 rounded border border-amber-500/40 bg-amber-950/40 p-2 text-2xs text-amber-200">
+              <div className="font-semibold">Có {summary.failedClips.length} dự án bị lỗi (các dự án khác vẫn xuất xong):</div>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                {summary.failedClips.map((fc, i) => (
+                  <li key={`${fc.name}-${i}`}>
+                    <strong>{fc.name}</strong>: {fc.error}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {summary.filePath && (
             <div className="mt-1.5 flex items-center justify-between gap-2">
               <div className="truncate text-xs text-zinc-400" title={summary.filePath}>

@@ -31,7 +31,12 @@ export function useProjectFiles({ engineRef, isExporting, onNotice, onError }: O
     window.frameSlideAPI
       ?.loadAutosave()
       .then((saved) => {
-        if (saved && saved.slides.length > 0) setAutosaveBanner(saved);
+        if (
+          saved &&
+          (saved.slides.length > 0 || saved.workspaces?.some((w) => w.slides.length > 0))
+        ) {
+          setAutosaveBanner(saved);
+        }
       })
       .catch(() => {});
   }, []);
@@ -42,7 +47,11 @@ export function useProjectFiles({ engineRef, isExporting, onNotice, onError }: O
     if (!window.frameSlideAPI || autosaveSec <= 0) return;
     const timer = setInterval(() => {
       const state = useAppStore.getState();
-      if (state.slides.length > 0) {
+      const allWs = state.getAllWorkspacesSnapshot();
+      const hasRealWork = allWs.some(
+        (w) => (w.slides.length > 0 && !w.isSampleOnly) || w.past.length > 0
+      );
+      if (hasRealWork) {
         void window.frameSlideAPI?.writeAutosave(state.toProjectFileData());
       }
     }, autosaveSec * 1000);
@@ -57,9 +66,21 @@ export function useProjectFiles({ engineRef, isExporting, onNotice, onError }: O
         const loaded = window.frameSlideAPI
           ? await window.frameSlideAPI.loadSampleImages()
           : createBrowserFallbackSamples();
-        if (active) setSlides(loaded, false);
+        const st = useAppStore.getState();
+        const untouchedSample =
+          st.workspaces.length === 1 &&
+          st.workspaces[0]?.isSampleOnly &&
+          st.slides.length === 0 &&
+          !st.projectFilePath;
+        if (active && untouchedSample) setSlides(loaded, false, true);
       } catch {
-        if (active) setSlides(createBrowserFallbackSamples(), false);
+        const st = useAppStore.getState();
+        const untouchedSample =
+          st.workspaces.length === 1 &&
+          st.workspaces[0]?.isSampleOnly &&
+          st.slides.length === 0 &&
+          !st.projectFilePath;
+        if (active && untouchedSample) setSlides(createBrowserFallbackSamples(), false, true);
       } finally {
         if (active) setLoadingSlides(false);
       }
@@ -82,7 +103,7 @@ export function useProjectFiles({ engineRef, isExporting, onNotice, onError }: O
       const loaded = window.frameSlideAPI
         ? await window.frameSlideAPI.loadSampleImages()
         : createBrowserFallbackSamples();
-      setSlides(loaded, true);
+      setSlides(loaded, true, true);
     } finally {
       setLoadingSlides(false);
     }
@@ -171,21 +192,41 @@ export function useProjectFiles({ engineRef, isExporting, onNotice, onError }: O
     setIsPlaying(false);
     setLoadingSlides(true);
     try {
-      const rehydratedSlides = window.frameSlideAPI
-        ? await window.frameSlideAPI.rehydrateSlides(data.slides)
-        : data.slides;
-      loadProjectData({ ...data, slides: rehydratedSlides }, filePath);
+      let nextData = data;
+      if (window.frameSlideAPI && data.version === 3 && Array.isArray(data.workspaces)) {
+        const rehydratedWorkspaces = [];
+        for (const ws of data.workspaces) {
+          rehydratedWorkspaces.push({
+            ...ws,
+            slides: await window.frameSlideAPI.rehydrateSlides(ws.slides),
+          });
+        }
+        const activeWs =
+          rehydratedWorkspaces.find((w) => w.id === data.activeWorkspaceId) ??
+          rehydratedWorkspaces[0];
+        nextData = {
+          ...data,
+          slides: activeWs?.slides ?? data.slides,
+          workspaces: rehydratedWorkspaces,
+        };
+      } else if (window.frameSlideAPI) {
+        const rehydratedSlides = await window.frameSlideAPI.rehydrateSlides(data.slides);
+        nextData = { ...data, slides: rehydratedSlides };
+      }
 
+      loadProjectData(nextData, filePath);
+
+      const activeLutPath = useAppStore.getState().customLut?.filePath ?? null;
       let lutRestored = false;
-      if (data.customLutPath && window.frameSlideAPI) {
-        const content = await window.frameSlideAPI.readTextFile(data.customLutPath);
+      if (activeLutPath && window.frameSlideAPI) {
+        const content = await window.frameSlideAPI.readTextFile(activeLutPath);
         if (content && engineRef.current) {
           try {
             const parsed = engineRef.current.setCustomCubeLut(content);
             if (parsed) {
               setCustomLut({
                 name: parsed.title,
-                filePath: data.customLutPath,
+                filePath: activeLutPath,
                 size: parsed.size,
               });
               lutRestored = true;
