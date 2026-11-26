@@ -93,7 +93,7 @@ jobs:
           retention-days: 30
 
   package-macos:
-    runs-on: macos-15
+    runs-on: macos-latest
     timeout-minutes: 40
     steps:
       - name: Checkout repository
@@ -179,16 +179,18 @@ jobs:
 
   publish-release:
     needs: [package-windows, package-macos]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.package-windows.result == 'success' || needs.package-macos.result == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Tải file đóng gói Windows
+        if: needs.package-windows.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: FrameSlide-Windows
           path: release-assets
 
       - name: Tải file đóng gói macOS Apple Silicon
+        if: needs.package-macos.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: FrameSlide-macOS-AppleSilicon
