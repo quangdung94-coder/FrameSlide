@@ -2,6 +2,8 @@
 
 > **Quy tắc cập nhật:** Sau mỗi đầu việc hoàn thành và vượt qua kiểm tra/test, đánh dấu `[x]` vào mục tương ứng.
 
+> **Trạng thái 26/11/2026:** Bước 1 → 6 đã xong. Bản `FrameSlide-Setup-0.9.0.exe` (Release `ban-moi-nhat`, PR #48–#51) đã được anh Dũng xác nhận **chạy ổn định trên máy chính**. Còn lại trước v1.0: thử trên máy yếu hơn và sửa lỗi phát sinh.
+
 ---
 
 ## Bước 1: Hoàn thiện tài liệu kiến trúc & kế hoạch
@@ -56,11 +58,13 @@
 
 ---
 
-## Bước 6: Đóng gói & Thử nghiệm thực tế
+## Bước 6: Đóng gói & Thử nghiệm thực tế ✅ (đã phát hành v0.9.0, chạy ổn định 26/11/2026)
 - [x] Cấu hình `electron-builder` tạo bộ cài `.exe` (NSIS) kèm sẵn FFmpeg binary (thêm bản chạy liền Portable, icon, workflow `release.yml` đóng gói + tự kiểm tra trên Windows CI, cập nhật GitHub Release "bản mới nhất"; hướng dẫn: `docs/HUONG_DAN_CAI_DAT.md`)
 - [x] Thêm kiểm tra GPU/Driver lần đầu mở app & cảnh báo thân thiện (`GpuNotice`: không WebGL2 / vẽ bằng CPU / không 16-bit / card tích hợp, mỗi loại hiện một lần)
-- [ ] Thử nghiệm trên máy chính và ít nhất 1 máy cấu hình yếu hơn
-- [ ] Sửa lỗi phát sinh và phát hành bản v1.0 dùng thực tế
+- [x] Thử nghiệm trên máy chính: anh Dũng cài `FrameSlide-Setup-0.9.0.exe`, chạy ổn định (xác nhận 26/11/2026)
+- [ ] Thử nghiệm trên ít nhất 1 máy cấu hình yếu hơn
+- [x] Phát hành bản dùng thực tế đầu tiên: v0.9.0 (Setup + Portable, kèm FFmpeg) trên GitHub Release `ban-moi-nhat`
+- [ ] Sửa lỗi phát sinh (nếu có) và nâng lên v1.0
 
 ---
 
